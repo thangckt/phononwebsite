@@ -10,6 +10,31 @@ const vec_0 = new THREE.Vector3( 0, 0, 0 );
 const direction = new THREE.Vector3( 0, 0, 0 );
 const quaternion = new THREE.Quaternion();
 
+function getComplexParts(z) {
+    if (z && z.__rawComplex) {
+        z = z.__rawComplex;
+    }
+
+    let re = 0.0;
+    let im = 0.0;
+
+    if (z && typeof z.real === 'number') {
+        re = z.real;
+    } else if (z && typeof z.real === 'function') {
+        re = z.real();
+    }
+
+    if (z && typeof z.im === 'number') {
+        im = z.im;
+    } else if (z && typeof z.imag === 'number') {
+        im = z.imag;
+    } else if (z && typeof z.imag === 'function') {
+        im = z.imag();
+    }
+
+    return [re, im];
+}
+
 function getBond( point1, point2 ) {
     /*
     get a quaternion and midpoint that links two points
@@ -33,6 +58,7 @@ export class VibCrystal {
         this.time = 0,
         this.lastFrameTime = null;
         this.animationFrameId = null;
+        this.needsRender = true;
         this.arrows = false;
         this.cell = false;
         this.paused = false;
@@ -48,6 +74,7 @@ export class VibCrystal {
         this.scene = null;
         this.renderer = null;
         this.capturer = null;
+        this.vibrationComponents = [];
 
         //camera options
         this.cameraDistance = 100;
@@ -275,7 +302,12 @@ export class VibCrystal {
         this.controls.noPan = false;
         this.controls.staticMoving = true;
         this.controls.dynamicDampingFactor = 0.3;
-        this.controls.addEventListener( 'change', this.render.bind(this) );
+        this.controls.addEventListener( 'change', function() {
+            this.needsRender = true;
+            if (this.paused) {
+                this.render();
+            }
+        }.bind(this) );
 
         // world
         this.scene = new THREE.Scene();
@@ -593,6 +625,11 @@ export class VibCrystal {
         this.phonon     = phononweb.phonon;
         this.vibrations = phononweb.vibrations;
         this.atoms      = phononweb.atoms;
+        this.vibrationComponents = this.vibrations.map((v) => [
+            getComplexParts(v[0]),
+            getComplexParts(v[1]),
+            getComplexParts(v[2])
+        ]);
 
         //check if it is initialized
         if (!this.initialized) {
@@ -610,6 +647,7 @@ export class VibCrystal {
         this.addStructure(this.atoms,this.phonon.atom_numbers);
         this.addCell(this.phonon.lat);
         this.adjustCovalentRadiiSelect();
+        this.needsRender = true;
         this.startAnimationLoop();
     }
 
@@ -648,6 +686,7 @@ export class VibCrystal {
 
         this.renderer.setSize( this.dimensions.width, this.dimensions.height );
         this.controls.handleResize();
+        this.needsRender = true;
         this.render();
     }
 
@@ -657,6 +696,7 @@ export class VibCrystal {
         if (!this.paused) {
             this.lastFrameTime = null;
         }
+        this.needsRender = true;
     }
 
     pause() {
@@ -686,12 +726,16 @@ export class VibCrystal {
             this.time += dt * this.speed;
         }
         this.controls.update();
-        this.render();
+        if (!this.paused || this.needsRender) {
+            this.render();
+        }
         this.animationFrameId = requestAnimationFrame( this.animate.bind(this) );
     }
 
     render() {
-        let phase = Complex.Polar(this.amplitude,this.time*2.0*mat.pi);
+        let phaseAngle = this.time * 2.0 * mat.pi;
+        let phaseRe = this.amplitude * Math.cos(phaseAngle);
+        let phaseIm = this.amplitude * Math.sin(phaseAngle);
         let v = new THREE.Vector3();
 
         if (!this.paused) {
@@ -700,11 +744,11 @@ export class VibCrystal {
             for (let i=0; i<this.atomobjects.length; i++) {
                 let atom       = this.atomobjects[i];
                 let atompos    = this.atompos[i];
-                let vibrations = this.vibrations[i];
+                let vibrations = this.vibrationComponents[i];
 
-                let vx = phase.mult(vibrations[0]).real();
-                let vy = phase.mult(vibrations[1]).real();
-                let vz = phase.mult(vibrations[2]).real();
+                let vx = phaseRe * vibrations[0][0] - phaseIm * vibrations[0][1];
+                let vy = phaseRe * vibrations[1][0] - phaseIm * vibrations[1][1];
+                let vz = phaseRe * vibrations[2][0] - phaseIm * vibrations[2][1];
 
                 let x  = atompos.x + vx;
                 let y  = atompos.y + vy;
@@ -746,5 +790,6 @@ export class VibCrystal {
         }
 
         this.stats.update();
+        this.needsRender = false;
     }
 }
