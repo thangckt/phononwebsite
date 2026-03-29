@@ -127,8 +127,12 @@ export class VibCrystal {
         this.bondscolor = 0xffffff;
         this.arrowobjects = [];
         this.atomobjects = [];
+        this.atommeshes = [];
+        this.atomInstanceRefs = [];
         this.bondobjects = [];
+        this.bondmesh = null;
         this.bonds = [];
+        this.instanceDummy = new THREE.Object3D();
 		this.modified_covalent_radii = JSON.parse(JSON.stringify(atomic_data.covalent_radii));
     }
 
@@ -474,7 +478,10 @@ export class VibCrystal {
         Add the atoms from the phononweb object
         */
         this.atomobjects  = [];
+        this.atommeshes = [];
+        this.atomInstanceRefs = [];
         this.bondobjects  = [];
+        this.bondmesh = null;
         this.arrowobjects = [];
         this.atompos = [];
         this.atomvel = [];
@@ -490,32 +497,71 @@ export class VibCrystal {
         geometricCenter.multiplyScalar(1.0/atoms.length);
         this.geometricCenter = geometricCenter;
 
-        //atoms balls geometry
-        let sphereGeometry = null;
-        if (this.display != 'vesta') {
-            sphereGeometry = new THREE.SphereGeometry( this.sphereRadius, this.sphereLat, this.sphereLon);
+        // Build one instanced mesh per atom type/material.
+        let instancesPerType = new Map();
+        for (let i=0; i<atoms.length; i++) {
+            let typeIndex = atoms[i][0];
+            instancesPerType.set(typeIndex, (instancesPerType.get(typeIndex) || 0) + 1);
         }
 
-        //add a ball for each atom
-        for (let i=0; i<atoms.length; i++) {
+        let meshesByType = new Map();
+        let nextInstanceByType = new Map();
+        instancesPerType.forEach((count, typeIndex) => {
+            let sphereGeometry;
             if (this.display == 'vesta') {
-                sphereGeometry = new THREE.SphereGeometry( atomic_data.covalent_radii[atom_numbers[atoms[i][0]]]/2.3,
-                                                           this.sphereLat, this.sphereLon);
+                sphereGeometry = new THREE.SphereGeometry(
+                    atomic_data.covalent_radii[atom_numbers[typeIndex]]/2.3,
+                    this.sphereLat,
+                    this.sphereLon
+                );
+            } else {
+                sphereGeometry = new THREE.SphereGeometry(
+                    this.sphereRadius,
+                    this.sphereLat,
+                    this.sphereLon
+                );
             }
-            let object = new THREE.Mesh( sphereGeometry, this.materials[atoms[i][0]] );
+
+            let instancedMesh = new THREE.InstancedMesh(sphereGeometry, this.materials[typeIndex], count);
+            instancedMesh.name = "atoms-" + typeIndex;
+            instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            instancedMesh.frustumCulled = false;
+            this.scene.add(instancedMesh);
+            this.atommeshes.push(instancedMesh);
+            meshesByType.set(typeIndex, instancedMesh);
+            nextInstanceByType.set(typeIndex, 0);
+        });
+
+        //add an atom state for each atom and assign it to the corresponding instance
+        for (let i=0; i<atoms.length; i++) {
+            let typeIndex = atoms[i][0];
             let pos = new THREE.Vector3(atoms[i][1], atoms[i][2], atoms[i][3]);
             pos.sub(geometricCenter);
 
-            object.position.copy(pos);
-            object.name = "atom";
-            object.atom_number = atom_numbers[atoms[i][0]];
+            let atomState = {
+                name: "atom",
+                atom_number: atom_numbers[typeIndex],
+                position: pos.clone(),
+                velocity: vec_0.clone()
+            };
 
-            object.velocity = vec_0.clone();
+            let mesh = meshesByType.get(typeIndex);
+            let instanceId = nextInstanceByType.get(typeIndex);
+            nextInstanceByType.set(typeIndex, instanceId + 1);
+            this.atomInstanceRefs.push({ mesh: mesh, instanceId: instanceId });
 
-            this.scene.add( object );
-            this.atomobjects.push( object );
-            this.atompos.push( pos );
+            this.instanceDummy.position.copy(pos);
+            this.instanceDummy.quaternion.set(0, 0, 0, 1);
+            this.instanceDummy.scale.set(1, 1, 1);
+            this.instanceDummy.updateMatrix();
+            mesh.setMatrixAt(instanceId, this.instanceDummy.matrix);
 
+            this.atomobjects.push(atomState);
+            this.atompos.push(pos);
+        }
+
+        for (let i=0; i<this.atommeshes.length; i++) {
+            this.atommeshes[i].instanceMatrix.needsUpdate = true;
         }
 
         //add arrows
@@ -553,10 +599,9 @@ export class VibCrystal {
         //obtain combinations two by two of all the atoms
         let combinations = utils.getCombinations( this.atomobjects );
         let a, b, length;
-        let material = new THREE.MeshLambertMaterial( { color: this.bondscolor,
-                                                        blending: THREE.NormalBlending } );
+        let bondColors = [];
 
-        //add bonds
+        //collect bonds first
         for (let i=0; i<combinations.length; i++) {
             a = combinations[i][0];
             b = combinations[i][1];
@@ -568,30 +613,56 @@ export class VibCrystal {
             let cra = this.modified_covalent_radii[a.atom_number];
             let crb = this.modified_covalent_radii[b.atom_number];
             if (length < cra + crb || length < this.nndist ) {
-                this.bonds.push( [ad,bd,length] );
+                this.bonds.push({ a: ad, b: bd, baseLength: length });
                 if (this.display == 'vesta') {
                     let cr = (atomic_data.vesta_colors[a.atom_number][0] + atomic_data.vesta_colors[b.atom_number][0]) / 2;
                     let cg = (atomic_data.vesta_colors[a.atom_number][1] + atomic_data.vesta_colors[b.atom_number][1]) / 2;
                     let cb = (atomic_data.vesta_colors[a.atom_number][2] + atomic_data.vesta_colors[b.atom_number][2]) / 2;
-                    material.color.setRGB( cr, cg, cb );
+                    bondColors.push([cr, cg, cb]);
+                } else {
+                    bondColors.push(null);
                 }
-
-                //get transformations
-                let bond = getBond(ad,bd);
-
-                //create cylinder mesh
-                let cylinderGeometry = new THREE.CylinderGeometry( this.bondRadius, this.bondRadius,
-                                                                   length, this.bondSegments,
-                                                                   this.bondVertical, true);
-                let object = new THREE.Mesh(cylinderGeometry, material);
-
-                object.setRotationFromQuaternion( bond.quaternion );
-                object.position.copy( bond.midpoint );
-                object.name = "bond";
-
-                this.scene.add( object );
-                this.bondobjects.push( object );
             }
+        }
+
+        //build one instanced mesh for all bonds
+        if (this.bonds.length > 0) {
+            let bondGeometry = new THREE.CylinderGeometry(
+                this.bondRadius, this.bondRadius, 1.0, this.bondSegments, this.bondVertical, true
+            );
+            let bondMaterial = new THREE.MeshLambertMaterial({
+                color: this.bondscolor,
+                blending: THREE.NormalBlending,
+                vertexColors: this.display == 'vesta'
+            });
+
+            this.bondmesh = new THREE.InstancedMesh(bondGeometry, bondMaterial, this.bonds.length);
+            this.bondmesh.name = "bonds";
+            this.bondmesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            this.bondmesh.frustumCulled = false;
+
+            for (let i=0; i<this.bonds.length; i++) {
+                let bond = this.bonds[i];
+                let bonddata = getBond(bond.a, bond.b);
+                this.instanceDummy.position.copy(bonddata.midpoint);
+                this.instanceDummy.quaternion.copy(bonddata.quaternion);
+                this.instanceDummy.scale.set(1, bond.baseLength, 1);
+                this.instanceDummy.updateMatrix();
+                this.bondmesh.setMatrixAt(i, this.instanceDummy.matrix);
+
+                if (this.display == 'vesta' && this.bondmesh.setColorAt && bondColors[i]) {
+                    this.bondmesh.setColorAt(
+                        i,
+                        new THREE.Color(bondColors[i][0], bondColors[i][1], bondColors[i][2])
+                    );
+                }
+            }
+
+            this.bondmesh.instanceMatrix.needsUpdate = true;
+            if (this.display == 'vesta' && this.bondmesh.instanceColor) {
+                this.bondmesh.instanceColor.needsUpdate = true;
+            }
+            this.scene.add(this.bondmesh);
         }
 
     }
@@ -754,7 +825,13 @@ export class VibCrystal {
                 let y  = atompos.y + vy;
                 let z  = atompos.z + vz;
 
-                this.atomobjects[i].position.set( x, y, z);
+                atom.position.set( x, y, z );
+                let atomInstance = this.atomInstanceRefs[i];
+                this.instanceDummy.position.copy(atom.position);
+                this.instanceDummy.quaternion.set(0, 0, 0, 1);
+                this.instanceDummy.scale.set(1, 1, 1);
+                this.instanceDummy.updateMatrix();
+                atomInstance.mesh.setMatrixAt(atomInstance.instanceId, this.instanceDummy.matrix);
 
                 if (this.arrows) {
 
@@ -771,13 +848,20 @@ export class VibCrystal {
 
             //update the bonds positions
             for (let i=0; i<this.bonds.length; i++) {
-                let bond       = this.bonds[i];
-                let bonddata   = getBond(bond[0],bond[1]);
-                let bondobject = this.bondobjects[i];
+                let bond = this.bonds[i];
+                let bonddata = getBond(bond.a, bond.b);
+                this.instanceDummy.position.copy(bonddata.midpoint);
+                this.instanceDummy.quaternion.copy(bonddata.quaternion);
+                this.instanceDummy.scale.set(1, bond.a.distanceTo(bond.b), 1);
+                this.instanceDummy.updateMatrix();
+                this.bondmesh.setMatrixAt(i, this.instanceDummy.matrix);
+            }
 
-                bondobject.setRotationFromQuaternion( bonddata.quaternion );
-                bondobject.scale.y = bond[0].distanceTo(bond[1])/bond[2];
-                bondobject.position.copy( bonddata.midpoint );
+            for (let i=0; i<this.atommeshes.length; i++) {
+                this.atommeshes[i].instanceMatrix.needsUpdate = true;
+            }
+            if (this.bondmesh) {
+                this.bondmesh.instanceMatrix.needsUpdate = true;
             }
 
         }
