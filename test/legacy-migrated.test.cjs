@@ -159,7 +159,7 @@ describe('Legacy tests migrated to Mocha/CommonJS', function () {
     const dispersion = { updated: false, setClickEvent() {}, update() { this.updated = true; } };
     const p = new PhononWebpage(visualizer, dispersion);
 
-    p.loadURL({ json: 'tests/pymatgen/mp-149_pmg_bs.json', name: 'Silicon PMG' });
+    p.loadURL({ json: 'test/fixtures/pymatgen/mp-149_pmg_bs.json', name: 'Silicon PMG' });
 
     assert.ok(p.phonon && p.phonon.natoms > 0, 'PMG phonon data should be loaded');
     assert.ok(Array.isArray(p.phonon.kpoints) && p.phonon.kpoints.length > 0, 'k-point data should be present');
@@ -172,7 +172,7 @@ describe('Legacy tests migrated to Mocha/CommonJS', function () {
     const dispersion = { updated: false, setClickEvent() {}, update() { this.updated = true; } };
     const p = new PhononWebpage(visualizer, dispersion);
 
-    p.loadURL({ yaml: 'tests/phonopy/band.yaml', name: 'Graphene Phonopy' });
+    p.loadURL({ yaml: 'test/fixtures/phonopy/band.yaml', name: 'Graphene Phonopy' });
 
     assert.ok(p.phonon && p.phonon.natoms > 0, 'phonopy yaml should be loaded');
     assert.ok(Array.isArray(p.phonon.eigenvalues) && p.phonon.eigenvalues.length > 0, 'eigenvalues should be present');

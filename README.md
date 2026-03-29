@@ -97,7 +97,7 @@ The available tags are:
 
 Here are some examples of what can be added to the website link:
 
-  - [?yaml=http://henriquemiranda.github.io/phononwebsite/tests/phonopy/band.yaml](http://henriquemiranda.github.io/phononwebsite/phonon.html?yaml=http://henriquemiranda.github.io/phononwebsite/tests/phonopy/band.yaml)
+  - [?yaml=http://henriquemiranda.github.io/phononwebsite/test/fixtures/phonopy/band.yaml](http://henriquemiranda.github.io/phononwebsite/phonon.html?yaml=http://henriquemiranda.github.io/phononwebsite/test/fixtures/phonopy/band.yaml)
   - [?json=http://henriquemiranda.github.io/phononwebsite/localdb/graphene/data.json](http://henriquemiranda.github.io/phononwebsite/phonon.html?json=http://henriquemiranda.github.io/phononwebsite/localdb/graphene/data.json)
 
 You are free to use all the images generated with this website in your publications and presentations as long as you cite this work (a link to the website is enough). For the license terms of the data from [phonodb](http://phonondb.mtl.kyoto-u.ac.jp/) please refer to their website.

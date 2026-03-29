@@ -5,7 +5,7 @@
   "main": "build/main.js",
   "directories": {
     "doc": "doc",
-    "test": "tests"
+    "test": "test"
   },
   "dependencies": {
     "@rollup/plugin-commonjs": "^28.0.3",
@@ -30,11 +30,11 @@
     "terser": "^5.44.0"
   },
   "scripts": {
-    "test": "npm run build-uglify && mocha test/smoke.test.cjs test/legacy-migrated.test.cjs",
-    "test:legacy": "mocha test/test_phononwebsite.js",
-    "copy": "cp -r figures css libs contribdb localdb mpdb README.md index.html phonon.html build/",
-    "build": "rollup -c",
-    "build-uglify": "rollup -c && terser build/main.js -c -m --source-map \"content=build/main.js.map,url=main.min.js.map\" -o build/main.min.js"
+    "clean:build": "rm -rf build && mkdir -p build",
+    "build": "npm run clean:build && rollup -c",
+    "build-uglify": "npm run build && terser build/main.js -c -m --source-map \"content=build/main.js.map,url=main.min.js.map\" -o build/main.min.js",
+    "copy": "mkdir -p build/test && cp -r figures css libs contribdb localdb mpdb README.md index.html phonon.html build/ && cp -r test/fixtures build/test/",
+    "test": "npm run build-uglify && mocha test/smoke.test.cjs test/legacy-migrated.test.cjs"
   },
   "repository": {
     "type": "git",
