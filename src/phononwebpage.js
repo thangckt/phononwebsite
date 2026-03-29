@@ -220,6 +220,9 @@ export class PhononWebpage {
         */
         this.name = this.phonon.name;
         this.setRepetitions(this.phonon.repetitions);
+        if (!this.enforceVisualizationLimits(true)) {
+            return;
+        }
         this.update();
     }
 
@@ -349,6 +352,9 @@ export class PhononWebpage {
 
         //update structure
         this.getRepetitions();
+        if (!this.enforceVisualizationLimits(false)) {
+            return;
+        }
         this.atoms = this.getStructure(this.nx,this.ny,this.nz);
         this.vibrations = this.getVibrations(this.nx,this.ny,this.nz);
         this.phonon.nndist = this.getBondingDistance();
@@ -361,6 +367,34 @@ export class PhononWebpage {
 
         //update visualizer
         this.visualizer.update(this);
+    }
+
+    estimateDisplayedAtoms() {
+        if (!this.phonon || !this.phonon.natoms) {
+            return 0;
+        }
+        return Number(this.phonon.natoms) * Number(this.nx) * Number(this.ny) * Number(this.nz);
+    }
+
+    enforceVisualizationLimits(fromLoadCallback) {
+        const maxDisplayedAtoms = 5000;
+        const displayedAtoms = this.estimateDisplayedAtoms();
+
+        if (displayedAtoms <= maxDisplayedAtoms) {
+            return true;
+        }
+
+        if (fromLoadCallback && this.phonon && this.phonon.natoms <= maxDisplayedAtoms) {
+            this.setRepetitions([1, 1, 1]);
+            return true;
+        }
+
+        alert(
+            'This structure is too large to render interactively (' +
+            displayedAtoms +
+            ' atoms after repetitions). Please reduce repetitions or use a smaller structure.'
+        );
+        return false;
     }
 
     updatePage() {

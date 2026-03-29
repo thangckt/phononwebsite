@@ -80,10 +80,10 @@ export function getReasonableRepetitions(natoms,lat) {
     in which directions the repetitions are made
     */
 
-    if (natoms < 4)        { return [3,3,3] };
-    if (4 < natoms < 15)   { return [2,2,2] };
-    if (15 < natoms < 50)  { return [2,2,1] };
-    if (50 < natoms)       { return [1,1,1] };
+    if (natoms <= 4)                              { return [3,3,3]; }
+    if (natoms > 4 && natoms <= 15)              { return [2,2,2]; }
+    if (natoms > 15 && natoms <= 50)             { return [2,2,1]; }
+    return [1,1,1];
 
 }
 
