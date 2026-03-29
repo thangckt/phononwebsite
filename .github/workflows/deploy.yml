@@ -23,8 +23,8 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Copy extra files
-        run: npm run copy
+      - name: Build deploy site
+        run: npm run build:site
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
