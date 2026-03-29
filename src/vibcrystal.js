@@ -74,6 +74,7 @@ export class VibCrystal {
         this.scene = null;
         this.renderer = null;
         this.capturer = null;
+        this.captureState = 'idle';
         this.vibrationComponents = [];
 
         //camera options
@@ -346,27 +347,43 @@ export class VibCrystal {
     }
 
     captureend(format) {
-        this.capturer.stop();
+        if (!this.capturer || this.captureState !== 'capturing') {
+            return;
+        }
 
-        function callback_captureend( url ) {
+        const capturer = this.capturer;
+        this.capturer = null;
+        this.captureState = 'saving';
+        const progress = document.getElementById('progress');
+        const filename = this.getCaptureFilename(format);
+
+        capturer.stop();
+        capturer.save((url) => {
             let element = document.createElement('a');
             element.setAttribute('href', url);
-            element.setAttribute('download', p.k.toString()+'_'+p.n.toString()+'.'+ format);
+            element.setAttribute('download', filename);
             element.style.display = 'none';
             document.body.appendChild(element);
             element.click();
             document.body.removeChild(element);
 
             //remove progress bar
-            progress.style.width = 0;
-        }
-
-        this.capturer.save( callback_captureend );
-        this.capturer = null;
+            if (progress) {
+                progress.style.width = '0%';
+            }
+            this.captureState = 'idle';
+        });
     }
 
     capturestart(format) {
+        if (this.capturer || this.captureState !== 'idle') {
+            return;
+        }
+
         let progress = document.getElementById( 'progress' );
+        if (progress) {
+            progress.style.width = '0%';
+        }
 
         let options = { format: format,
                         workersPath: 'libs/',
@@ -374,11 +391,28 @@ export class VibCrystal {
                         frameMax: this.fps,
                         end: this.captureend.bind(this,format),
                         framerate: this.fps,
-                        onProgress: function( p ) { progress.style.width = ( p * 100 ) + '%' }
+                        onProgress: function( p ) {
+                            if (progress) {
+                                progress.style.width = ( p * 100 ) + '%';
+                            }
+                        }
                       }
 
         this.capturer = new globalThis.CCapture( options ),
+        this.captureState = 'capturing';
         this.capturer.start();
+    }
+
+    getCaptureFilename(format) {
+        let base = this.phonon && this.phonon.name ? this.phonon.name : 'phonon';
+        let safe = String(base)
+            .trim()
+            .replace(/\s+/g, '_')
+            .replace(/[^a-zA-Z0-9._-]/g, '');
+        if (!safe) {
+            safe = 'phonon';
+        }
+        return safe + '.' + format;
     }
 
     setCameraDirection(direction) {
