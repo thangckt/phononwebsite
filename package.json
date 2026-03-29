@@ -34,7 +34,8 @@
     "check:build-artifacts": "test -f build/main.min.js",
     "build:site": "npm run build-uglify && npm run copy && npm run check:build-artifacts",
     "test": "npm run build-uglify && mocha \"test/**/*.test.cjs\"",
-    "test:browser": "PLAYWRIGHT_SMOKE=1 mocha test/browser-smoke.test.cjs --timeout 30000"
+    "test:browser": "PLAYWRIGHT_SMOKE=1 mocha test/browser-smoke.test.cjs --timeout 30000",
+    "test:py": "python3 -m pytest python/phononweb/tests -q"
   },
   "repository": {
     "type": "git",

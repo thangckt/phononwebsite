@@ -45,7 +45,7 @@ If you already have a PHBST.nc netcdf file produced by anaddb you can visualize 
 
 Alternatively you can use the scripts provided in the [Github](https://github.com/henriquemiranda/phononwebsite/) page. To install them just do:
 
-    $ pip install -e .
+    $ pip install -e ./python
 
 In the folder where you ran `anaddb` you will find a netCDF file (if you compiled `Abinit` with netCDF support) with the name `anaddb.out_PHBST.nc`. To convert it to `.json` format just run:
 
