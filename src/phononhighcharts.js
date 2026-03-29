@@ -27,6 +27,7 @@ export class PhononHighcharts {
         this.HighchartsOptions = {
             chart: { type: 'line',
                      zoomType: 'xy' },
+            accessibility: { enabled: false },
             title: { text: 'Phonon dispersion' },
             xAxis: { plotLines: [],
                      lineWidth: 0,

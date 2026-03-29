@@ -31,6 +31,7 @@ describe('VibCrystal capture lifecycle', function () {
 
     captureInstances = 0;
     lastCapture = null;
+    global.GIF = function FakeGIF() {};
     global.CCapture = class FakeCCapture {
       constructor(options) {
         captureInstances += 1;
@@ -58,6 +59,7 @@ describe('VibCrystal capture lifecycle', function () {
     dom.window.close();
     delete global.window;
     delete global.document;
+    delete global.GIF;
     delete global.CCapture;
   });
 
@@ -93,5 +95,14 @@ describe('VibCrystal capture lifecycle', function () {
     // Calling end a second time should be a no-op.
     v.captureend('gif');
     assert.equal(v.captureState, 'idle');
+  });
+
+  it('includes k-point and mode indices in capture filename when available', function () {
+    const v = new VibCrystal(fakeContainer);
+    v.phonon = { name: 'Graphene demo' };
+    v.captureK = 7;
+    v.captureN = 2;
+
+    assert.equal(v.getCaptureFilename('gif'), 'Graphene_demo_k7_n2.gif');
   });
 });

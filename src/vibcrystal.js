@@ -134,6 +134,8 @@ export class VibCrystal {
         this.bondmesh = null;
         this.bonds = [];
         this.instanceDummy = new THREE.Object3D();
+        this.captureK = null;
+        this.captureN = null;
 		this.modified_covalent_radii = JSON.parse(JSON.stringify(atomic_data.covalent_radii));
     }
 
@@ -379,6 +381,15 @@ export class VibCrystal {
         if (this.capturer || this.captureState !== 'idle') {
             return;
         }
+        if (format === 'gif' && typeof globalThis.GIF !== 'function') {
+            const message = 'GIF export is currently unavailable. Please reload the page and try again.';
+            if (typeof alert === 'function') {
+                alert(message);
+            } else {
+                console.warn(message);
+            }
+            return;
+        }
 
         let progress = document.getElementById( 'progress' );
         if (progress) {
@@ -405,6 +416,10 @@ export class VibCrystal {
 
     getCaptureFilename(format) {
         let base = this.phonon && this.phonon.name ? this.phonon.name : 'phonon';
+        let suffix = '';
+        if (Number.isFinite(this.captureK) && Number.isFinite(this.captureN)) {
+            suffix = '_k' + this.captureK + '_n' + this.captureN;
+        }
         let safe = String(base)
             .trim()
             .replace(/\s+/g, '_')
@@ -412,7 +427,7 @@ export class VibCrystal {
         if (!safe) {
             safe = 'phonon';
         }
-        return safe + '.' + format;
+        return safe + suffix + '.' + format;
     }
 
     setCameraDirection(direction) {
@@ -730,6 +745,8 @@ export class VibCrystal {
         this.phonon     = phononweb.phonon;
         this.vibrations = phononweb.vibrations;
         this.atoms      = phononweb.atoms;
+        this.captureK   = Number(phononweb.k);
+        this.captureN   = Number(phononweb.n);
         this.vibrationComponents = this.vibrations.map((v) => [
             getComplexParts(v[0]),
             getComplexParts(v[1]),

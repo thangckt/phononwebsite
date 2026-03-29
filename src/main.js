@@ -5,11 +5,24 @@ import ComplexLib from 'complex';
 import jsyaml from 'js-yaml';
 import Detector from '../libs/Detector.js';
 import '../libs/CCapture.js';
-import GIF from 'gif.js';
+import GIFLib from '../libs/gif.js';
 import Whammy from 'whammy';
 
 // Import your own classes (adjust the path as needed)
 import { VibCrystal, PhononHighcharts, PhononWebpage } from './phononwebsite.js';
+
+function resolveGifConstructor(mod) {
+    if (typeof mod === 'function') {
+        return mod;
+    }
+    if (mod && typeof mod.default === 'function') {
+        return mod.default;
+    }
+    if (mod && typeof mod.GIF === 'function') {
+        return mod.GIF;
+    }
+    return null;
+}
 
 function wrapComplex(raw) {
     return {
@@ -48,7 +61,10 @@ globalThis.jQuery = $;
 globalThis.Highcharts = Highcharts;
 globalThis.Complex = Complex;
 globalThis.jsyaml = jsyaml;
-globalThis.GIF = GIF;
+const GIF = resolveGifConstructor(GIFLib);
+if (GIF) {
+    globalThis.GIF = GIF;
+}
 globalThis.Whammy = Whammy;
 
 // Now use your classes as before
