@@ -1,15 +1,17 @@
+import resolve from '@rollup/plugin-node-resolve';
+import commonjs from '@rollup/plugin-commonjs';
+
 export default {
-    input: 'src/phononwebsite.js',
-    // sourceMap: true,
+    input: 'src/main.js',
     output: [
         {
-            format: 'umd',
-            name: 'phononwebsite',
-            file: 'build/phononwebsite.js',
-        },
-        {
             format: 'es',
-            file: 'build/phononwebsite.module.js',
+            file: 'build/main.js',
+            sourcemap: true,
         }
+    ],
+    plugins: [
+        resolve(),
+        commonjs()
     ]
 };

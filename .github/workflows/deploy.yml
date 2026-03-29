@@ -20,8 +20,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build with Rollup
-        run: npm run build
+      - name: Build and minify bundle
+        run: npm run build-uglify
 
       - name: Copy extra files
         run: npm run copy

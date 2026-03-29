@@ -2,24 +2,36 @@
   "name": "phononwebsite",
   "version": "0.2.0",
   "description": "Javascript web app to visualise lattice vibrations",
-  "main": "build/phononwebsite.js",
+  "main": "build/main.js",
   "directories": {
     "doc": "doc",
     "test": "tests"
   },
   "dependencies": {
-    "assert": "^1.4.1"
+    "@rollup/plugin-commonjs": "^28.0.3",
+    "@rollup/plugin-node-resolve": "^16.0.1",
+    "assert": "^1.4.1",
+    "ccapture.js": "^1.1.0",
+    "ccapture.js-npmfixed": "^1.1.0",
+    "complex": "^3.0.1",
+    "gif.js": "^0.2.0",
+    "highcharts": "^12.2.0",
+    "jquery": "^3.7.1",
+    "js-yaml": "^4.1.0",
+    "three": "^0.124.0",
+    "whammy": "^0.0.1"
   },
   "devDependencies": {
     "chai": "^5.2.0",
     "mocha": "^11.5.0",
-    "rollup": "^2.79.0"
+    "rollup": "^2.79.0",
+    "terser": "^5.44.0"
   },
   "scripts": {
     "test": "mocha",
-    "copy": "cp -r figures css libs contribdb localdb mpdb README.md index.html src/main.js phonon.html build/",
+    "copy": "cp -r figures css libs contribdb localdb mpdb README.md index.html phonon.html build/",
     "build": "rollup -c",
-    "build-uglify": "rollup -c && uglifyjs build/phononwebsite.js -cm > build/phononwebsite.min.js"
+    "build-uglify": "rollup -c && terser build/main.js -c -m --source-map \"content=build/main.js.map,url=main.min.js.map\" -o build/main.min.js"
   },
   "repository": {
     "type": "git",

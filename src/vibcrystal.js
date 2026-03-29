@@ -1,5 +1,5 @@
+import * as THREE from 'three';
 import { TrackballControls } from './static_libs/TrackballControls.js';
-THREE.TrackballControls =  TrackballControls;
 import { Stats } from './static_libs/stats.min.js';
 import * as atomic_data from './atomic_data.js';
 import * as utils from './utils.js';
@@ -31,6 +31,8 @@ export class VibCrystal {
         this.display = 'jmol'; //use jmol or vesta displaystyle
 
         this.time = 0,
+        this.lastFrameTime = null;
+        this.animationFrameId = null;
         this.arrows = false;
         this.cell = false;
         this.paused = false;
@@ -265,7 +267,7 @@ export class VibCrystal {
         }
 
         //controls
-        this.controls = new THREE.TrackballControls( this.camera, this.container0 );
+        this.controls = new TrackballControls( this.camera, this.container0 );
         this.controls.rotateSpeed = 1.0;
         this.controls.zoomSpeed = 1.0;
         this.controls.panSpeed = 0.3;
@@ -283,9 +285,18 @@ export class VibCrystal {
         this.renderer.setClearColor( 0xffffff );
         this.renderer.setPixelRatio( window.devicePixelRatio );
         this.renderer.shadowMap.enabled = false;
-        this.renderer.setSize( this.dimensions.width , this.dimensions.height, false );
+        this.renderer.setSize( this.dimensions.width , this.dimensions.height );
         this.container0.appendChild( this.renderer.domElement );
         this.canvas = this.renderer.domElement;
+        this.canvas.style.display = 'block';
+
+        // Ensure a visible drawing area even when CSS/flex layout reports 0 height.
+        if (!this.container0.clientHeight) {
+            this.container0.style.height = this.dimensions.height + 'px';
+        }
+        if (this.container0.parentElement && !this.container0.parentElement.clientHeight) {
+            this.container0.parentElement.style.height = this.dimensions.height + 'px';
+        }
         //this.canvas.style.width = this.dimensions.width + "px";
         //this.canvas.style.height = this.dimensions.height + "px";
 
@@ -295,6 +306,7 @@ export class VibCrystal {
 
         //resizer
         window.addEventListener( 'resize', this.onWindowResize.bind(this), false );
+        this.onWindowResize();
     }
 
     captureend(format) {
@@ -329,7 +341,7 @@ export class VibCrystal {
                         onProgress: function( p ) { progress.style.width = ( p * 100 ) + '%' }
                       }
 
-        this.capturer = new CCapture( options ),
+        this.capturer = new globalThis.CCapture( options ),
         this.capturer.start();
     }
 
@@ -367,7 +379,7 @@ export class VibCrystal {
                 let g = atomic_data.jmol_colors[n][1];
                 let b = atomic_data.jmol_colors[n][2];
 
-                let material = new THREE.MeshLambertMaterial( { blending: THREE.AdditiveBlending } );
+                let material = new THREE.MeshLambertMaterial( { blending: THREE.NormalBlending } );
                 material.color.setRGB (r, g, b);
                 this.materials.push( material );
             }
@@ -486,7 +498,7 @@ export class VibCrystal {
                                                             this.arrowLength );
 
             let AxisMaterial  = new THREE.MeshLambertMaterial( { color: this.arrowcolor,
-                                                                 blending: THREE.AdditiveBlending } );
+                                                                 blending: THREE.NormalBlending } );
 
             for (let i=0; i<atoms.length; i++) {
 
@@ -510,7 +522,7 @@ export class VibCrystal {
         let combinations = utils.getCombinations( this.atomobjects );
         let a, b, length;
         let material = new THREE.MeshLambertMaterial( { color: this.bondscolor,
-                                                        blending: THREE.AdditiveBlending } );
+                                                        blending: THREE.NormalBlending } );
 
         //add bonds
         for (let i=0; i<combinations.length; i++) {
@@ -598,12 +610,30 @@ export class VibCrystal {
         this.addStructure(this.atoms,this.phonon.atom_numbers);
         this.addCell(this.phonon.lat);
         this.adjustCovalentRadiiSelect();
-        this.animate();
+        this.startAnimationLoop();
     }
 
     getContainerDimensions() {
         let w = this.container.width();
         let h = this.container.height();
+
+        // In module/deferred startup paths, initial flex layout can report 0x0.
+        // Fall back to actual DOM rects (container, parent, then window) so WebGL gets a real size.
+        if (!w || !h) {
+            let rect = this.container0.getBoundingClientRect();
+            w = rect.width;
+            h = rect.height;
+        }
+        if ((!w || !h) && this.container0.parentElement) {
+            let rect = this.container0.parentElement.getBoundingClientRect();
+            w = rect.width;
+            h = rect.height;
+        }
+        if (!w || !h) {
+            w = Math.max(window.innerWidth * 0.5, 300);
+            h = Math.max(window.innerHeight * 0.5, 300);
+        }
+
         let dimensions = { width: w,
                            height: h,
                            ratio: ( w / h ) };
@@ -616,7 +646,7 @@ export class VibCrystal {
         this.camera.aspect = this.dimensions.ratio;
         this.camera.updateProjectionMatrix();
 
-        this.renderer.setSize( this.dimensions.width, this.dimensions.height, false );
+        this.renderer.setSize( this.dimensions.width, this.dimensions.height );
         this.controls.handleResize();
         this.render();
     }
@@ -624,28 +654,44 @@ export class VibCrystal {
     playpause() {
         if (this.paused) { this.paused = false; }
         else             { this.paused = true;  }
-        this.time
+        if (!this.paused) {
+            this.lastFrameTime = null;
+        }
     }
 
     pause() {
-        let id = requestAnimationFrame( this.animate.bind(this) );
-        cancelAnimationFrame( id );
+        if (this.animationFrameId !== null) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
+        }
     }
 
-    animate() {
-        setTimeout( function() {
-          requestAnimationFrame( this.animate.bind(this) );
-        }.bind(this), 1000 / 60 );
+    startAnimationLoop() {
+        if (this.animationFrameId === null) {
+            this.lastFrameTime = null;
+            this.animationFrameId = requestAnimationFrame( this.animate.bind(this) );
+        }
+    }
 
+    animate(timestamp) {
+        if (this.lastFrameTime === null) {
+            this.lastFrameTime = timestamp;
+        }
+
+        let dt = (timestamp - this.lastFrameTime) / 1000.0;
+        this.lastFrameTime = timestamp;
+        if (dt > 0.05) dt = 0.05;
+
+        if (!this.paused) {
+            this.time += dt * this.speed;
+        }
         this.controls.update();
         this.render();
+        this.animationFrameId = requestAnimationFrame( this.animate.bind(this) );
     }
 
     render() {
-        //get the current time in miliseconds and convert to seconds
-        let currentTime = Date.now()/1000.0;
-        let t = currentTime * this.speed;
-        let phase = Complex.Polar(this.amplitude,t*2.0*mat.pi);
+        let phase = Complex.Polar(this.amplitude,this.time*2.0*mat.pi);
         let v = new THREE.Vector3();
 
         if (!this.paused) {

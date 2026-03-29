@@ -3,20 +3,21 @@ Here are some instructions to compile and run the code locally.
 Build
 ====================
 
-To combine the multiple javascript files in src/* into a single phononwebsite.js file we use rollup.
-This pakcage can be installed using npm
+To combine the multiple javascript files in src/* into a single bundle (build/main.js) we use rollup.
+This package can be installed using npm
 ```
 npm install rollup
 ```
 
-The phononwebsite.js is built using
+The javascript bundle is built using
 ```
 rollup -c
 ```
 
 Test
 ====================
-To run the phononwebsite locally you can simply do
+To run phononwebsite locally, build first and then run
 ```
+npm run build
 python -m http.server
 ```

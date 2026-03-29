@@ -88,17 +88,18 @@ export class PhononHighcharts {
 
 
         //get positions of high symmetry qpoints
-        let ticks = [];
-        for (let k in phonon.highsym_qpts) {
-            ticks.push(k);
-        }
+        let ticks = Object.keys(phonon.highsym_qpts)
+            .map((k) => Number(k))
+            .filter((k) => Number.isFinite(k))
+            .sort((a, b) => a - b);
 
         //get the high symmetry qpoints for highcharts
         let plotLines = []
         for (let i=0; i<ticks.length ; i++ ) {
             plotLines.push({ value: ticks[i],
-                             color: '#000000',
-                             width: 1 })
+                             color: '#555555',
+                             width: 1,
+                             zIndex: 6 })
         }
 
         //actually set the eigenvalues
@@ -109,7 +110,7 @@ export class PhononHighcharts {
         this.HighchartsOptions.xAxis.plotLines = plotLines;
         this.HighchartsOptions.xAxis.labels.formatter = this.labels_formatter(phonon)
         this.HighchartsOptions.yAxis.min = minVal;
-        this.container.highcharts(this.HighchartsOptions);
+        globalThis.Highcharts.chart(this.container[0], this.HighchartsOptions);
     }
 
     getGraph(phonon) {
@@ -152,4 +153,3 @@ export class PhononHighcharts {
         }
     }
 }
-
