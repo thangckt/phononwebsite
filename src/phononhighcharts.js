@@ -38,8 +38,7 @@ export class PhononHighcharts {
                         style: { fontSize:'20px' }
                      }
                    },
-            yAxis: { plotLines: [],
-                     title: { text: 'Frequency (cm<sup>-1</sup>)' },
+            yAxis: { title: { text: 'Frequency (cm<sup>-1</sup>)' },
                      plotLines: [ {value: 0, color: '#000000', width: 2} ]
                    },
             tooltip: { formatter: function(x) { return Math.round(this.y*100)/100+' cm<sup>-1</sup>' } },
