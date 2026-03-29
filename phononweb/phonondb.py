@@ -11,13 +11,8 @@ and plot the phonon dispersion on the path obtained from:
  . seekpath (Pizzi)
 """
 
-import os
 import json
 import re
-
-from phonopy import Phonopy
-from phonopy.interface.phonopy_yaml import *
-import phonopy.file_IO as file_IO
 
 class PhononDB():
     """

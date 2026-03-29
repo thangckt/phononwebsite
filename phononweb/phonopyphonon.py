@@ -28,20 +28,32 @@ class PhonopyPhonon():
         #get phonon_yaml
         ph_yaml = PhonopyYaml()
         ph_yaml.read(phonon_yaml_filename)
-        atoms = ph_yaml.get_unitcell()
-        supercell_matrix = ph_yaml._data['supercell_matrix']
+        # Phonopy API changed over time; support both old and current attributes.
+        if hasattr(ph_yaml, "get_unitcell"):
+            atoms = ph_yaml.get_unitcell()
+        else:
+            atoms = ph_yaml.unitcell
+
+        if hasattr(ph_yaml, "supercell_matrix"):
+            supercell_matrix = ph_yaml.supercell_matrix
+        else:
+            supercell_matrix = ph_yaml._data['supercell_matrix']
 
         #get force_sets
         force_sets = file_IO.parse_FORCE_SETS(filename=force_sets_filename)
 
         phonon = Phonopy(atoms,supercell_matrix)
-        phonon.set_displacement_dataset(force_sets)
+        if hasattr(phonon, "set_displacement_dataset"):
+            phonon.set_displacement_dataset(force_sets)
+        else:
+            phonon.dataset = force_sets
         phonon.produce_force_constants()
         phonon.symmetrize_force_constants_by_space_group()
 
         #get NAC
         if nac_filename:
-            nac_params = file_IO.parse_BORN(phonon.get_primitive(), filename=nac_filename)
+            primitive = phonon.get_primitive() if hasattr(phonon, "get_primitive") else phonon.primitive
+            nac_params = file_IO.parse_BORN(primitive, filename=nac_filename)
             nac_factor = Hartree * Bohr
             if nac_params['factor'] == None:
                 nac_params['factor'] = nac_factor
@@ -86,17 +98,18 @@ class PhonopyPhonon():
         """Get the bandstructure using seekpath"""
         import seekpath
 
-        unitcell = self.phonon.get_unitcell()
-        cell = unitcell.get_cell()
-        atoms = unitcell.get_atomic_numbers()
-        pos = unitcell.get_scaled_positions()
+        unitcell = self.phonon.get_unitcell() if hasattr(self.phonon, "get_unitcell") else self.phonon.unitcell
+        cell = unitcell.get_cell() if hasattr(unitcell, "get_cell") else unitcell.cell
+        atoms = unitcell.get_atomic_numbers() if hasattr(unitcell, "get_atomic_numbers") else unitcell.numbers
+        pos = unitcell.get_scaled_positions() if hasattr(unitcell, "get_scaled_positions") else unitcell.scaled_positions
         
         path = seekpath.get_explicit_k_path((cell,pos,atoms),reference_distance=reference_distance)
         kpath  = path['explicit_kpoints_rel']
         explicit_labels = path['explicit_kpoints_labels']
+        segments = path['segments'] if 'segments' in path else path['explicit_segments']
         self.bands = []
         self.labels = []
-        for segment in path['segments']:
+        for segment in segments:
             start_k, end_k = segment
             self.labels.append(explicit_labels[start_k])
             self.bands.append(kpath[start_k:end_k])
@@ -109,8 +122,22 @@ class PhonopyPhonon():
 
     def get_bandstructure(self, is_eigenvectors=True, is_band_connection=True):
         """calculate the bandstructure"""
-        self.phonon.set_band_structure(self.bands, is_eigenvectors=is_eigenvectors, is_band_connection=is_band_connection)
-        return self.phonon.get_band_structure()
+        if hasattr(self.phonon, "set_band_structure"):
+            self.phonon.set_band_structure(
+                self.bands,
+                is_eigenvectors=is_eigenvectors,
+                is_band_connection=is_band_connection,
+            )
+            return self.phonon.get_band_structure()
+
+        self.phonon.run_band_structure(
+            self.bands,
+            with_eigenvectors=is_eigenvectors,
+            is_band_connection=is_band_connection,
+        )
+        if hasattr(self.phonon, "get_band_structure_dict"):
+            return self.phonon.get_band_structure_dict()
+        return self.phonon.band_structure
  
     def write_disp_yaml(self,filename='disp.yaml'):
         """write disp yaml file"""

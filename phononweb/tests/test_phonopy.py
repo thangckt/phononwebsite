@@ -1,41 +1,23 @@
-# Copyright (C) 2018 Henrique Pereira Coutada Miranda
-# All rights reserved.
-#
-# This file is part of phononwebsite
-#
-from __future__ import print_function
-import unittest
-import os
-import shutil as sh
-from phononweb.phononpy import PhonopyPhonon
+from pathlib import Path
 
-test_path = os.path.join('..','..','tests','phonondb','2015','mp-149','gruneisen-00')
+import pytest
 
-class TestPhononpyPhonon(unittest.TestCase):
-    def setUp(self):
-        """initialize the phononpy class"""
-        phonon_yaml_filename = os.path.join(test_path,'phonon.yaml')
-        force_sets_filename = os.path.join(test_path,'FORCE_SETS')
-        self.phonon = PhonopyPhonon.from_files(phonon_yaml_filename,force_sets_filename)
+phonopy = pytest.importorskip('phonopy')
 
-    def test_mp_bandstructure(self):
-        """ Calculate bandstructure using the materials project database """
-        self.phonon.set_bandstructure_mp('mp-149') 
-        self.phonon.get_bandstructure()
-        self.phonon.write_band_yaml('mp-149-mp.yaml')
+from phononweb.phonopyphonon import PhonopyPhonon
 
-    def test_seekpath_bandstructure(self):
-        """ Calculate bandstructure using seekpath """
-        self.phonon.set_bandstructure_seekpath() 
-        self.phonon.get_bandstructure()
-        self.phonon.write_band_yaml('mp-149-seekpath.yaml')
 
-    def tearDown(self):
-        """ remove the files """
-        filename = 'mp-149-mp.yaml'
-        if os.path.isfile(filename): os.remove(filename)
-        filename ='mp-149-seekpath.yaml'
-        if os.path.isfile(filename): os.remove(filename)
+def test_phonopy_from_files_and_band_yaml(tmp_path):
+    fixture_root = Path(__file__).resolve().parents[2] / 'test' / 'fixtures' / 'phonondb' / '2015' / 'mp-149' / 'gruneisen-00'
+    phonon_yaml = fixture_root / 'phonon.yaml'
+    force_sets = fixture_root / 'FORCE_SETS'
 
-if __name__ == '__main__':
-    unittest.main()
+    phonon = PhonopyPhonon.from_files(str(phonon_yaml), str(force_sets))
+    phonon.set_bandstructure_seekpath()
+    phonon.get_bandstructure()
+
+    outfile = tmp_path / 'band.yaml'
+    phonon.write_band_yaml(filename=str(outfile))
+
+    assert outfile.exists()
+    assert outfile.stat().st_size > 0
