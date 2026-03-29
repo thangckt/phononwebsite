@@ -33,7 +33,8 @@
     "copy": "mkdir -p build/test && cp -r figures css libs contribdb localdb mpdb README.md index.html phonon.html build/ && cp -r test/fixtures build/test/",
     "check:build-artifacts": "test -f build/main.min.js",
     "build:site": "npm run build-uglify && npm run copy && npm run check:build-artifacts",
-    "test": "npm run build-uglify && mocha test/smoke.test.cjs test/legacy-migrated.test.cjs"
+    "test": "npm run build-uglify && mocha \"test/**/*.test.cjs\"",
+    "test:browser": "PLAYWRIGHT_SMOKE=1 mocha test/browser-smoke.test.cjs --timeout 30000"
   },
   "repository": {
     "type": "git",
