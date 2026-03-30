@@ -31,7 +31,7 @@ describe('Degenerate mode selection inputs', function () {
     };
 
     const p = new PhononWebpage(visualizer, dispersion);
-    p.loadURL({ json: 'localdb/graphene/data.json', name: 'Graphene' });
+    p.loadURL({ json: 'data/localdb/graphene/data.json', name: 'Graphene' });
 
     const kInput = global.$('<input id="kindex" type="number">');
     const nInput = global.$('<input id="nindex" type="number">');
@@ -58,7 +58,7 @@ describe('Degenerate mode selection inputs', function () {
     const dispersion = { setClickEvent() {}, update() {}, selectModePoint() {} };
 
     const p = new PhononWebpage(visualizer, dispersion);
-    p.loadURL({ json: 'localdb/graphene/data.json', name: 'Graphene' });
+    p.loadURL({ json: 'data/localdb/graphene/data.json', name: 'Graphene' });
 
     const kInput = global.$('<input id="kindex" type="number">');
     const nInput = global.$('<input id="nindex" type="number">');

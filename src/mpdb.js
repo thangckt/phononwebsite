@@ -63,7 +63,7 @@ export class MaterialsProjectDB {
             callback(materials);
         }
 
-        $.get('mpdb/models.json', dothings);
+        $.get('data/mpdb/models.json', dothings);
     }
 
 }

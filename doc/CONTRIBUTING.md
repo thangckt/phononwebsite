@@ -11,7 +11,7 @@ This guide focuses on practical repository organization for day-to-day work.
 - `python/phononweb/`: Python package and CLI scripts.
 - `python/phononweb/tests/`: Python test suite.
 - `build/`: Generated deploy output.
-- `localdb/`, `contribdb/`, `mpdb/`: Runtime material databases.
+- `data/localdb/`, `data/contribdb/`, `data/mpdb/`: Runtime material databases.
 
 ## Placement Rules
 

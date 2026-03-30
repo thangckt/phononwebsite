@@ -30,7 +30,7 @@
     "clean:build": "rm -rf build && mkdir -p build",
     "build": "npm run clean:build && rollup -c",
     "build-uglify": "npm run build && terser build/main.js -c -m --source-map \"content=build/main.js.map,url=main.min.js.map\" -o build/main.min.js",
-    "copy": "mkdir -p build/test && cp -r figures css libs contribdb localdb mpdb README.md index.html phonon.html favicon.svg favicon.ico build/ && cp -r test/fixtures build/test/",
+    "copy": "mkdir -p build/test && cp -r figures css libs data README.md index.html phonon.html favicon.svg favicon.ico build/ && cp -r test/fixtures build/test/",
     "check:build-artifacts": "test -f build/main.min.js",
     "build:site": "npm run build-uglify && npm run copy && npm run check:build-artifacts",
     "test": "npm run build-uglify && mocha \"test/**/*.test.cjs\"",

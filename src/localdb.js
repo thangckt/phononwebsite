@@ -38,7 +38,7 @@ export class LocalDB {
             callback(materials)
         }
 
-        $.get('localdb/models.json', dothings);
+        $.get('data/localdb/models.json', dothings);
     }
 
 }

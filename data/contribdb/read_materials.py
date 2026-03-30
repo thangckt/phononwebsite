@@ -7,7 +7,7 @@ from __future__ import print_function
 from phononweb import *
 import json
 
-root = "contribdb"
+root = "data/contribdb"
 hexagonal = [(0,'\Gamma'),(20,'M'),(30,'K'),(50,'\Gamma')]
 material_list = {
 "tise2_bulk":		  [ QePhonon,     'tise2', hexagonal, [ 5, 5, 1], "Bulk TiSe2"],

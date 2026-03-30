@@ -23,7 +23,7 @@ describe('Legacy compatibility: data loading', function () {
     const dispersion = { updated: false, setClickEvent() {}, update() { this.updated = true; } };
     const p = new PhononWebpage(visualizer, dispersion);
 
-    p.loadURL({ json: 'localdb/graphene/data.json', name: 'Graphene Phononwebsite' });
+    p.loadURL({ json: 'data/localdb/graphene/data.json', name: 'Graphene Phononwebsite' });
 
     assert.ok(p.phonon && p.phonon.name, 'phonon data should be loaded');
     assert.ok(Array.isArray(p.atoms) && p.atoms.length > 0, 'atoms should be computed');

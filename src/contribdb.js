@@ -31,7 +31,7 @@ export class ContribDB {
             callback(materials)
         }
 
-        $.get('contribdb/models.json', dothings);
+        $.get('data/contribdb/models.json', dothings);
     }
 
 }

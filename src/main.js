@@ -87,7 +87,7 @@ p.setExportXSFButton($('#xsf'));
 p.setTitle($('#name'));
 
 p.updateMenu();
-p.getUrlVars({json: "localdb/graphene/data.json", name:"Graphene [1]"});
+p.getUrlVars({json: "data/localdb/graphene/data.json", name:"Graphene [1]"});
 
 //set dom objects vibcrystal
 v.setCameraDirectionButton($('#camerax'),'x');
