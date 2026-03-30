@@ -114,8 +114,8 @@ v.setAdvancedAppearanceControls(
     $('#bond_radius_input'),
     $('#arrow_radius_input'),
     $('#appearance_reset_atom_button'),
-    $('#appearance_reset_colors_button'),
-    $('#appearance_reset_radii_button'),
+    $('#appearance_reset_bonds_button'),
+    $('#appearance_reset_vectors_button'),
 );
 
 // check if webgl is available

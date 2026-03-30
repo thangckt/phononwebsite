@@ -106,6 +106,7 @@ export class VibCrystal {
 
         //arrowscale
         this.arrowScale = 2.0;
+        this.defaultArrowScale = this.arrowScale;
         this.minArrowScale = 0.0;
         this.maxArrowScale = 5.0;
         this.stepArrowScale = 0.01;
@@ -264,6 +265,7 @@ export class VibCrystal {
 
     setArrowsCheckbox(dom_checkbox) {
         let self = this;
+        this.dom_drawvectors_checkbox = dom_checkbox;
         this.arrows = dom_checkbox.checked;
         dom_checkbox.click( function() {
             self.arrows = this.checked;
@@ -273,6 +275,7 @@ export class VibCrystal {
 
     setArrowsInput(dom_range) {
         let self = this;
+        this.dom_vectors_amplitude_range = dom_range;
 
         dom_range.val(self.arrowScale);
         dom_range.attr('min',self.minArrowScale);
@@ -407,8 +410,8 @@ export class VibCrystal {
         domBondRadiusInput,
         domArrowRadiusInput,
         domResetAtomButton,
-        domResetColorsButton,
-        domResetRadiiButton,
+        domResetBondsButton,
+        domResetVectorsButton,
     ) {
         let self = this;
         this.dom_appearance_atom_list = domAtomList;
@@ -442,19 +445,27 @@ export class VibCrystal {
 
         const applyAppearanceSettings = function() {
             let atomNumber = Number(self.getSelectedAppearanceAtomNumber());
-            if (Number.isFinite(atomNumber)) {
-                if (domCovalentRadiiInput && domCovalentRadiiInput.length) {
-                    let newCovalent = parseFloat(domCovalentRadiiInput.val());
-                    if (Number.isFinite(newCovalent) && newCovalent > 0) {
-                        self.modified_covalent_radii[atomNumber] = newCovalent;
+                if (Number.isFinite(atomNumber)) {
+                    if (domCovalentRadiiInput && domCovalentRadiiInput.length) {
+                        let newCovalent = parseFloat(domCovalentRadiiInput.val());
+                        if (Number.isFinite(newCovalent) && newCovalent > 0) {
+                            self.modified_covalent_radii[atomNumber] = newCovalent;
                     }
-                }
-                if (domAtomColorInput && domAtomColorInput.length) {
-                    let rawAtomColor = domAtomColorInput.val();
-                    if (rawAtomColor) {
-                        self.setAtomColorOverride(atomNumber, rawAtomColor);
                     }
-                }
+                    if (domAtomColorInput && domAtomColorInput.length) {
+                        let rawAtomColor = domAtomColorInput.val();
+                        if (rawAtomColor) {
+                            // Only persist an override when user picked a non-default color.
+                            // If it matches current display default, keep it dynamic across Jmol/Vesta.
+                            let defaultHex = self.getDefaultAtomColor(atomNumber);
+                            let selectedHex = self.normalizeColorHex(rawAtomColor, defaultHex);
+                            if (selectedHex === defaultHex) {
+                                self.clearAtomColorOverride(atomNumber);
+                            } else {
+                                self.atomColorOverrides[atomNumber] = selectedHex;
+                            }
+                        }
+                    }
                 if (domAtomRadiusInput && domAtomRadiusInput.length) {
                     let atomScale = Math.max(0.1, parseFloat(domAtomRadiusInput.val()) || self.defaultAtomRadiusScale);
                     self.setAtomRadiusScaleOverride(atomNumber, atomScale);
@@ -548,30 +559,38 @@ export class VibCrystal {
             });
         }
 
-        if (domResetColorsButton && domResetColorsButton.length) {
-            domResetColorsButton.click(function() {
-                self.arrowcolor = self.defaultArrowColor;
+        if (domResetBondsButton && domResetBondsButton.length) {
+            domResetBondsButton.click(function() {
                 self.bondscolor = self.defaultBondsColor;
-                if (self.dom_arrow_color_input && self.dom_arrow_color_input.length) {
-                    self.dom_arrow_color_input.val(self.colorToInputHex(self.arrowcolor));
-                }
+                self.bondRadius = self.defaultBondRadius;
                 if (self.dom_bond_color_input && self.dom_bond_color_input.length) {
                     self.dom_bond_color_input.val(self.colorToInputHex(self.bondscolor));
+                }
+                if (self.dom_bond_radius_input && self.dom_bond_radius_input.length) {
+                    self.dom_bond_radius_input.val(self.bondRadius);
                 }
                 self.updatelocal();
             });
         }
 
-        if (domResetRadiiButton && domResetRadiiButton.length) {
-            domResetRadiiButton.click(function() {
-                self.bondRadius = self.defaultBondRadius;
+        if (domResetVectorsButton && domResetVectorsButton.length) {
+            domResetVectorsButton.click(function() {
+                self.arrowcolor = self.defaultArrowColor;
                 self.arrowRadius = self.defaultArrowRadius;
+                self.arrowScale = self.defaultArrowScale;
+                self.arrows = false;
 
-                if (self.dom_bond_radius_input && self.dom_bond_radius_input.length) {
-                    self.dom_bond_radius_input.val(self.bondRadius);
+                if (self.dom_arrow_color_input && self.dom_arrow_color_input.length) {
+                    self.dom_arrow_color_input.val(self.colorToInputHex(self.arrowcolor));
                 }
                 if (self.dom_arrow_radius_input && self.dom_arrow_radius_input.length) {
                     self.dom_arrow_radius_input.val(self.arrowRadius);
+                }
+                if (self.dom_vectors_amplitude_range && self.dom_vectors_amplitude_range.length) {
+                    self.dom_vectors_amplitude_range.val(self.arrowScale);
+                }
+                if (self.dom_drawvectors_checkbox && self.dom_drawvectors_checkbox.length) {
+                    self.dom_drawvectors_checkbox.prop('checked', self.arrows);
                 }
                 self.updatelocal();
             });

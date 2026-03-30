@@ -278,6 +278,12 @@ ap {
     margin-top: 4px;
 }
 
+#appearance_reset_vectors_button {
+    padding-left: 6px;
+    padding-right: 6px;
+    font-size: 0.9em;
+}
+
 
 @media all and (max-width: 700px) {
     .navigation {
