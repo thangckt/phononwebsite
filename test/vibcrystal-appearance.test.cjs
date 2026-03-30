@@ -27,6 +27,7 @@ function makeAppearanceDom() {
     <input id="atom-color" type="color">
     <input id="arrow-color" type="color">
     <input id="bond-color" type="color">
+    <input id="bond-color-by-atom" type="checkbox">
     <input id="atom-radius" type="number">
     <input id="bond-radius" type="number">
     <input id="arrow-radius" type="number">
@@ -68,6 +69,7 @@ describe('VibCrystal advanced appearance', function () {
       $('#atom-color'),
       $('#arrow-color'),
       $('#bond-color'),
+      $('#bond-color-by-atom'),
       $('#atom-radius'),
       $('#bond-radius'),
       $('#arrow-radius'),
@@ -101,6 +103,7 @@ describe('VibCrystal advanced appearance', function () {
       $('#atom-color'),
       $('#arrow-color'),
       $('#bond-color'),
+      $('#bond-color-by-atom'),
       $('#atom-radius'),
       $('#bond-radius'),
       $('#arrow-radius'),
@@ -119,6 +122,7 @@ describe('VibCrystal advanced appearance', function () {
     v.setAtomRadiusScaleOverride(6, 2.0);
     v.arrowcolor = 0x111111;
     v.bondscolor = 0x222222;
+    v.bondColorByAtom = true;
     v.bondRadius = 0.3;
     v.arrowRadius = 0.4;
     v.arrowScale = 3.5;
@@ -131,6 +135,7 @@ describe('VibCrystal advanced appearance', function () {
 
     $('#reset-bonds').trigger('click');
     assert.equal(v.bondscolor, v.defaultBondsColor);
+    assert.equal(v.bondColorByAtom, v.defaultBondColorByAtom);
     assert.equal(v.bondRadius, v.defaultBondRadius);
     assert.equal(v.arrowcolor, 0x111111);
 
@@ -155,6 +160,7 @@ describe('VibCrystal advanced appearance', function () {
       $('#atom-color'),
       $('#arrow-color'),
       $('#bond-color'),
+      $('#bond-color-by-atom'),
       $('#atom-radius'),
       $('#bond-radius'),
       $('#arrow-radius'),
@@ -181,6 +187,78 @@ describe('VibCrystal advanced appearance', function () {
     dom.window.close();
   });
 
+  it('updates split bond colors mode from the bonds controls', function () {
+    const dom = makeAppearanceDom();
+    const $ = require('jquery')(dom.window);
+
+    const v = new VibCrystal(makeContainer());
+    v.atom_numbers = [6, 8];
+    v.updatelocal = () => {};
+    v.setAdvancedAppearanceControls(
+      $('#atom-list'),
+      $('#display'),
+      $('#atom-color'),
+      $('#arrow-color'),
+      $('#bond-color'),
+      $('#bond-color-by-atom'),
+      $('#atom-radius'),
+      $('#bond-radius'),
+      $('#arrow-radius'),
+      $('#bond-rules-list'),
+      $('#bond-add-a'),
+      $('#bond-add-b'),
+      $('#bond-add-cutoff'),
+      $('#reset-atom'),
+      $('#reset-bonds'),
+      $('#reset-vectors')
+    );
+
+    assert.equal(v.bondColorByAtom, false);
+    $('#bond-color-by-atom').prop('checked', true).trigger('change');
+    assert.equal(v.bondColorByAtom, true);
+
+    $('#reset-bonds').trigger('click');
+    assert.equal(v.bondColorByAtom, false);
+    dom.window.close();
+  });
+
+  it('disables bond color input while split bond colors mode is enabled', function () {
+    const dom = makeAppearanceDom();
+    const $ = require('jquery')(dom.window);
+
+    const v = new VibCrystal(makeContainer());
+    v.atom_numbers = [6, 8];
+    v.updatelocal = () => {};
+    v.setAdvancedAppearanceControls(
+      $('#atom-list'),
+      $('#display'),
+      $('#atom-color'),
+      $('#arrow-color'),
+      $('#bond-color'),
+      $('#bond-color-by-atom'),
+      $('#atom-radius'),
+      $('#bond-radius'),
+      $('#arrow-radius'),
+      $('#bond-rules-list'),
+      $('#bond-add-a'),
+      $('#bond-add-b'),
+      $('#bond-add-cutoff'),
+      $('#reset-atom'),
+      $('#reset-bonds'),
+      $('#reset-vectors')
+    );
+
+    assert.equal($('#bond-color').prop('disabled'), false);
+    $('#bond-color-by-atom').prop('checked', true).trigger('change');
+    assert.equal($('#bond-color').prop('disabled'), true);
+    $('#bond-color').val('#123456').trigger('change');
+    assert.notEqual(v.bondscolor, 0x123456);
+
+    $('#bond-color-by-atom').prop('checked', false).trigger('change');
+    assert.equal($('#bond-color').prop('disabled'), false);
+    dom.window.close();
+  });
+
   it('keeps default atom colors dynamic across display modes', function () {
     const dom = makeAppearanceDom();
     const $ = require('jquery')(dom.window);
@@ -194,6 +272,7 @@ describe('VibCrystal advanced appearance', function () {
       $('#atom-color'),
       $('#arrow-color'),
       $('#bond-color'),
+      $('#bond-color-by-atom'),
       $('#atom-radius'),
       $('#bond-radius'),
       $('#arrow-radius'),

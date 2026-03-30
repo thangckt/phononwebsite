@@ -110,6 +110,7 @@ v.setAdvancedAppearanceControls(
     $('#atom_color_input'),
     $('#arrow_color_input'),
     $('#bond_color_input'),
+    $('#bond_color_by_atom_checkbox'),
     $('#atom_radius_input'),
     $('#bond_radius_input'),
     $('#arrow_radius_input'),

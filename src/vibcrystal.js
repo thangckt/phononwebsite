@@ -131,6 +131,8 @@ export class VibCrystal {
         this.bondscolor = 0xffffff;
         this.defaultArrowColor = this.arrowcolor;
         this.defaultBondsColor = this.bondscolor;
+        this.bondColorByAtom = false;
+        this.defaultBondColorByAtom = this.bondColorByAtom;
         this.atomRadiusScale = 1.0;
         this.defaultAtomRadiusScale = this.atomRadiusScale;
         this.defaultBondRadius = this.bondRadius;
@@ -145,6 +147,7 @@ export class VibCrystal {
         this.atomInstanceRefs = [];
         this.bondobjects = [];
         this.bondmesh = null;
+        this.bondmeshes = [];
         this.bonds = [];
         this.instanceDummy = new THREE.Object3D();
         this.captureK = null;
@@ -524,6 +527,7 @@ export class VibCrystal {
         domAtomColorInput,
         domArrowColorInput,
         domBondColorInput,
+        domBondColorByAtomCheckbox,
         domAtomRadiusInput,
         domBondRadiusInput,
         domArrowRadiusInput,
@@ -541,6 +545,7 @@ export class VibCrystal {
         this.dom_atom_color_input = domAtomColorInput;
         this.dom_arrow_color_input = domArrowColorInput;
         this.dom_bond_color_input = domBondColorInput;
+        this.dom_bond_color_by_atom_checkbox = domBondColorByAtomCheckbox;
         this.dom_atom_radius_input = domAtomRadiusInput;
         this.dom_bond_radius_input = domBondRadiusInput;
         this.dom_arrow_radius_input = domArrowRadiusInput;
@@ -548,6 +553,11 @@ export class VibCrystal {
         this.dom_bond_add_atom_a = domBondAddAtomA;
         this.dom_bond_add_atom_b = domBondAddAtomB;
         this.dom_bond_add_cutoff_input = domBondAddCutoffInput;
+        const updateBondColorInputState = function() {
+            if (domBondColorInput && domBondColorInput.length) {
+                domBondColorInput.prop('disabled', self.bondColorByAtom);
+            }
+        };
 
         if (domAtomList && domAtomList.length) {
             domAtomList.on('click', 'button[data-atom-number]', function() {
@@ -595,9 +605,13 @@ export class VibCrystal {
             if (domArrowColorInput && domArrowColorInput.length) {
                 self.arrowcolor = self.normalizeColorHex(domArrowColorInput.val(), self.arrowcolor);
             }
-            if (domBondColorInput && domBondColorInput.length) {
+            if (!self.bondColorByAtom && domBondColorInput && domBondColorInput.length) {
                 self.bondscolor = self.normalizeColorHex(domBondColorInput.val(), self.bondscolor);
             }
+            if (domBondColorByAtomCheckbox && domBondColorByAtomCheckbox.length) {
+                self.bondColorByAtom = !!domBondColorByAtomCheckbox.prop('checked');
+            }
+            updateBondColorInputState();
             if (domBondRadiusInput && domBondRadiusInput.length) {
                 self.bondRadius = Math.max(0.01, parseFloat(domBondRadiusInput.val()) || self.bondRadius);
                 domBondRadiusInput.val(self.bondRadius);
@@ -623,6 +637,13 @@ export class VibCrystal {
                 applyAppearanceSettings();
             });
         }
+        if (domBondColorByAtomCheckbox && domBondColorByAtomCheckbox.length) {
+            domBondColorByAtomCheckbox.prop('checked', this.bondColorByAtom);
+            domBondColorByAtomCheckbox.on('change', function() {
+                applyAppearanceSettings();
+            });
+        }
+        updateBondColorInputState();
 
         if (domAtomColorInput && domAtomColorInput.length) {
             domAtomColorInput.on('change', function() {
@@ -674,10 +695,15 @@ export class VibCrystal {
         if (domResetBondsButton && domResetBondsButton.length) {
             domResetBondsButton.click(function() {
                 self.bondscolor = self.defaultBondsColor;
+                self.bondColorByAtom = self.defaultBondColorByAtom;
                 self.bondRadius = self.defaultBondRadius;
                 if (self.dom_bond_color_input && self.dom_bond_color_input.length) {
                     self.dom_bond_color_input.val(self.colorToInputHex(self.bondscolor));
                 }
+                if (self.dom_bond_color_by_atom_checkbox && self.dom_bond_color_by_atom_checkbox.length) {
+                    self.dom_bond_color_by_atom_checkbox.prop('checked', self.bondColorByAtom);
+                }
+                updateBondColorInputState();
                 if (self.dom_bond_radius_input && self.dom_bond_radius_input.length) {
                     self.dom_bond_radius_input.val(self.bondRadius);
                 }
@@ -1038,6 +1064,7 @@ export class VibCrystal {
         this.atomInstanceRefs = [];
         this.bondobjects  = [];
         this.bondmesh = null;
+        this.bondmeshes = [];
         this.arrowobjects = [];
         this.atompos = [];
         this.atomvel = [];
@@ -1181,7 +1208,13 @@ export class VibCrystal {
             let key = this.getBondRuleKey(a.atom_number, b.atom_number);
             let rule = this.bondRules[key];
             if (rule && length < rule.cutoff) {
-                this.bonds.push({ a: ad, b: bd, baseLength: length });
+                this.bonds.push({
+                    a: ad,
+                    b: bd,
+                    a_atom_number: a.atom_number,
+                    b_atom_number: b.atom_number,
+                    baseLength: length
+                });
                 if (this.display == 'vesta') {
                     let aColor = this.getAtomColor(a.atom_number);
                     let bColor = this.getAtomColor(b.atom_number);
@@ -1195,50 +1228,109 @@ export class VibCrystal {
             }
         }
 
-        //build one instanced mesh for all bonds
+        const createBondMaterial = function(vertexColorsEnabled) {
+            let bondMaterialConfig = {
+                color: this.bondscolor,
+                blending: THREE.NormalBlending,
+                vertexColors: vertexColorsEnabled
+            };
+            if (this.shading) {
+                return new THREE.MeshLambertMaterial(bondMaterialConfig);
+            }
+            return new THREE.MeshBasicMaterial(bondMaterialConfig);
+        }.bind(this);
+
+        //build bond meshes
         if (this.bonds.length > 0) {
             let bondGeometry = new THREE.CylinderGeometry(
                 this.bondRadius, this.bondRadius, 1.0, this.bondSegments, this.bondVertical, true
             );
-            let bondMaterialConfig = {
-                color: this.bondscolor,
-                blending: THREE.NormalBlending,
-                vertexColors: this.display == 'vesta'
-            };
-            let bondMaterial;
-            if (this.shading) {
-                bondMaterial = new THREE.MeshLambertMaterial(bondMaterialConfig);
-            } else {
-                bondMaterial = new THREE.MeshBasicMaterial(bondMaterialConfig);
-            }
 
-            this.bondmesh = new THREE.InstancedMesh(bondGeometry, bondMaterial, this.bonds.length);
-            this.bondmesh.name = "bonds";
-            this.bondmesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-            this.bondmesh.frustumCulled = false;
+            if (this.bondColorByAtom) {
+                let meshA = new THREE.InstancedMesh(bondGeometry, createBondMaterial(true), this.bonds.length);
+                let meshB = new THREE.InstancedMesh(bondGeometry, createBondMaterial(true), this.bonds.length);
+                meshA.name = "bonds-a";
+                meshB.name = "bonds-b";
+                meshA.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+                meshB.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+                meshA.frustumCulled = false;
+                meshB.frustumCulled = false;
 
-            for (let i=0; i<this.bonds.length; i++) {
-                let bond = this.bonds[i];
-                let bonddata = getBond(bond.a, bond.b);
-                this.instanceDummy.position.copy(bonddata.midpoint);
-                this.instanceDummy.quaternion.copy(bonddata.quaternion);
-                this.instanceDummy.scale.set(1, bond.baseLength, 1);
-                this.instanceDummy.updateMatrix();
-                this.bondmesh.setMatrixAt(i, this.instanceDummy.matrix);
+                let dir = new THREE.Vector3();
+                for (let i=0; i<this.bonds.length; i++) {
+                    let bond = this.bonds[i];
+                    let lengthNow = bond.a.distanceTo(bond.b);
+                    let bonddata = getBond(bond.a, bond.b);
+                    dir.copy(bond.b).sub(bond.a).normalize();
+                    let offset = dir.clone().multiplyScalar(lengthNow * 0.25);
 
-                if (this.display == 'vesta' && this.bondmesh.setColorAt && bondColors[i]) {
-                    this.bondmesh.setColorAt(
-                        i,
-                        new THREE.Color(bondColors[i][0], bondColors[i][1], bondColors[i][2])
-                    );
+                    this.instanceDummy.quaternion.copy(bonddata.quaternion);
+                    this.instanceDummy.scale.set(1, lengthNow * 0.5, 1);
+
+                    this.instanceDummy.position.copy(bonddata.midpoint).sub(offset);
+                    this.instanceDummy.updateMatrix();
+                    meshA.setMatrixAt(i, this.instanceDummy.matrix);
+
+                    this.instanceDummy.position.copy(bonddata.midpoint).add(offset);
+                    this.instanceDummy.updateMatrix();
+                    meshB.setMatrixAt(i, this.instanceDummy.matrix);
+
+                    if (meshA.setColorAt) {
+                        meshA.setColorAt(i, this.getAtomColor(bond.a_atom_number));
+                    }
+                    if (meshB.setColorAt) {
+                        meshB.setColorAt(i, this.getAtomColor(bond.b_atom_number));
+                    }
                 }
-            }
 
-            this.bondmesh.instanceMatrix.needsUpdate = true;
-            if (this.display == 'vesta' && this.bondmesh.instanceColor) {
-                this.bondmesh.instanceColor.needsUpdate = true;
+                meshA.instanceMatrix.needsUpdate = true;
+                meshB.instanceMatrix.needsUpdate = true;
+                if (meshA.instanceColor) {
+                    meshA.instanceColor.needsUpdate = true;
+                }
+                if (meshB.instanceColor) {
+                    meshB.instanceColor.needsUpdate = true;
+                }
+
+                this.bondmeshes.push(meshA);
+                this.bondmeshes.push(meshB);
+                this.bondmesh = meshA;
+                this.scene.add(meshA);
+                this.scene.add(meshB);
+            } else {
+                this.bondmesh = new THREE.InstancedMesh(
+                    bondGeometry,
+                    createBondMaterial(this.display == 'vesta'),
+                    this.bonds.length
+                );
+                this.bondmesh.name = "bonds";
+                this.bondmesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+                this.bondmesh.frustumCulled = false;
+
+                for (let i=0; i<this.bonds.length; i++) {
+                    let bond = this.bonds[i];
+                    let bonddata = getBond(bond.a, bond.b);
+                    this.instanceDummy.position.copy(bonddata.midpoint);
+                    this.instanceDummy.quaternion.copy(bonddata.quaternion);
+                    this.instanceDummy.scale.set(1, bond.baseLength, 1);
+                    this.instanceDummy.updateMatrix();
+                    this.bondmesh.setMatrixAt(i, this.instanceDummy.matrix);
+
+                    if (this.display == 'vesta' && this.bondmesh.setColorAt && bondColors[i]) {
+                        this.bondmesh.setColorAt(
+                            i,
+                            new THREE.Color(bondColors[i][0], bondColors[i][1], bondColors[i][2])
+                        );
+                    }
+                }
+
+                this.bondmesh.instanceMatrix.needsUpdate = true;
+                if (this.display == 'vesta' && this.bondmesh.instanceColor) {
+                    this.bondmesh.instanceColor.needsUpdate = true;
+                }
+                this.bondmeshes.push(this.bondmesh);
+                this.scene.add(this.bondmesh);
             }
-            this.scene.add(this.bondmesh);
         }
 
     }
@@ -1432,17 +1524,37 @@ export class VibCrystal {
             for (let i=0; i<this.bonds.length; i++) {
                 let bond = this.bonds[i];
                 let bonddata = getBond(bond.a, bond.b);
-                this.instanceDummy.position.copy(bonddata.midpoint);
                 this.instanceDummy.quaternion.copy(bonddata.quaternion);
-                this.instanceDummy.scale.set(1, bond.a.distanceTo(bond.b), 1);
-                this.instanceDummy.updateMatrix();
-                this.bondmesh.setMatrixAt(i, this.instanceDummy.matrix);
+                let lengthNow = bond.a.distanceTo(bond.b);
+                if (this.bondColorByAtom && this.bondmeshes.length >= 2) {
+                    let dir = new THREE.Vector3().copy(bond.b).sub(bond.a).normalize();
+                    let offset = dir.multiplyScalar(lengthNow * 0.25);
+
+                    this.instanceDummy.scale.set(1, lengthNow * 0.5, 1);
+
+                    this.instanceDummy.position.copy(bonddata.midpoint).sub(offset);
+                    this.instanceDummy.updateMatrix();
+                    this.bondmeshes[0].setMatrixAt(i, this.instanceDummy.matrix);
+
+                    this.instanceDummy.position.copy(bonddata.midpoint).add(offset);
+                    this.instanceDummy.updateMatrix();
+                    this.bondmeshes[1].setMatrixAt(i, this.instanceDummy.matrix);
+                } else if (this.bondmesh) {
+                    this.instanceDummy.position.copy(bonddata.midpoint);
+                    this.instanceDummy.scale.set(1, lengthNow, 1);
+                    this.instanceDummy.updateMatrix();
+                    this.bondmesh.setMatrixAt(i, this.instanceDummy.matrix);
+                }
             }
 
             for (let i=0; i<this.atommeshes.length; i++) {
                 this.atommeshes[i].instanceMatrix.needsUpdate = true;
             }
-            if (this.bondmesh) {
+            if (this.bondmeshes && this.bondmeshes.length) {
+                for (let i=0; i<this.bondmeshes.length; i++) {
+                    this.bondmeshes[i].instanceMatrix.needsUpdate = true;
+                }
+            } else if (this.bondmesh) {
                 this.bondmesh.instanceMatrix.needsUpdate = true;
             }
 
