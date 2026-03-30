@@ -126,6 +126,13 @@ export class VibCrystal {
 
         this.arrowcolor = 0xbbffbb;
         this.bondscolor = 0xffffff;
+        this.defaultArrowColor = this.arrowcolor;
+        this.defaultBondsColor = this.bondscolor;
+        this.atomRadiusScale = 1.0;
+        this.defaultAtomRadiusScale = this.atomRadiusScale;
+        this.defaultBondRadius = this.bondRadius;
+        this.defaultArrowRadius = this.arrowRadius;
+        this.atomColorOverrides = {};
         this.arrowobjects = [];
         this.atomobjects = [];
         this.atommeshes = [];
@@ -137,6 +144,57 @@ export class VibCrystal {
         this.captureK = null;
         this.captureN = null;
 		this.modified_covalent_radii = JSON.parse(JSON.stringify(atomic_data.covalent_radii));
+    }
+
+    colorToInputHex(colorHex) {
+        return '#' + Number(colorHex).toString(16).padStart(6, '0');
+    }
+
+    normalizeColorHex(value, fallback) {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            return value;
+        }
+        if (typeof value === 'string') {
+            let normalized = value.trim();
+            if (!normalized) {
+                return fallback;
+            }
+            if (normalized.startsWith('#')) {
+                normalized = normalized.slice(1);
+            }
+            if (/^[0-9a-fA-F]{6}$/.test(normalized)) {
+                return parseInt(normalized, 16);
+            }
+        }
+        return fallback;
+    }
+
+    getDefaultAtomColor(atomNumber) {
+        let palette = this.display == 'vesta' ? atomic_data.vesta_colors : atomic_data.jmol_colors;
+        let rgb = palette[atomNumber] || [0.5, 0.5, 0.5];
+        return new THREE.Color(rgb[0], rgb[1], rgb[2]).getHex();
+    }
+
+    getAtomColorHex(atomNumber) {
+        if (Object.prototype.hasOwnProperty.call(this.atomColorOverrides, atomNumber)) {
+            return this.atomColorOverrides[atomNumber];
+        }
+        return this.getDefaultAtomColor(atomNumber);
+    }
+
+    getAtomColor(atomNumber) {
+        return new THREE.Color(this.getAtomColorHex(atomNumber));
+    }
+
+    setAtomColorOverride(atomNumber, colorValue) {
+        this.atomColorOverrides[atomNumber] = this.normalizeColorHex(
+            colorValue,
+            this.getDefaultAtomColor(atomNumber)
+        );
+    }
+
+    clearAtomColorOverride(atomNumber) {
+        delete this.atomColorOverrides[atomNumber];
     }
 
     //functions to link the DOM buttons with this class
@@ -253,12 +311,34 @@ export class VibCrystal {
 
     adjustCovalentRadiiSelect() {
         let unique_atom_numbers = this.atom_numbers.filter((v, i, a) => a.indexOf(v) === i);
+        let previousCovalentSelection = this.dom_covalent_radii_select.val();
 
         this.dom_covalent_radii_select.empty();
         for (let i=0; i<unique_atom_numbers.length; i++) {
             this.dom_covalent_radii_select.append('<option value="' + unique_atom_numbers[i] + '">' + atomic_data.atomic_symbol[unique_atom_numbers[i]] + '</option>');
         }
+        if (previousCovalentSelection !== null && unique_atom_numbers.includes(Number(previousCovalentSelection))) {
+            this.dom_covalent_radii_select.val(previousCovalentSelection);
+        }
         this.dom_covalent_radii_input.val(this.modified_covalent_radii[this.dom_covalent_radii_select.val()]);
+
+        if (this.dom_atom_color_select && this.dom_atom_color_select.length) {
+            let previousAtomColorSelection = this.dom_atom_color_select.val();
+            this.dom_atom_color_select.empty();
+            for (let i=0; i<unique_atom_numbers.length; i++) {
+                let atomNumber = unique_atom_numbers[i];
+                this.dom_atom_color_select.append('<option value="' + atomNumber + '">' + atomic_data.atomic_symbol[atomNumber] + '</option>');
+            }
+            if (previousAtomColorSelection !== null && unique_atom_numbers.includes(Number(previousAtomColorSelection))) {
+                this.dom_atom_color_select.val(previousAtomColorSelection);
+            }
+            if (this.dom_atom_color_input && this.dom_atom_color_input.length) {
+                let selected = Number(this.dom_atom_color_select.val());
+                if (Number.isFinite(selected)) {
+                    this.dom_atom_color_input.val(this.colorToInputHex(this.getAtomColorHex(selected)));
+                }
+            }
+        }
     }
 
     setCovalentRadiiButton(dom_select,dom_input,dom_button) {
@@ -276,6 +356,154 @@ export class VibCrystal {
             dom_input.val(self.modified_covalent_radii[dom_select.val()]);
             self.updatelocal();
         });
+    }
+
+    setAdvancedAppearanceControls(
+        domAtomColorSelect,
+        domAtomColorInput,
+        domAtomColorResetButton,
+        domArrowColorInput,
+        domBondColorInput,
+        domAtomRadiusInput,
+        domBondRadiusInput,
+        domArrowRadiusInput,
+        domResetColorsButton,
+        domResetRadiusButton
+    ) {
+        let self = this;
+        this.dom_atom_color_select = domAtomColorSelect;
+        this.dom_atom_color_input = domAtomColorInput;
+        this.dom_arrow_color_input = domArrowColorInput;
+        this.dom_bond_color_input = domBondColorInput;
+        this.dom_atom_radius_input = domAtomRadiusInput;
+        this.dom_bond_radius_input = domBondRadiusInput;
+        this.dom_arrow_radius_input = domArrowRadiusInput;
+
+        if (domAtomColorSelect && domAtomColorSelect.length && domAtomColorInput && domAtomColorInput.length) {
+            domAtomColorSelect.change(function() {
+                let atomNumber = Number(this.value);
+                if (!Number.isFinite(atomNumber)) {
+                    return;
+                }
+                domAtomColorInput.val(self.colorToInputHex(self.getAtomColorHex(atomNumber)));
+            });
+        }
+
+        if (domAtomColorInput && domAtomColorInput.length) {
+            domAtomColorInput.change(function() {
+                let atomNumber = Number(domAtomColorSelect.val());
+                if (!Number.isFinite(atomNumber)) {
+                    return;
+                }
+                self.setAtomColorOverride(atomNumber, this.value);
+                self.updatelocal();
+            });
+        }
+
+        if (domAtomColorResetButton && domAtomColorResetButton.length) {
+            domAtomColorResetButton.click(function() {
+                let atomNumber = Number(domAtomColorSelect.val());
+                if (!Number.isFinite(atomNumber)) {
+                    return;
+                }
+                self.clearAtomColorOverride(atomNumber);
+                domAtomColorInput.val(self.colorToInputHex(self.getAtomColorHex(atomNumber)));
+                self.updatelocal();
+            });
+        }
+
+        if (domArrowColorInput && domArrowColorInput.length) {
+            domArrowColorInput.val(this.colorToInputHex(this.arrowcolor));
+            domArrowColorInput.change(function() {
+                self.arrowcolor = self.normalizeColorHex(this.value, self.arrowcolor);
+                self.updatelocal();
+            });
+        }
+
+        if (domBondColorInput && domBondColorInput.length) {
+            domBondColorInput.val(this.colorToInputHex(this.bondscolor));
+            domBondColorInput.change(function() {
+                self.bondscolor = self.normalizeColorHex(this.value, self.bondscolor);
+                self.updatelocal();
+            });
+        }
+
+        if (domAtomRadiusInput && domAtomRadiusInput.length) {
+            domAtomRadiusInput.val(this.atomRadiusScale);
+            domAtomRadiusInput.attr('min', 0.1);
+            domAtomRadiusInput.attr('max', 5.0);
+            domAtomRadiusInput.attr('step', 0.05);
+            domAtomRadiusInput.change(function() {
+                self.atomRadiusScale = Math.max(0.1, parseFloat(this.value) || 1.0);
+                domAtomRadiusInput.val(self.atomRadiusScale);
+                self.updatelocal();
+            });
+        }
+
+        if (domBondRadiusInput && domBondRadiusInput.length) {
+            domBondRadiusInput.val(this.bondRadius);
+            domBondRadiusInput.attr('min', 0.01);
+            domBondRadiusInput.attr('max', 1.0);
+            domBondRadiusInput.attr('step', 0.01);
+            domBondRadiusInput.change(function() {
+                self.bondRadius = Math.max(0.01, parseFloat(this.value) || self.bondRadius);
+                domBondRadiusInput.val(self.bondRadius);
+                self.updatelocal();
+            });
+        }
+
+        if (domArrowRadiusInput && domArrowRadiusInput.length) {
+            domArrowRadiusInput.val(this.arrowRadius);
+            domArrowRadiusInput.attr('min', 0.01);
+            domArrowRadiusInput.attr('max', 1.0);
+            domArrowRadiusInput.attr('step', 0.01);
+            domArrowRadiusInput.change(function() {
+                self.arrowRadius = Math.max(0.01, parseFloat(this.value) || self.arrowRadius);
+                domArrowRadiusInput.val(self.arrowRadius);
+                self.updatelocal();
+            });
+        }
+
+        if (domResetColorsButton && domResetColorsButton.length) {
+            domResetColorsButton.click(function() {
+                self.atomColorOverrides = {};
+                self.arrowcolor = self.defaultArrowColor;
+                self.bondscolor = self.defaultBondsColor;
+
+                if (self.dom_atom_color_select && self.dom_atom_color_select.length && self.dom_atom_color_input && self.dom_atom_color_input.length) {
+                    let atomNumber = Number(self.dom_atom_color_select.val());
+                    if (Number.isFinite(atomNumber)) {
+                        self.dom_atom_color_input.val(self.colorToInputHex(self.getAtomColorHex(atomNumber)));
+                    }
+                }
+                if (self.dom_arrow_color_input && self.dom_arrow_color_input.length) {
+                    self.dom_arrow_color_input.val(self.colorToInputHex(self.arrowcolor));
+                }
+                if (self.dom_bond_color_input && self.dom_bond_color_input.length) {
+                    self.dom_bond_color_input.val(self.colorToInputHex(self.bondscolor));
+                }
+                self.updatelocal();
+            });
+        }
+
+        if (domResetRadiusButton && domResetRadiusButton.length) {
+            domResetRadiusButton.click(function() {
+                self.atomRadiusScale = self.defaultAtomRadiusScale;
+                self.bondRadius = self.defaultBondRadius;
+                self.arrowRadius = self.defaultArrowRadius;
+
+                if (self.dom_atom_radius_input && self.dom_atom_radius_input.length) {
+                    self.dom_atom_radius_input.val(self.atomRadiusScale);
+                }
+                if (self.dom_bond_radius_input && self.dom_bond_radius_input.length) {
+                    self.dom_bond_radius_input.val(self.bondRadius);
+                }
+                if (self.dom_arrow_radius_input && self.dom_arrow_radius_input.length) {
+                    self.dom_arrow_radius_input.val(self.arrowRadius);
+                }
+                self.updatelocal();
+            });
+        }
     }
 
     init(phonon) {
@@ -451,21 +679,14 @@ export class VibCrystal {
 
         for (let i=0; i < atom_numbers.length; i++) {
             let n = atom_numbers[i];
+            let atomColor = this.getAtomColor(n);
             if (this.display == 'vesta') {
-                 let r = atomic_data.vesta_colors[n][0];
-                 let g = atomic_data.vesta_colors[n][1];
-                 let b = atomic_data.vesta_colors[n][2];
-
                  let material = new THREE.MeshPhongMaterial( {reflectivity:1, shininess: 80} );
-                 material.color.setRGB (r, g, b);
+                 material.color.copy(atomColor);
                  this.materials.push( material );
             } else {
-                let r = atomic_data.jmol_colors[n][0];
-                let g = atomic_data.jmol_colors[n][1];
-                let b = atomic_data.jmol_colors[n][2];
-
                 let material = new THREE.MeshLambertMaterial( { blending: THREE.NormalBlending } );
-                material.color.setRGB (r, g, b);
+                material.color.copy(atomColor);
                 this.materials.push( material );
             }
         }
@@ -559,13 +780,13 @@ export class VibCrystal {
             let sphereGeometry;
             if (this.display == 'vesta') {
                 sphereGeometry = new THREE.SphereGeometry(
-                    atomic_data.covalent_radii[atom_numbers[typeIndex]]/2.3,
+                    (atomic_data.covalent_radii[atom_numbers[typeIndex]]/2.3) * this.atomRadiusScale,
                     this.sphereLat,
                     this.sphereLon
                 );
             } else {
                 sphereGeometry = new THREE.SphereGeometry(
-                    this.sphereRadius,
+                    this.sphereRadius * this.atomRadiusScale,
                     this.sphereLat,
                     this.sphereLon
                 );
@@ -664,9 +885,11 @@ export class VibCrystal {
             if (length < cra + crb || length < this.nndist ) {
                 this.bonds.push({ a: ad, b: bd, baseLength: length });
                 if (this.display == 'vesta') {
-                    let cr = (atomic_data.vesta_colors[a.atom_number][0] + atomic_data.vesta_colors[b.atom_number][0]) / 2;
-                    let cg = (atomic_data.vesta_colors[a.atom_number][1] + atomic_data.vesta_colors[b.atom_number][1]) / 2;
-                    let cb = (atomic_data.vesta_colors[a.atom_number][2] + atomic_data.vesta_colors[b.atom_number][2]) / 2;
+                    let aColor = this.getAtomColor(a.atom_number);
+                    let bColor = this.getAtomColor(b.atom_number);
+                    let cr = (aColor.r + bColor.r) / 2;
+                    let cg = (aColor.g + bColor.g) / 2;
+                    let cb = (aColor.b + bColor.b) / 2;
                     bondColors.push([cr, cg, cb]);
                 } else {
                     bondColors.push(null);
