@@ -78,6 +78,7 @@ p.setReferencesList( $('#ref') );
 p.setAtomPositions( $('#atompos') );
 p.setLattice( $('#lattice') );
 p.setRepetitionsInput( $('#nx'), $('#ny'), $('#nz') );
+p.setModeSelectionInput( $('#kindex'), $('#nindex'), $('#modeselect') );
 p.setUpdateButton( $('#update') );
 p.setFileInput( $('#file-input') );
 p.setMaterialsProjectAPIKey( $('#mp_api_key_input'),$('#mp_api_key_button') );

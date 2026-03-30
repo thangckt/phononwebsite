@@ -90,6 +90,22 @@ export class PhononWebpage {
         dom_nz.keyup( keyup.bind(this) );
     }
 
+    setModeSelectionInput(dom_k, dom_n, dom_button) {
+        this.dom_k = dom_k;
+        this.dom_n = dom_n;
+        this.dom_mode_button = dom_button;
+
+        function keyup(event) {
+            if(event.keyCode == 13) {
+                this.selectModeFromInputs();
+            }
+        }
+
+        if (this.dom_k) { this.dom_k.keyup( keyup.bind(this) ); }
+        if (this.dom_n) { this.dom_n.keyup( keyup.bind(this) ); }
+        if (this.dom_mode_button) { this.dom_mode_button.click( this.selectModeFromInputs.bind(this) ); }
+    }
+
     setFileInput(dom_input) {
         /* Load a custom file button
         */
@@ -220,6 +236,7 @@ export class PhononWebpage {
         */
         this.name = this.phonon.name;
         this.setRepetitions(this.phonon.repetitions);
+        this.updateModeSelectionInputs();
         if (!this.enforceVisualizationLimits(true)) {
             return;
         }
@@ -345,6 +362,93 @@ export class PhononWebpage {
         this.vibrations = this.getVibrations(this.nx,this.ny,this.nz);
     }
 
+    getModeSelectionLimits() {
+        if (!this.phonon || !this.phonon.eigenvalues || !this.phonon.distances) {
+            return { maxK: 0, maxN: 0 };
+        }
+        let maxK = Math.max(0, this.phonon.distances.length - 1);
+        let maxN = Math.max(0, this.phonon.eigenvalues[0].length - 1);
+        return { maxK: maxK, maxN: maxN };
+    }
+
+    getEnergyOrderedBandIndices(k) {
+        if (!this.phonon || !this.phonon.eigenvalues || !this.phonon.eigenvalues[k]) {
+            return [];
+        }
+        let values = this.phonon.eigenvalues[k];
+        let indexed = values.map((value, index) => ({ value: value, index: index }));
+        indexed.sort((a, b) => a.value - b.value);
+        return indexed.map((item) => item.index);
+    }
+
+    getBandIndexFromEnergyOrder(k, order) {
+        let orderMap = this.getEnergyOrderedBandIndices(k);
+        if (orderMap.length === 0) { return 0; }
+        order = Math.max(0, Math.min(orderMap.length - 1, order));
+        return orderMap[order];
+    }
+
+    getEnergyOrderFromBandIndex(k, bandIndex) {
+        let orderMap = this.getEnergyOrderedBandIndices(k);
+        let order = orderMap.indexOf(bandIndex);
+        return order >= 0 ? order : 0;
+    }
+
+    updateModeSelectionInputs() {
+        if (!this.dom_k || !this.dom_n) { return; }
+        let limits = this.getModeSelectionLimits();
+
+        this.dom_k.attr('min', 0);
+        this.dom_k.attr('max', limits.maxK);
+        this.dom_k.attr('step', 1);
+        this.dom_k.val(this.k);
+
+        this.dom_n.attr('min', 0);
+        this.dom_n.attr('max', limits.maxN);
+        this.dom_n.attr('step', 1);
+        this.dom_n.val(this.getEnergyOrderFromBandIndex(this.k, this.n));
+    }
+
+    selectModeByBandIndex(k, n, syncChart=true) {
+        if (!this.phonon) { return; }
+        let limits = this.getModeSelectionLimits();
+
+        k = parseInt(k, 10);
+        n = parseInt(n, 10);
+        if (!Number.isFinite(k)) { k = this.k; }
+        if (!Number.isFinite(n)) { n = this.n; }
+
+        this.k = Math.max(0, Math.min(limits.maxK, k));
+        this.n = Math.max(0, Math.min(limits.maxN, n));
+        this.updateModeSelectionInputs();
+
+        this.setVibrations();
+        this.visualizer.update(this);
+        if (syncChart && this.dispersion && this.dispersion.selectModePoint) {
+            this.dispersion.selectModePoint(this.phonon, this.k, this.n);
+        }
+    }
+
+    selectMode(k, nOrder, syncChart=true) {
+        if (!this.phonon) { return; }
+        let limits = this.getModeSelectionLimits();
+
+        k = parseInt(k, 10);
+        nOrder = parseInt(nOrder, 10);
+        if (!Number.isFinite(k)) { k = this.k; }
+        if (!Number.isFinite(nOrder)) { nOrder = this.getEnergyOrderFromBandIndex(this.k, this.n); }
+
+        k = Math.max(0, Math.min(limits.maxK, k));
+        nOrder = Math.max(0, Math.min(limits.maxN, nOrder));
+        let n = this.getBandIndexFromEnergyOrder(k, nOrder);
+        this.selectModeByBandIndex(k, n, syncChart);
+    }
+
+    selectModeFromInputs() {
+        if (!this.dom_k || !this.dom_n) { return; }
+        this.selectMode(this.dom_k.val(), this.dom_n.val(), true);
+    }
+
     update(dispersion = true) {
         /*
         Update all the aspects fo the webpage
@@ -363,7 +467,12 @@ export class PhononWebpage {
         this.updatePage();
 
         //update dispersion
-        if (dispersion) { this.dispersion.update(this.phonon); }
+        if (dispersion) {
+            this.dispersion.update(this.phonon);
+            if (this.dispersion.selectModePoint) {
+                this.dispersion.selectModePoint(this.phonon, this.k, this.n);
+            }
+        }
 
         //update visualizer
         this.visualizer.update(this);

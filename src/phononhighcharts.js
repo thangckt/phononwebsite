@@ -61,12 +61,37 @@ export class PhononHighcharts {
 
     setClickEvent( phononweb ) {
         let click_event = function () {
-            phononweb.k = phononweb.phonon.qindex[this.x];
-            phononweb.n = this.series.name;
-            phononweb.setVibrations();
-            phononweb.visualizer.update(phononweb);
+            let k = phononweb.phonon.qindex[this.x];
+            let n = this.series.name;
+            phononweb.selectModeByBandIndex(k, n, false);
         }
         this.HighchartsOptions.plotOptions.series.point.events.click = click_event
+    }
+
+    selectModePoint(phonon, k, n) {
+        if (!this.chart || !this.chart.series || !phonon || !phonon.distances) { return; }
+        let targetX = phonon.distances[k];
+        if (!Number.isFinite(targetX)) { return; }
+
+        for (let i=0; i<this.chart.series.length; i++) {
+            let series = this.chart.series[i];
+            for (let j=0; j<series.points.length; j++) {
+                let point = series.points[j];
+                point.select(false, false);
+            }
+        }
+
+        for (let i=0; i<this.chart.series.length; i++) {
+            let series = this.chart.series[i];
+            if (String(series.name) !== String(n)) { continue; }
+            for (let j=0; j<series.points.length; j++) {
+                let point = series.points[j];
+                if (Math.abs(point.x - targetX) < 1e-12) {
+                    point.select(true, false);
+                    return;
+                }
+            }
+        }
     }
 
     update(phonon) {
@@ -110,7 +135,7 @@ export class PhononHighcharts {
         this.HighchartsOptions.xAxis.plotLines = plotLines;
         this.HighchartsOptions.xAxis.labels.formatter = this.labels_formatter(phonon)
         this.HighchartsOptions.yAxis.min = minVal;
-        globalThis.Highcharts.chart(this.container[0], this.HighchartsOptions);
+        this.chart = globalThis.Highcharts.chart(this.container[0], this.HighchartsOptions);
     }
 
     getGraph(phonon) {
