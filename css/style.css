@@ -224,10 +224,79 @@ ap {
     padding-bottom: .5em;
 }
 
+.advanced-appearance {
+    padding: 2px 0;
+}
+
+.advanced-appearance .appearance-row {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.advanced-appearance .appearance-subsection {
+    font-weight: bold;
+    margin: 8px 0 4px 0;
+    padding-top: 4px;
+}
+
+.advanced-appearance .appearance-atom-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.advanced-appearance .appearance-atom-list button.active {
+    font-weight: bold;
+}
+
+.advanced-appearance .appearance-row label {
+    display: inline-block;
+}
+
+.advanced-appearance .appearance-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.advanced-appearance input[type="number"] {
+    width: 90px;
+}
+
+.advanced-appearance input[type="color"] {
+    width: 40px;
+    height: 28px;
+}
+
+.advanced-appearance .appearance-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+#appearance_reset_vectors_button {
+    padding-left: 6px;
+    padding-right: 6px;
+    font-size: 0.9em;
+}
+
 
 @media all and (max-width: 700px) {
     .navigation {
         justify-content: space-around;
+    }
+
+    .advanced-appearance .appearance-row {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+
+    .advanced-appearance .appearance-actions {
+        justify-content: flex-start;
     }
 
     .container {
