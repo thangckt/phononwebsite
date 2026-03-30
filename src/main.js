@@ -96,6 +96,7 @@ v.setCameraDirectionButton($('#cameraz'),'z');
 
 v.setDisplayCombo($('#displaystyle'));
 v.setCellCheckbox($('#drawcell'));
+v.setShadingCheckbox($('#drawshading'));
 v.setWebmButton($('#webmbutton'));
 v.setGifButton($('#gifbutton'));
 v.setArrowsCheckbox($('#drawvectors'));

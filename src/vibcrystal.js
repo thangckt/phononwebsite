@@ -61,6 +61,7 @@ export class VibCrystal {
         this.needsRender = true;
         this.arrows = false;
         this.cell = false;
+        this.shading = true;
         this.paused = false;
         this.initialized = false;
 
@@ -70,6 +71,7 @@ export class VibCrystal {
 
         this.stats = null;
         this.camera = null;
+        this.pointLight = null;
         this.controls = null;
         this.scene = null;
         this.renderer = null;
@@ -318,6 +320,15 @@ export class VibCrystal {
             self.display = dom_combo[0].options[dom_combo[0].selectedIndex].value;
             self.updatelocal();
         }
+    }
+
+    setShadingCheckbox(dom_checkbox) {
+        let self = this;
+        this.shading = dom_checkbox.prop('checked');
+        dom_checkbox.click( function() {
+            self.shading = this.checked;
+            self.updatelocal();
+        } );
     }
 
     setWebmButton(dom_button) {
@@ -790,14 +801,14 @@ export class VibCrystal {
 
         //add lights to the camera
         if (this.display == 'vesta') {
-            let pointLight = new THREE.PointLight(  0xffffff, 1.2 );
-            pointLight.position.set(1, 1, 1);
-            this.camera.add(pointLight);
+            this.pointLight = new THREE.PointLight( 0xffffff, 1.2 );
+            this.pointLight.position.set(1, 1, 1);
         } else {
-            let pointLight = new THREE.PointLight( 0xdddddd );
-            pointLight.position.set(1,1,2);
-            this.camera.add(pointLight);
+            this.pointLight = new THREE.PointLight( 0xdddddd );
+            this.pointLight.position.set(1, 1, 2);
         }
+        this.pointLight.visible = true;
+        this.camera.add(this.pointLight);
 
         //controls
         this.controls = new TrackballControls( this.camera, this.container0 );
@@ -951,10 +962,14 @@ export class VibCrystal {
         for (let i=0; i < atom_numbers.length; i++) {
             let n = atom_numbers[i];
             let atomColor = this.getAtomColor(n);
-            if (this.display == 'vesta') {
-                 let material = new THREE.MeshPhongMaterial( {reflectivity:1, shininess: 80} );
-                 material.color.copy(atomColor);
-                 this.materials.push( material );
+            if (!this.shading) {
+                let material = new THREE.MeshBasicMaterial( { blending: THREE.NormalBlending } );
+                material.color.copy(atomColor);
+                this.materials.push( material );
+            } else if (this.display == 'vesta') {
+                let material = new THREE.MeshPhongMaterial( {reflectivity:1, shininess: 80} );
+                material.color.copy(atomColor);
+                this.materials.push( material );
             } else {
                 let material = new THREE.MeshLambertMaterial( { blending: THREE.NormalBlending } );
                 material.color.copy(atomColor);
@@ -1118,8 +1133,18 @@ export class VibCrystal {
             let axisGeometry  = new THREE.CylinderGeometry( this.arrowRadius, this.arrowRadius,
                                                             this.arrowLength );
 
-            let AxisMaterial  = new THREE.MeshLambertMaterial( { color: this.arrowcolor,
-                                                                 blending: THREE.NormalBlending } );
+            let AxisMaterial;
+            if (this.shading) {
+                AxisMaterial = new THREE.MeshLambertMaterial( {
+                    color: this.arrowcolor,
+                    blending: THREE.NormalBlending
+                } );
+            } else {
+                AxisMaterial = new THREE.MeshBasicMaterial( {
+                    color: this.arrowcolor,
+                    blending: THREE.NormalBlending
+                } );
+            }
 
             for (let i=0; i<atoms.length; i++) {
 
@@ -1175,11 +1200,17 @@ export class VibCrystal {
             let bondGeometry = new THREE.CylinderGeometry(
                 this.bondRadius, this.bondRadius, 1.0, this.bondSegments, this.bondVertical, true
             );
-            let bondMaterial = new THREE.MeshLambertMaterial({
+            let bondMaterialConfig = {
                 color: this.bondscolor,
                 blending: THREE.NormalBlending,
                 vertexColors: this.display == 'vesta'
-            });
+            };
+            let bondMaterial;
+            if (this.shading) {
+                bondMaterial = new THREE.MeshLambertMaterial(bondMaterialConfig);
+            } else {
+                bondMaterial = new THREE.MeshBasicMaterial(bondMaterialConfig);
+            }
 
             this.bondmesh = new THREE.InstancedMesh(bondGeometry, bondMaterial, this.bonds.length);
             this.bondmesh.name = "bonds";
@@ -1224,6 +1255,9 @@ export class VibCrystal {
 
     addLights() {
         this.scene.add(this.camera);
+        if (this.pointLight) {
+            this.pointLight.visible = true;
+        }
         let light = new THREE.AmbientLight( 0x333333 );
         this.scene.add( light );
     }
