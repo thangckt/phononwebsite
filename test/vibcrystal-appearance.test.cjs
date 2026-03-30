@@ -42,52 +42,61 @@ describe('VibCrystal advanced appearance', function () {
 
   it('preserves selected atom when rebuilding advanced selectors', function () {
     const dom = new JSDOM(`<!doctype html><html><body>
-      <select id="cov-select"></select>
+      <div id="atom-list"></div>
+      <select id="display"><option value="jmol">Jmol</option><option value="vesta">Vesta</option></select>
       <input id="cov-input" type="number">
-      <select id="atom-select"></select>
       <input id="atom-color" type="color">
-      <button id="atom-reset" type="button"></button>
-    </body></html>`);
-    const $ = require('jquery')(dom.window);
-
-    const v = new VibCrystal(makeContainer());
-    v.atom_numbers = [6, 8, 6];
-    v.setCovalentRadiiSelect($('#cov-select'), $('#cov-input'));
-    v.setAdvancedAppearanceControls(
-      $('#atom-select'),
-      $('#atom-color'),
-      $('#atom-reset'),
-      $(),
-      $(),
-      $(),
-      $(),
-      $(),
-      $(),
-      $()
-    );
-
-    v.adjustCovalentRadiiSelect();
-    $('#cov-select').val('8');
-    $('#atom-select').val('8');
-    v.adjustCovalentRadiiSelect();
-
-    assert.equal($('#cov-select').val(), '8');
-    assert.equal($('#atom-select').val(), '8');
-    dom.window.close();
-  });
-
-  it('resets all advanced colors and radii with dedicated buttons', function () {
-    const dom = new JSDOM(`<!doctype html><html><body>
-      <select id="atom-select"><option value="6">C</option></select>
-      <input id="atom-color" type="color">
-      <button id="atom-reset" type="button"></button>
       <input id="arrow-color" type="color">
       <input id="bond-color" type="color">
       <input id="atom-radius" type="number">
       <input id="bond-radius" type="number">
       <input id="arrow-radius" type="number">
+      <button id="reset-atom" type="button"></button>
       <button id="reset-colors" type="button"></button>
-      <button id="reset-radius" type="button"></button>
+      <button id="reset-radii" type="button"></button>
+    </body></html>`);
+    const $ = require('jquery')(dom.window);
+
+    const v = new VibCrystal(makeContainer());
+    v.atom_numbers = [6, 8, 6];
+    v.updatelocal = () => {};
+    v.setAdvancedAppearanceControls(
+      $('#atom-list'),
+      $('#display'),
+      $('#cov-input'),
+      $('#atom-color'),
+      $('#arrow-color'),
+      $('#bond-color'),
+      $('#atom-radius'),
+      $('#bond-radius'),
+      $('#arrow-radius'),
+      $('#reset-atom'),
+      $('#reset-colors'),
+      $('#reset-radii')
+    );
+
+    v.adjustCovalentRadiiSelect();
+    $('#atom-list').find('button[data-atom-number="8"]').trigger('click');
+    v.adjustCovalentRadiiSelect();
+
+    assert.equal(v.getSelectedAppearanceAtomNumber(), 8);
+    dom.window.close();
+  });
+
+  it('resets all advanced colors and radii with dedicated buttons', function () {
+    const dom = new JSDOM(`<!doctype html><html><body>
+      <div id="atom-list"></div>
+      <select id="display"><option value="jmol">Jmol</option><option value="vesta">Vesta</option></select>
+      <input id="cov-input" type="number">
+      <input id="atom-color" type="color">
+      <input id="arrow-color" type="color">
+      <input id="bond-color" type="color">
+      <input id="atom-radius" type="number">
+      <input id="bond-radius" type="number">
+      <input id="arrow-radius" type="number">
+      <button id="reset-atom" type="button"></button>
+      <button id="reset-colors" type="button"></button>
+      <button id="reset-radii" type="button"></button>
     </body></html>`);
     const $ = require('jquery')(dom.window);
 
@@ -95,35 +104,97 @@ describe('VibCrystal advanced appearance', function () {
     v.atom_numbers = [6];
     v.updatelocal = () => {};
     v.setAdvancedAppearanceControls(
-      $('#atom-select'),
+      $('#atom-list'),
+      $('#display'),
+      $('#cov-input'),
       $('#atom-color'),
-      $('#atom-reset'),
       $('#arrow-color'),
       $('#bond-color'),
       $('#atom-radius'),
       $('#bond-radius'),
       $('#arrow-radius'),
+      $('#reset-atom'),
       $('#reset-colors'),
-      $('#reset-radius')
+      $('#reset-radii')
     );
+    v.adjustCovalentRadiiSelect();
 
     const defaultAtom = v.getDefaultAtomColor(6);
+    const defaultCovalent = v.modified_covalent_radii[6];
     v.setAtomColorOverride(6, '#123456');
+    v.modified_covalent_radii[6] = defaultCovalent + 0.5;
     v.arrowcolor = 0x111111;
     v.bondscolor = 0x222222;
-    v.atomRadiusScale = 2.0;
+    v.setAtomRadiusScaleOverride(6, 2.0);
     v.bondRadius = 0.3;
     v.arrowRadius = 0.4;
 
-    $('#reset-colors').trigger('click');
+    $('#reset-atom').trigger('click');
     assert.equal(v.getAtomColorHex(6), defaultAtom);
+    assert.equal(v.modified_covalent_radii[6], defaultCovalent);
+    assert.equal(v.getAtomRadiusScale(6), v.defaultAtomRadiusScale);
+    assert.equal(v.arrowcolor, 0x111111);
+    assert.equal(v.bondscolor, 0x222222);
+    assert.equal(v.bondRadius, 0.3);
+    assert.equal(v.arrowRadius, 0.4);
+
+    $('#reset-colors').trigger('click');
     assert.equal(v.arrowcolor, v.defaultArrowColor);
     assert.equal(v.bondscolor, v.defaultBondsColor);
+    assert.equal(v.getAtomColorHex(6), defaultAtom);
 
-    $('#reset-radius').trigger('click');
-    assert.equal(v.atomRadiusScale, v.defaultAtomRadiusScale);
+    $('#reset-radii').trigger('click');
     assert.equal(v.bondRadius, v.defaultBondRadius);
     assert.equal(v.arrowRadius, v.defaultArrowRadius);
+    assert.equal(v.getAtomColorHex(6), defaultAtom);
+    dom.window.close();
+  });
+
+  it('applies selected atom values on Enter', function () {
+    const dom = new JSDOM(`<!doctype html><html><body>
+      <div id="atom-list"></div>
+      <select id="display"><option value="jmol">Jmol</option><option value="vesta">Vesta</option></select>
+      <input id="cov-input" type="number">
+      <input id="atom-color" type="color">
+      <input id="arrow-color" type="color">
+      <input id="bond-color" type="color">
+      <input id="atom-radius" type="number">
+      <input id="bond-radius" type="number">
+      <input id="arrow-radius" type="number">
+      <button id="reset-atom" type="button"></button>
+      <button id="reset-colors" type="button"></button>
+      <button id="reset-radii" type="button"></button>
+    </body></html>`);
+    const $ = require('jquery')(dom.window);
+
+    const v = new VibCrystal(makeContainer());
+    v.atom_numbers = [6, 8];
+    v.updatelocal = () => {};
+    v.setAdvancedAppearanceControls(
+      $('#atom-list'),
+      $('#display'),
+      $('#cov-input'),
+      $('#atom-color'),
+      $('#arrow-color'),
+      $('#bond-color'),
+      $('#atom-radius'),
+      $('#bond-radius'),
+      $('#arrow-radius'),
+      $('#reset-atom'),
+      $('#reset-colors'),
+      $('#reset-radii')
+    );
+    v.adjustCovalentRadiiSelect();
+
+    $('#atom-list').find('button[data-atom-number="8"]').trigger('click');
+    $('#cov-input').val('2.22');
+    $('#atom-color').val('#123456');
+    $('#atom-radius').val('1.75');
+    $('#atom-radius').trigger($.Event('keydown', { key: 'Enter' }));
+
+    assert.equal(v.modified_covalent_radii[8], 2.22);
+    assert.equal(v.getAtomColorHex(8), 0x123456);
+    assert.equal(v.getAtomRadiusScale(8), 1.75);
     dom.window.close();
   });
 });

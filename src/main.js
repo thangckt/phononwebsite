@@ -103,20 +103,19 @@ v.setArrowsInput($('#vectors_amplitude_range'));
 v.setSpeedInput($('#speed_range'));
 v.setAmplitudeInput($('#amplitude_box'),$('#amplitude_range'));
 v.setPlayPause($('#playpause'));
-v.setCovalentRadiiSelect($('#covalent_radii_select'),$('#covalent_radii_input'));
-v.setCovalentRadiiButton($('#covalent_radii_select'),$('#covalent_radii_input'),$('#covalent_radii_button'));
-v.setCovalentRadiiResetButton($('#covalent_radii_select'),$('#covalent_radii_input'),$('#covalent_radii_reset_button'));
 v.setAdvancedAppearanceControls(
-    $('#atom_color_select'),
+    $('#appearance_atom_list'),
+    $('#displaystyle'),
+    $('#covalent_radii_input'),
     $('#atom_color_input'),
-    $('#atom_color_reset_button'),
     $('#arrow_color_input'),
     $('#bond_color_input'),
     $('#atom_radius_input'),
     $('#bond_radius_input'),
     $('#arrow_radius_input'),
+    $('#appearance_reset_atom_button'),
     $('#appearance_reset_colors_button'),
-    $('#appearance_reset_radius_button')
+    $('#appearance_reset_radii_button'),
 );
 
 // check if webgl is available

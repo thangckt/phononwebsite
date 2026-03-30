@@ -133,6 +133,8 @@ export class VibCrystal {
         this.defaultBondRadius = this.bondRadius;
         this.defaultArrowRadius = this.arrowRadius;
         this.atomColorOverrides = {};
+        this.atomRadiusScaleOverrides = {};
+        this.appearanceSelectedAtomNumber = null;
         this.arrowobjects = [];
         this.atomobjects = [];
         this.atommeshes = [];
@@ -195,6 +197,20 @@ export class VibCrystal {
 
     clearAtomColorOverride(atomNumber) {
         delete this.atomColorOverrides[atomNumber];
+    }
+
+    getAtomRadiusScale(atomNumber) {
+        if (Object.prototype.hasOwnProperty.call(this.atomRadiusScaleOverrides, atomNumber)) {
+            return this.atomRadiusScaleOverrides[atomNumber];
+        }
+        return this.defaultAtomRadiusScale;
+    }
+
+    setAtomRadiusScaleOverride(atomNumber, scale) {
+        if (!Number.isFinite(scale)) {
+            return;
+        }
+        this.atomRadiusScaleOverrides[atomNumber] = Math.max(0.1, scale);
     }
 
     //functions to link the DOM buttons with this class
@@ -301,43 +317,65 @@ export class VibCrystal {
     }
 
     setCovalentRadiiSelect(dom_select,dom_input) {
-        let self = this;
+        // Legacy API kept for compatibility. Advanced appearance now owns these controls.
         this.dom_covalent_radii_select = dom_select;
         this.dom_covalent_radii_input = dom_input;
-        dom_select.change( function() {
-            dom_input.val(self.modified_covalent_radii[this.value]);
-        });
+    }
+
+    getSelectedAppearanceAtomNumber() {
+        if (Number.isFinite(this.appearanceSelectedAtomNumber)) {
+            return this.appearanceSelectedAtomNumber;
+        }
+        if (this.atom_numbers && this.atom_numbers.length) {
+            return this.atom_numbers[0];
+        }
+        return null;
+    }
+
+    setSelectedAppearanceAtomNumber(atomNumber) {
+        this.appearanceSelectedAtomNumber = atomNumber;
+        if (this.dom_appearance_atom_list && this.dom_appearance_atom_list.length) {
+            this.dom_appearance_atom_list.find('button').removeClass('active');
+            this.dom_appearance_atom_list.find('button[data-atom-number="' + atomNumber + '"]').addClass('active');
+        }
     }
 
     adjustCovalentRadiiSelect() {
         let unique_atom_numbers = this.atom_numbers.filter((v, i, a) => a.indexOf(v) === i);
-        let previousCovalentSelection = this.dom_covalent_radii_select.val();
+        if (!this.dom_appearance_atom_list || !this.dom_appearance_atom_list.length) {
+            return;
+        }
 
-        this.dom_covalent_radii_select.empty();
+        let selected = Number(this.getSelectedAppearanceAtomNumber());
+        if (!Number.isFinite(selected) || !unique_atom_numbers.includes(selected)) {
+            selected = unique_atom_numbers.length ? unique_atom_numbers[0] : null;
+        }
+
+        this.dom_appearance_atom_list.empty();
         for (let i=0; i<unique_atom_numbers.length; i++) {
-            this.dom_covalent_radii_select.append('<option value="' + unique_atom_numbers[i] + '">' + atomic_data.atomic_symbol[unique_atom_numbers[i]] + '</option>');
+            let atomNumber = unique_atom_numbers[i];
+            this.dom_appearance_atom_list.append(
+                '<button type="button" data-atom-number="' + atomNumber + '">' +
+                atomic_data.atomic_symbol[atomNumber] +
+                '</button>'
+            );
         }
-        if (previousCovalentSelection !== null && unique_atom_numbers.includes(Number(previousCovalentSelection))) {
-            this.dom_covalent_radii_select.val(previousCovalentSelection);
-        }
-        this.dom_covalent_radii_input.val(this.modified_covalent_radii[this.dom_covalent_radii_select.val()]);
 
-        if (this.dom_atom_color_select && this.dom_atom_color_select.length) {
-            let previousAtomColorSelection = this.dom_atom_color_select.val();
-            this.dom_atom_color_select.empty();
-            for (let i=0; i<unique_atom_numbers.length; i++) {
-                let atomNumber = unique_atom_numbers[i];
-                this.dom_atom_color_select.append('<option value="' + atomNumber + '">' + atomic_data.atomic_symbol[atomNumber] + '</option>');
-            }
-            if (previousAtomColorSelection !== null && unique_atom_numbers.includes(Number(previousAtomColorSelection))) {
-                this.dom_atom_color_select.val(previousAtomColorSelection);
-            }
-            if (this.dom_atom_color_input && this.dom_atom_color_input.length) {
-                let selected = Number(this.dom_atom_color_select.val());
-                if (Number.isFinite(selected)) {
-                    this.dom_atom_color_input.val(this.colorToInputHex(this.getAtomColorHex(selected)));
-                }
-            }
+        if (Number.isFinite(selected)) {
+            this.setSelectedAppearanceAtomNumber(selected);
+        }
+
+        if (!Number.isFinite(selected)) {
+            return;
+        }
+        if (this.dom_covalent_radii_input && this.dom_covalent_radii_input.length) {
+            this.dom_covalent_radii_input.val(this.modified_covalent_radii[selected]);
+        }
+        if (this.dom_atom_color_input && this.dom_atom_color_input.length) {
+            this.dom_atom_color_input.val(this.colorToInputHex(this.getAtomColorHex(selected)));
+        }
+        if (this.dom_atom_radius_input && this.dom_atom_radius_input.length) {
+            this.dom_atom_radius_input.val(this.getAtomRadiusScale(selected));
         }
     }
 
@@ -359,19 +397,23 @@ export class VibCrystal {
     }
 
     setAdvancedAppearanceControls(
-        domAtomColorSelect,
+        domAtomList,
+        domDisplaySelect,
+        domCovalentRadiiInput,
         domAtomColorInput,
-        domAtomColorResetButton,
         domArrowColorInput,
         domBondColorInput,
         domAtomRadiusInput,
         domBondRadiusInput,
         domArrowRadiusInput,
+        domResetAtomButton,
         domResetColorsButton,
-        domResetRadiusButton
+        domResetRadiiButton,
     ) {
         let self = this;
-        this.dom_atom_color_select = domAtomColorSelect;
+        this.dom_appearance_atom_list = domAtomList;
+        this.dom_display_select = domDisplaySelect;
+        this.dom_covalent_radii_input = domCovalentRadiiInput;
         this.dom_atom_color_input = domAtomColorInput;
         this.dom_arrow_color_input = domArrowColorInput;
         this.dom_bond_color_input = domBondColorInput;
@@ -379,65 +421,96 @@ export class VibCrystal {
         this.dom_bond_radius_input = domBondRadiusInput;
         this.dom_arrow_radius_input = domArrowRadiusInput;
 
-        if (domAtomColorSelect && domAtomColorSelect.length && domAtomColorInput && domAtomColorInput.length) {
-            domAtomColorSelect.change(function() {
-                let atomNumber = Number(this.value);
+        if (domAtomList && domAtomList.length) {
+            domAtomList.on('click', 'button[data-atom-number]', function() {
+                let atomNumber = Number(this.getAttribute('data-atom-number'));
                 if (!Number.isFinite(atomNumber)) {
                     return;
                 }
-                domAtomColorInput.val(self.colorToInputHex(self.getAtomColorHex(atomNumber)));
+                self.setSelectedAppearanceAtomNumber(atomNumber);
+                if (domCovalentRadiiInput && domCovalentRadiiInput.length) {
+                    domCovalentRadiiInput.val(self.modified_covalent_radii[atomNumber]);
+                }
+                if (domAtomColorInput && domAtomColorInput.length) {
+                    domAtomColorInput.val(self.colorToInputHex(self.getAtomColorHex(atomNumber)));
+                }
+                if (domAtomRadiusInput && domAtomRadiusInput.length) {
+                    domAtomRadiusInput.val(self.getAtomRadiusScale(atomNumber));
+                }
             });
         }
 
-        if (domAtomColorInput && domAtomColorInput.length) {
-            domAtomColorInput.change(function() {
-                let atomNumber = Number(domAtomColorSelect.val());
-                if (!Number.isFinite(atomNumber)) {
-                    return;
+        const applyAppearanceSettings = function() {
+            let atomNumber = Number(self.getSelectedAppearanceAtomNumber());
+            if (Number.isFinite(atomNumber)) {
+                if (domCovalentRadiiInput && domCovalentRadiiInput.length) {
+                    let newCovalent = parseFloat(domCovalentRadiiInput.val());
+                    if (Number.isFinite(newCovalent) && newCovalent > 0) {
+                        self.modified_covalent_radii[atomNumber] = newCovalent;
+                    }
                 }
-                self.setAtomColorOverride(atomNumber, this.value);
-                self.updatelocal();
-            });
-        }
+                if (domAtomColorInput && domAtomColorInput.length) {
+                    let rawAtomColor = domAtomColorInput.val();
+                    if (rawAtomColor) {
+                        self.setAtomColorOverride(atomNumber, rawAtomColor);
+                    }
+                }
+                if (domAtomRadiusInput && domAtomRadiusInput.length) {
+                    let atomScale = Math.max(0.1, parseFloat(domAtomRadiusInput.val()) || self.defaultAtomRadiusScale);
+                    self.setAtomRadiusScaleOverride(atomNumber, atomScale);
+                    domAtomRadiusInput.val(atomScale);
+                }
+            }
 
-        if (domAtomColorResetButton && domAtomColorResetButton.length) {
-            domAtomColorResetButton.click(function() {
-                let atomNumber = Number(domAtomColorSelect.val());
-                if (!Number.isFinite(atomNumber)) {
-                    return;
-                }
-                self.clearAtomColorOverride(atomNumber);
-                domAtomColorInput.val(self.colorToInputHex(self.getAtomColorHex(atomNumber)));
-                self.updatelocal();
-            });
-        }
+            if (domDisplaySelect && domDisplaySelect.length) {
+                self.display = domDisplaySelect.val() || self.display;
+            }
+            if (domArrowColorInput && domArrowColorInput.length) {
+                self.arrowcolor = self.normalizeColorHex(domArrowColorInput.val(), self.arrowcolor);
+            }
+            if (domBondColorInput && domBondColorInput.length) {
+                self.bondscolor = self.normalizeColorHex(domBondColorInput.val(), self.bondscolor);
+            }
+            if (domBondRadiusInput && domBondRadiusInput.length) {
+                self.bondRadius = Math.max(0.01, parseFloat(domBondRadiusInput.val()) || self.bondRadius);
+                domBondRadiusInput.val(self.bondRadius);
+            }
+            if (domArrowRadiusInput && domArrowRadiusInput.length) {
+                self.arrowRadius = Math.max(0.01, parseFloat(domArrowRadiusInput.val()) || self.arrowRadius);
+                domArrowRadiusInput.val(self.arrowRadius);
+            }
+
+            self.updatelocal();
+        };
 
         if (domArrowColorInput && domArrowColorInput.length) {
             domArrowColorInput.val(this.colorToInputHex(this.arrowcolor));
-            domArrowColorInput.change(function() {
-                self.arrowcolor = self.normalizeColorHex(this.value, self.arrowcolor);
-                self.updatelocal();
+            domArrowColorInput.on('change', function() {
+                applyAppearanceSettings();
             });
         }
 
         if (domBondColorInput && domBondColorInput.length) {
             domBondColorInput.val(this.colorToInputHex(this.bondscolor));
-            domBondColorInput.change(function() {
-                self.bondscolor = self.normalizeColorHex(this.value, self.bondscolor);
-                self.updatelocal();
+            domBondColorInput.on('change', function() {
+                applyAppearanceSettings();
+            });
+        }
+
+        if (domAtomColorInput && domAtomColorInput.length) {
+            domAtomColorInput.on('change', function() {
+                applyAppearanceSettings();
             });
         }
 
         if (domAtomRadiusInput && domAtomRadiusInput.length) {
-            domAtomRadiusInput.val(this.atomRadiusScale);
+            let atomNumber = this.getSelectedAppearanceAtomNumber();
+            domAtomRadiusInput.val(
+                Number.isFinite(atomNumber) ? this.getAtomRadiusScale(atomNumber) : this.defaultAtomRadiusScale
+            );
             domAtomRadiusInput.attr('min', 0.1);
             domAtomRadiusInput.attr('max', 5.0);
             domAtomRadiusInput.attr('step', 0.05);
-            domAtomRadiusInput.change(function() {
-                self.atomRadiusScale = Math.max(0.1, parseFloat(this.value) || 1.0);
-                domAtomRadiusInput.val(self.atomRadiusScale);
-                self.updatelocal();
-            });
         }
 
         if (domBondRadiusInput && domBondRadiusInput.length) {
@@ -445,11 +518,6 @@ export class VibCrystal {
             domBondRadiusInput.attr('min', 0.01);
             domBondRadiusInput.attr('max', 1.0);
             domBondRadiusInput.attr('step', 0.01);
-            domBondRadiusInput.change(function() {
-                self.bondRadius = Math.max(0.01, parseFloat(this.value) || self.bondRadius);
-                domBondRadiusInput.val(self.bondRadius);
-                self.updatelocal();
-            });
         }
 
         if (domArrowRadiusInput && domArrowRadiusInput.length) {
@@ -457,25 +525,33 @@ export class VibCrystal {
             domArrowRadiusInput.attr('min', 0.01);
             domArrowRadiusInput.attr('max', 1.0);
             domArrowRadiusInput.attr('step', 0.01);
-            domArrowRadiusInput.change(function() {
-                self.arrowRadius = Math.max(0.01, parseFloat(this.value) || self.arrowRadius);
-                domArrowRadiusInput.val(self.arrowRadius);
+        }
+
+        if (domResetAtomButton && domResetAtomButton.length) {
+            domResetAtomButton.click(function() {
+                let atomNumber = self.getSelectedAppearanceAtomNumber();
+                if (Number.isFinite(atomNumber)) {
+                    self.clearAtomColorOverride(atomNumber);
+                    self.modified_covalent_radii[atomNumber] = atomic_data.covalent_radii[atomNumber];
+                    delete self.atomRadiusScaleOverrides[atomNumber];
+                }
+                if (self.dom_atom_color_input && self.dom_atom_color_input.length && Number.isFinite(atomNumber)) {
+                    self.dom_atom_color_input.val(self.colorToInputHex(self.getAtomColorHex(atomNumber)));
+                }
+                if (self.dom_covalent_radii_input && self.dom_covalent_radii_input.length && Number.isFinite(atomNumber)) {
+                    self.dom_covalent_radii_input.val(self.modified_covalent_radii[atomNumber]);
+                }
+                if (self.dom_atom_radius_input && self.dom_atom_radius_input.length && Number.isFinite(atomNumber)) {
+                    self.dom_atom_radius_input.val(self.getAtomRadiusScale(atomNumber));
+                }
                 self.updatelocal();
             });
         }
 
         if (domResetColorsButton && domResetColorsButton.length) {
             domResetColorsButton.click(function() {
-                self.atomColorOverrides = {};
                 self.arrowcolor = self.defaultArrowColor;
                 self.bondscolor = self.defaultBondsColor;
-
-                if (self.dom_atom_color_select && self.dom_atom_color_select.length && self.dom_atom_color_input && self.dom_atom_color_input.length) {
-                    let atomNumber = Number(self.dom_atom_color_select.val());
-                    if (Number.isFinite(atomNumber)) {
-                        self.dom_atom_color_input.val(self.colorToInputHex(self.getAtomColorHex(atomNumber)));
-                    }
-                }
                 if (self.dom_arrow_color_input && self.dom_arrow_color_input.length) {
                     self.dom_arrow_color_input.val(self.colorToInputHex(self.arrowcolor));
                 }
@@ -486,15 +562,11 @@ export class VibCrystal {
             });
         }
 
-        if (domResetRadiusButton && domResetRadiusButton.length) {
-            domResetRadiusButton.click(function() {
-                self.atomRadiusScale = self.defaultAtomRadiusScale;
+        if (domResetRadiiButton && domResetRadiiButton.length) {
+            domResetRadiiButton.click(function() {
                 self.bondRadius = self.defaultBondRadius;
                 self.arrowRadius = self.defaultArrowRadius;
 
-                if (self.dom_atom_radius_input && self.dom_atom_radius_input.length) {
-                    self.dom_atom_radius_input.val(self.atomRadiusScale);
-                }
                 if (self.dom_bond_radius_input && self.dom_bond_radius_input.length) {
                     self.dom_bond_radius_input.val(self.bondRadius);
                 }
@@ -503,6 +575,25 @@ export class VibCrystal {
                 }
                 self.updatelocal();
             });
+        }
+
+        // Enter in text/number fields applies the whole appearance form.
+        let enterToUpdateInputs = [
+            domCovalentRadiiInput,
+            domAtomRadiusInput,
+            domBondRadiusInput,
+            domArrowRadiusInput
+        ];
+        for (let i = 0; i < enterToUpdateInputs.length; i++) {
+            let domInput = enterToUpdateInputs[i];
+            if (domInput && domInput.length) {
+                domInput.on('keydown', function(event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        applyAppearanceSettings();
+                    }
+                });
+            }
         }
     }
 
@@ -778,15 +869,17 @@ export class VibCrystal {
         let nextInstanceByType = new Map();
         instancesPerType.forEach((count, typeIndex) => {
             let sphereGeometry;
+            let atomNumber = atom_numbers[typeIndex];
+            let atomScale = this.getAtomRadiusScale(atomNumber);
             if (this.display == 'vesta') {
                 sphereGeometry = new THREE.SphereGeometry(
-                    (atomic_data.covalent_radii[atom_numbers[typeIndex]]/2.3) * this.atomRadiusScale,
+                    (atomic_data.covalent_radii[atomNumber]/2.3) * atomScale,
                     this.sphereLat,
                     this.sphereLon
                 );
             } else {
                 sphereGeometry = new THREE.SphereGeometry(
-                    this.sphereRadius * this.atomRadiusScale,
+                    this.sphereRadius * atomScale,
                     this.sphereLat,
                     this.sphereLon
                 );
