@@ -120,7 +120,7 @@ export class VibCrystal {
         this.stepAmplitude = 0.01;
 
         //speed
-        this.speed = 1.0;
+        this.speed = 0.7;
         this.minSpeed = 0.01;
         this.maxSpeed = 3.0;
         this.stepSpeed = 0.01;
