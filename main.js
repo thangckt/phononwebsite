@@ -69116,6 +69116,7 @@ class VibCrystal {
         this.defaultArrowRadius = this.arrowRadius;
         this.atomColorOverrides = {};
         this.atomRadiusScaleOverrides = {};
+        this.bondRules = {};
         this.appearanceSelectedAtomNumber = null;
         this.arrowobjects = [];
         this.atomobjects = [];
@@ -69193,6 +69194,82 @@ class VibCrystal {
             return;
         }
         this.atomRadiusScaleOverrides[atomNumber] = Math.max(0.1, scale);
+    }
+
+    getBondRuleKey(atomNumberA, atomNumberB) {
+        let a = Math.min(atomNumberA, atomNumberB);
+        let b = Math.max(atomNumberA, atomNumberB);
+        return a + '-' + b;
+    }
+
+    getDefaultBondCutoff(atomNumberA, atomNumberB) {
+        let covalent = covalent_radii[atomNumberA] + covalent_radii[atomNumberB];
+        let nnd = this.phonon && Number.isFinite(this.phonon.nndist) ? this.phonon.nndist + 0.05 : 0;
+        return Math.max(covalent, nnd);
+    }
+
+    setBondRule(atomNumberA, atomNumberB, cutoff) {
+        let key = this.getBondRuleKey(atomNumberA, atomNumberB);
+        let a = Math.min(atomNumberA, atomNumberB);
+        let b = Math.max(atomNumberA, atomNumberB);
+        let c = Number.isFinite(cutoff) ? cutoff : this.getDefaultBondCutoff(a, b);
+        this.bondRules[key] = { a: a, b: b, cutoff: c };
+    }
+
+    removeBondRule(atomNumberA, atomNumberB) {
+        let key = this.getBondRuleKey(atomNumberA, atomNumberB);
+        delete this.bondRules[key];
+    }
+
+    hasBondRule(atomNumberA, atomNumberB) {
+        let key = this.getBondRuleKey(atomNumberA, atomNumberB);
+        return Object.prototype.hasOwnProperty.call(this.bondRules, key);
+    }
+
+    initializeBondRulesFromAtoms(atoms, atom_numbers) {
+        this.bondRules = {};
+        let tmpAtoms = [];
+        for (let i=0; i<atoms.length; i++) {
+            tmpAtoms.push({
+                atom_number: atom_numbers[atoms[i][0]],
+                position: new Vector3(atoms[i][1], atoms[i][2], atoms[i][3])
+            });
+        }
+        let combinations = getCombinations(tmpAtoms);
+        for (let i=0; i<combinations.length; i++) {
+            let a = combinations[i][0];
+            let b = combinations[i][1];
+            let length = a.position.distanceTo(b.position);
+            let cutoff = this.getDefaultBondCutoff(a.atom_number, b.atom_number);
+            if (length < cutoff) {
+                this.setBondRule(a.atom_number, b.atom_number, cutoff);
+            }
+        }
+    }
+
+    refreshBondRulesUI(unique_atom_numbers) {
+        if (!this.dom_bond_rules_list || !this.dom_bond_rules_list.length) {
+            return;
+        }
+        this.dom_bond_rules_list.empty();
+
+        let keys = Object.keys(this.bondRules).sort();
+        if (!keys.length) {
+            this.dom_bond_rules_list.append('<div>none</div>');
+            return;
+        }
+
+        for (let i=0; i<keys.length; i++) {
+            let rule = this.bondRules[keys[i]];
+            let label = atomic_symbol$1[rule.a] + '-' + atomic_symbol$1[rule.b];
+            let cutoff = Number(rule.cutoff).toFixed(2);
+            this.dom_bond_rules_list.append(
+                '<div class="appearance-controls">' +
+                '<span>' + label + ' (' + cutoff + ')</span>' +
+                '<button type="button" data-remove-key="' + keys[i] + '">remove</button>' +
+                '</div>'
+            );
+        }
     }
 
     //functions to link the DOM buttons with this class
@@ -69352,15 +69429,46 @@ class VibCrystal {
         if (!Number.isFinite(selected)) {
             return;
         }
-        if (this.dom_covalent_radii_input && this.dom_covalent_radii_input.length) {
-            this.dom_covalent_radii_input.val(this.modified_covalent_radii[selected]);
-        }
         if (this.dom_atom_color_input && this.dom_atom_color_input.length) {
             this.dom_atom_color_input.val(this.colorToInputHex(this.getAtomColorHex(selected)));
         }
         if (this.dom_atom_radius_input && this.dom_atom_radius_input.length) {
             this.dom_atom_radius_input.val(this.getAtomRadiusScale(selected));
         }
+
+        if (this.dom_bond_add_atom_a && this.dom_bond_add_atom_a.length) {
+            let previous = this.dom_bond_add_atom_a.val();
+            this.dom_bond_add_atom_a.empty();
+            for (let i=0; i<unique_atom_numbers.length; i++) {
+                let atomNumber = unique_atom_numbers[i];
+                this.dom_bond_add_atom_a.append('<option value="' + atomNumber + '">' + atomic_symbol$1[atomNumber] + '</option>');
+            }
+            if (previous !== null && unique_atom_numbers.includes(Number(previous))) {
+                this.dom_bond_add_atom_a.val(previous);
+            }
+        }
+        if (this.dom_bond_add_atom_b && this.dom_bond_add_atom_b.length) {
+            let previous = this.dom_bond_add_atom_b.val();
+            this.dom_bond_add_atom_b.empty();
+            for (let i=0; i<unique_atom_numbers.length; i++) {
+                let atomNumber = unique_atom_numbers[i];
+                this.dom_bond_add_atom_b.append('<option value="' + atomNumber + '">' + atomic_symbol$1[atomNumber] + '</option>');
+            }
+            if (previous !== null && unique_atom_numbers.includes(Number(previous))) {
+                this.dom_bond_add_atom_b.val(previous);
+            }
+        }
+        if (this.dom_bond_add_cutoff_input && this.dom_bond_add_cutoff_input.length &&
+            this.dom_bond_add_atom_a && this.dom_bond_add_atom_b) {
+            let a = Number(this.dom_bond_add_atom_a.val());
+            let b = Number(this.dom_bond_add_atom_b.val());
+            if (Number.isFinite(a) && Number.isFinite(b)) {
+                let key = this.getBondRuleKey(a, b);
+                let value = this.bondRules[key] ? this.bondRules[key].cutoff : this.getDefaultBondCutoff(a, b);
+                this.dom_bond_add_cutoff_input.val(Number(value).toFixed(2));
+            }
+        }
+        this.refreshBondRulesUI(unique_atom_numbers);
     }
 
     setCovalentRadiiButton(dom_select,dom_input,dom_button) {
@@ -69383,13 +69491,16 @@ class VibCrystal {
     setAdvancedAppearanceControls(
         domAtomList,
         domDisplaySelect,
-        domCovalentRadiiInput,
         domAtomColorInput,
         domArrowColorInput,
         domBondColorInput,
         domAtomRadiusInput,
         domBondRadiusInput,
         domArrowRadiusInput,
+        domBondRulesList,
+        domBondAddAtomA,
+        domBondAddAtomB,
+        domBondAddCutoffInput,
         domResetAtomButton,
         domResetBondsButton,
         domResetVectorsButton,
@@ -69397,13 +69508,16 @@ class VibCrystal {
         let self = this;
         this.dom_appearance_atom_list = domAtomList;
         this.dom_display_select = domDisplaySelect;
-        this.dom_covalent_radii_input = domCovalentRadiiInput;
         this.dom_atom_color_input = domAtomColorInput;
         this.dom_arrow_color_input = domArrowColorInput;
         this.dom_bond_color_input = domBondColorInput;
         this.dom_atom_radius_input = domAtomRadiusInput;
         this.dom_bond_radius_input = domBondRadiusInput;
         this.dom_arrow_radius_input = domArrowRadiusInput;
+        this.dom_bond_rules_list = domBondRulesList;
+        this.dom_bond_add_atom_a = domBondAddAtomA;
+        this.dom_bond_add_atom_b = domBondAddAtomB;
+        this.dom_bond_add_cutoff_input = domBondAddCutoffInput;
 
         if (domAtomList && domAtomList.length) {
             domAtomList.on('click', 'button[data-atom-number]', function() {
@@ -69412,9 +69526,6 @@ class VibCrystal {
                     return;
                 }
                 self.setSelectedAppearanceAtomNumber(atomNumber);
-                if (domCovalentRadiiInput && domCovalentRadiiInput.length) {
-                    domCovalentRadiiInput.val(self.modified_covalent_radii[atomNumber]);
-                }
                 if (domAtomColorInput && domAtomColorInput.length) {
                     domAtomColorInput.val(self.colorToInputHex(self.getAtomColorHex(atomNumber)));
                 }
@@ -69426,16 +69537,10 @@ class VibCrystal {
 
         const applyAppearanceSettings = function() {
             let atomNumber = Number(self.getSelectedAppearanceAtomNumber());
-                if (Number.isFinite(atomNumber)) {
-                    if (domCovalentRadiiInput && domCovalentRadiiInput.length) {
-                        let newCovalent = parseFloat(domCovalentRadiiInput.val());
-                        if (Number.isFinite(newCovalent) && newCovalent > 0) {
-                            self.modified_covalent_radii[atomNumber] = newCovalent;
-                    }
-                    }
-                    if (domAtomColorInput && domAtomColorInput.length) {
-                        let rawAtomColor = domAtomColorInput.val();
-                        if (rawAtomColor) {
+            if (Number.isFinite(atomNumber)) {
+                if (domAtomColorInput && domAtomColorInput.length) {
+                    let rawAtomColor = domAtomColorInput.val();
+                    if (rawAtomColor) {
                             // Only persist an override when user picked a non-default color.
                             // If it matches current display default, keep it dynamic across Jmol/Vesta.
                             let defaultHex = self.getDefaultAtomColor(atomNumber);
@@ -69524,14 +69629,10 @@ class VibCrystal {
                 let atomNumber = self.getSelectedAppearanceAtomNumber();
                 if (Number.isFinite(atomNumber)) {
                     self.clearAtomColorOverride(atomNumber);
-                    self.modified_covalent_radii[atomNumber] = covalent_radii[atomNumber];
                     delete self.atomRadiusScaleOverrides[atomNumber];
                 }
                 if (self.dom_atom_color_input && self.dom_atom_color_input.length && Number.isFinite(atomNumber)) {
                     self.dom_atom_color_input.val(self.colorToInputHex(self.getAtomColorHex(atomNumber)));
-                }
-                if (self.dom_covalent_radii_input && self.dom_covalent_radii_input.length && Number.isFinite(atomNumber)) {
-                    self.dom_covalent_radii_input.val(self.modified_covalent_radii[atomNumber]);
                 }
                 if (self.dom_atom_radius_input && self.dom_atom_radius_input.length && Number.isFinite(atomNumber)) {
                     self.dom_atom_radius_input.val(self.getAtomRadiusScale(atomNumber));
@@ -69550,7 +69651,68 @@ class VibCrystal {
                 if (self.dom_bond_radius_input && self.dom_bond_radius_input.length) {
                     self.dom_bond_radius_input.val(self.bondRadius);
                 }
+                self.initializeBondRulesFromAtoms(self.atoms || [], self.phonon ? self.phonon.atom_numbers : []);
+                self.refreshBondRulesUI(this.atom_numbers || []);
                 self.updatelocal();
+            });
+        }
+
+        if (domBondRulesList && domBondRulesList.length) {
+            domBondRulesList.on('click', 'button[data-remove-key]', function() {
+                let key = this.getAttribute('data-remove-key');
+                if (key && self.bondRules[key]) {
+                    delete self.bondRules[key];
+                    self.refreshBondRulesUI(self.atom_numbers || []);
+                    self.updatelocal();
+                }
+            });
+        }
+
+        const addBondRuleFromControls = function() {
+            let a = Number(domBondAddAtomA.val());
+            let b = Number(domBondAddAtomB.val());
+            if (!Number.isFinite(a) || !Number.isFinite(b)) {
+                return;
+            }
+            let defaultCutoff = self.getDefaultBondCutoff(a, b);
+            let cutoff = defaultCutoff;
+            if (domBondAddCutoffInput && domBondAddCutoffInput.length) {
+                let parsed = parseFloat(domBondAddCutoffInput.val());
+                if (Number.isFinite(parsed) && parsed > 0) {
+                    cutoff = parsed;
+                }
+                domBondAddCutoffInput.val(cutoff.toFixed(2));
+            }
+            self.setBondRule(a, b, cutoff);
+            self.refreshBondRulesUI(self.atom_numbers || []);
+            self.updatelocal();
+        };
+
+        const updateBondCutoffInput = function() {
+            if (!domBondAddCutoffInput || !domBondAddCutoffInput.length) {
+                return;
+            }
+            let a = Number(domBondAddAtomA.val());
+            let b = Number(domBondAddAtomB.val());
+            if (!Number.isFinite(a) || !Number.isFinite(b)) {
+                return;
+            }
+            let key = self.getBondRuleKey(a, b);
+            let value = self.bondRules[key] ? self.bondRules[key].cutoff : self.getDefaultBondCutoff(a, b);
+            domBondAddCutoffInput.val(Number(value).toFixed(2));
+        };
+        if (domBondAddAtomA && domBondAddAtomA.length) {
+            domBondAddAtomA.on('change', updateBondCutoffInput);
+        }
+        if (domBondAddAtomB && domBondAddAtomB.length) {
+            domBondAddAtomB.on('change', updateBondCutoffInput);
+        }
+        if (domBondAddCutoffInput && domBondAddCutoffInput.length) {
+            domBondAddCutoffInput.on('keydown', function(event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    addBondRuleFromControls();
+                }
             });
         }
 
@@ -69579,7 +69741,6 @@ class VibCrystal {
 
         // Enter in text/number fields applies the whole appearance form.
         let enterToUpdateInputs = [
-            domCovalentRadiiInput,
             domAtomRadiusInput,
             domBondRadiusInput,
             domArrowRadiusInput
@@ -69971,11 +70132,11 @@ class VibCrystal {
             let ad = a.position;
             let bd = b.position;
 
-            //if the separation is smaller than the sum of the bonding radius create a bond
+            // Draw bond only if the corresponding bond rule exists and cutoff is satisfied.
             length = ad.distanceTo(bd);
-            let cra = this.modified_covalent_radii[a.atom_number];
-            let crb = this.modified_covalent_radii[b.atom_number];
-            if (length < cra + crb || length < this.nndist ) {
+            let key = this.getBondRuleKey(a.atom_number, b.atom_number);
+            let rule = this.bondRules[key];
+            if (rule && length < rule.cutoff) {
                 this.bonds.push({ a: ad, b: bd, baseLength: length });
                 if (this.display == 'vesta') {
                     let aColor = this.getAtomColor(a.atom_number);
@@ -70068,6 +70229,7 @@ class VibCrystal {
             getComplexParts(v[1]),
             getComplexParts(v[2])
         ]);
+        this.initializeBondRulesFromAtoms(this.atoms, this.phonon.atom_numbers);
 
         //check if it is initialized
         if (!this.initialized) {
@@ -72012,13 +72174,16 @@ v.setPlayPause($$1('#playpause'));
 v.setAdvancedAppearanceControls(
     $$1('#appearance_atom_list'),
     $$1('#displaystyle'),
-    $$1('#covalent_radii_input'),
     $$1('#atom_color_input'),
     $$1('#arrow_color_input'),
     $$1('#bond_color_input'),
     $$1('#atom_radius_input'),
     $$1('#bond_radius_input'),
     $$1('#arrow_radius_input'),
+    $$1('#bond_rules_list'),
+    $$1('#bond_add_atom_a'),
+    $$1('#bond_add_atom_b'),
+    $$1('#bond_add_cutoff_input'),
     $$1('#appearance_reset_atom_button'),
     $$1('#appearance_reset_bonds_button'),
     $$1('#appearance_reset_vectors_button'),

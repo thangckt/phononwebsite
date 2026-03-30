@@ -124,10 +124,6 @@
                             <input id="atom_color_input" type="color">
                         </div>
                         <div class="appearance-row">
-                            <label for="covalent_radii_input">covalent radius</label>
-                            <input id="covalent_radii_input" type="number" min="0" step="0.01">
-                        </div>
-                        <div class="appearance-row">
                             <label for="atom_radius_input">atom radius</label>
                             <div class="appearance-controls">
                                 <input id="atom_radius_input" type="number" min="0.1" max="5.0" step="0.05" value="1.0">
@@ -145,6 +141,18 @@
                         <div class="appearance-row">
                             <label for="bond_radius_input">bond radius</label>
                             <input id="bond_radius_input" type="number" min="0.01" max="1.0" step="0.01" value="0.1">
+                        </div>
+                        <div class="appearance-row">
+                            <label for="bond_rules_list">bond types</label>
+                            <div id="bond_rules_list"></div>
+                        </div>
+                        <div class="appearance-row">
+                            <label for="bond_add_atom_a">add bond</label>
+                            <div class="appearance-controls">
+                                <select id="bond_add_atom_a"></select>
+                                <select id="bond_add_atom_b"></select>
+                                <input id="bond_add_cutoff_input" type="number" min="0.01" step="0.01" placeholder="max">
+                            </div>
                         </div>
 
                         <div class="appearance-subsection">Vectors</div>
