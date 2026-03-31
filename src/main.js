@@ -123,7 +123,7 @@ v.setAdvancedAppearanceControls(
     $('#appearance_reset_bonds_button'),
     $('#appearance_reset_vectors_button'),
 );
-v.setAppearanceUpdatedCallback(() => p.refreshDispersionAppearance());
+v.setAppearanceUpdatedCallback(() => p.refreshAppearanceUI());
 
 // check if webgl is available
 if ( ! Detector.webgl ) {
