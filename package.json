@@ -32,6 +32,8 @@
     "build": "npm run clean:build && rollup -c",
     "build-uglify": "npm run build && terser build/main.js -c -m --source-map \"content=build/main.js.map,url=main.min.js.map\" -o build/main.min.js && terser build/exciton.js -c -m --source-map \"content=build/exciton.js.map,url=exciton.min.js.map\" -o build/exciton.min.js",
     "copy": "mkdir -p build/test && cp -r figures css libs data README.md index.html phonon.html exciton.html favicon.svg favicon.ico build/ && cp -r test/fixtures build/test/",
+    "copy:debug": "mkdir -p build && cp -r figures css libs data README.md index.html phonon.html exciton.html favicon.svg favicon.ico build/ && cp build/main.js build/main.min.js && cp build/exciton.js build/exciton.min.js",
+    "build:debug": "npm run build && npm run copy:debug",
     "check:build-artifacts": "test -f build/main.min.js && test -f build/exciton.min.js",
     "build:site": "npm run build-uglify && npm run copy && npm run check:build-artifacts",
     "test": "npm run build-uglify && mocha \"test/**/*.test.cjs\"",

@@ -12,6 +12,12 @@
       "problemMatcher": []
     },
     {
+      "type": "npm",
+      "script": "build:debug",
+      "label": "build:debug",
+      "problemMatcher": []
+    },
+    {
       "label": "serve",
       "type": "shell",
       "command": "python3",
@@ -22,7 +28,7 @@
       ],
       "isBackground": true,
       "dependsOn": [
-        "build:site"
+        "build:debug"
       ],
       "dependsOrder": "sequence",
       "options": {
