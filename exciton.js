@@ -62879,6 +62879,9 @@ class AbsorptionSpectra {
         };
 
         this.chart = globalThis.Highcharts.chart(this.container[0], options);
+        if (this.chart && typeof this.chart.reflow === 'function') {
+            this.chart.reflow();
+        }
         this.highlightSelectedExciton();
     }
 
@@ -63835,6 +63838,30 @@ var covalent_radii =
  2.06, 2.00, 1.96, 1.90, 1.87, 1.80, 1.69, 0,    0,    0,    //9
  0,    0,    0,    0 ];                                       //10
 
+function atomColorHexToCss(colorHex) {
+    return '#' + Number(colorHex).toString(16).padStart(6, '0');
+}
+
+function getAtomBadgeTextColor(colorHex) {
+    let color = Number(colorHex);
+    let red = (color >> 16) & 255;
+    let green = (color >> 8) & 255;
+    let blue = color & 255;
+    let luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
+    return luminance > 0.6 ? '#111827' : '#ffffff';
+}
+
+function createAtomBadgeHtml(label, atomNumber, getAtomColorHex) {
+    let style = '';
+    if (Number.isFinite(atomNumber) && typeof getAtomColorHex === 'function') {
+        let colorHex = getAtomColorHex(atomNumber);
+        style =
+            ' style="--atom-badge-bg: ' + atomColorHexToCss(colorHex) +
+            '; --atom-badge-fg: ' + getAtomBadgeTextColor(colorHex) + ';"';
+    }
+    return '<span class="atom-type-badge"' + style + '>' + label + '</span>';
+}
+
 /**
  * @author alteredq / http://alteredqualia.com/
  *
@@ -64142,132 +64169,227 @@ const triTable = new Int32Array([
 0, 3, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]);
 
-function interpolateVertex(pointA, pointB, valueA, valueB, isolevel) {
-    const delta = valueB - valueA;
-    const mu = delta === 0 ? 0.5 : (isolevel - valueA) / delta;
-    return pointA.clone().lerp(pointB, mu);
+const triangleCountTable = new Uint8Array(256);
+for (let cubeindex = 0; cubeindex < 256; cubeindex++) {
+    let count = 0;
+    const triOffset = cubeindex << 4;
+    while (triTable[triOffset + count * 3] !== -1) {
+        count += 1;
+    }
+    triangleCountTable[cubeindex] = count;
 }
 
-function buildMarchingCubesGeometry(values, sizex, sizey, sizez, gridCell, isolevel) {
+function getWrappedIndexAndShift(index, size) {
+    if (size <= 0) {
+        return { index: 0, shift: 0 };
+    }
+    const shift = Math.floor(index / size);
+    const wrappedIndex = ((index % size) + size) % size;
+    return { index: wrappedIndex, shift };
+}
+
+function getGridValue(values, x, y, z, sizex, sizey, sizez, size2, periodic) {
+    if (!periodic) {
+        return values[x + sizex * y + size2 * z];
+    }
+
+    const wx = getWrappedIndexAndShift(x, sizex);
+    const wy = getWrappedIndexAndShift(y, sizey);
+    const wz = getWrappedIndexAndShift(z, sizez);
+    return values[wx.index + sizex * wy.index + size2 * wz.index];
+}
+
+function getGridPointCoords(target, targetOffset, x, y, z, sizex, sizey, sizez, periodic, gridCell) {
+    if (!periodic) {
+        const fx = sizex > 1 ? x / (sizex - 1) : 0;
+        const fy = sizey > 1 ? y / (sizey - 1) : 0;
+        const fz = sizez > 1 ? z / (sizez - 1) : 0;
+        target[targetOffset] = fx * gridCell[0][0] + fy * gridCell[1][0] + fz * gridCell[2][0];
+        target[targetOffset + 1] = fx * gridCell[0][1] + fy * gridCell[1][1] + fz * gridCell[2][1];
+        target[targetOffset + 2] = fx * gridCell[0][2] + fy * gridCell[1][2] + fz * gridCell[2][2];
+        return;
+    }
+
+    const wx = getWrappedIndexAndShift(x, sizex);
+    const wy = getWrappedIndexAndShift(y, sizey);
+    const wz = getWrappedIndexAndShift(z, sizez);
+    const fx = wx.index / sizex + wx.shift;
+    const fy = wy.index / sizey + wy.shift;
+    const fz = wz.index / sizez + wz.shift;
+    target[targetOffset] = fx * gridCell[0][0] + fy * gridCell[1][0] + fz * gridCell[2][0];
+    target[targetOffset + 1] = fx * gridCell[0][1] + fy * gridCell[1][1] + fz * gridCell[2][1];
+    target[targetOffset + 2] = fx * gridCell[0][2] + fy * gridCell[1][2] + fz * gridCell[2][2];
+}
+
+function interpolateVertex(target, targetOffset, pointA, pointAOffset, pointB, pointBOffset, valueA, valueB, isolevel) {
+    const delta = valueB - valueA;
+    const mu = delta === 0 ? 0.5 : (isolevel - valueA) / delta;
+    target[targetOffset] = pointA[pointAOffset] + (pointB[pointBOffset] - pointA[pointAOffset]) * mu;
+    target[targetOffset + 1] = pointA[pointAOffset + 1] + (pointB[pointBOffset + 1] - pointA[pointAOffset + 1]) * mu;
+    target[targetOffset + 2] = pointA[pointAOffset + 2] + (pointB[pointBOffset + 2] - pointA[pointAOffset + 2]) * mu;
+}
+
+function computeCubeIndex(value0, value1, value2, value3, value4, value5, value6, value7, isolevel, insideIsAbove) {
+    let cubeindex = 0;
+    if (insideIsAbove) {
+        if (value0 > isolevel) cubeindex |= 1;
+        if (value1 > isolevel) cubeindex |= 2;
+        if (value2 > isolevel) cubeindex |= 8;
+        if (value3 > isolevel) cubeindex |= 4;
+        if (value4 > isolevel) cubeindex |= 16;
+        if (value5 > isolevel) cubeindex |= 32;
+        if (value6 > isolevel) cubeindex |= 128;
+        if (value7 > isolevel) cubeindex |= 64;
+        return cubeindex;
+    }
+
+    if (value0 < isolevel) cubeindex |= 1;
+    if (value1 < isolevel) cubeindex |= 2;
+    if (value2 < isolevel) cubeindex |= 8;
+    if (value3 < isolevel) cubeindex |= 4;
+    if (value4 < isolevel) cubeindex |= 16;
+    if (value5 < isolevel) cubeindex |= 32;
+    if (value6 < isolevel) cubeindex |= 128;
+    if (value7 < isolevel) cubeindex |= 64;
+    return cubeindex;
+}
+
+function writeTriangle(positions, normals, writeOffset, vlist, vertexIndex1, vertexIndex2, vertexIndex3) {
+    const v1 = vertexIndex1 * 3;
+    const v2 = vertexIndex2 * 3;
+    const v3 = vertexIndex3 * 3;
+
+    positions[writeOffset] = vlist[v1];
+    positions[writeOffset + 1] = vlist[v1 + 1];
+    positions[writeOffset + 2] = vlist[v1 + 2];
+    positions[writeOffset + 3] = vlist[v2];
+    positions[writeOffset + 4] = vlist[v2 + 1];
+    positions[writeOffset + 5] = vlist[v2 + 2];
+    positions[writeOffset + 6] = vlist[v3];
+    positions[writeOffset + 7] = vlist[v3 + 1];
+    positions[writeOffset + 8] = vlist[v3 + 2];
+
+    const abx = vlist[v2] - vlist[v1];
+    const aby = vlist[v2 + 1] - vlist[v1 + 1];
+    const abz = vlist[v2 + 2] - vlist[v1 + 2];
+    const acx = vlist[v3] - vlist[v1];
+    const acy = vlist[v3 + 1] - vlist[v1 + 1];
+    const acz = vlist[v3 + 2] - vlist[v1 + 2];
+    let nx = aby * acz - abz * acy;
+    let ny = abz * acx - abx * acz;
+    let nz = abx * acy - aby * acx;
+    const length = Math.hypot(nx, ny, nz) || 1;
+    nx /= length;
+    ny /= length;
+    nz /= length;
+
+    for (let i = 0; i < 9; i += 3) {
+        normals[writeOffset + i] = nx;
+        normals[writeOffset + i + 1] = ny;
+        normals[writeOffset + i + 2] = nz;
+    }
+}
+
+function buildMarchingCubesBuffers(values, sizex, sizey, sizez, gridCell, isolevel, options = {}) {
+    const periodic = !!options.periodic;
+    const insideIsAbove = !!options.insideIsAbove;
     const size2 = sizex * sizey;
-    const points = new Array(sizex * sizey * sizez);
-    const vertices = [];
-    const vlist = new Array(12);
+    const vlist = new Float32Array(36);
+    const points = new Float32Array(24);
 
-    for (let z = 0; z < sizez; z++) {
-        for (let y = 0; y < sizey; y++) {
-            for (let x = 0; x < sizex; x++) {
-                const fx = sizex > 1 ? x / (sizex - 1) : 0;
-                const fy = sizey > 1 ? y / (sizey - 1) : 0;
-                const fz = sizez > 1 ? z / (sizez - 1) : 0;
-                const index = x + sizex * y + size2 * z;
+    const xLimit = periodic ? sizex : sizex - 1;
+    const yLimit = periodic ? sizey : sizey - 1;
+    const zLimit = periodic ? sizez : sizez - 1;
+    let triangleCount = 0;
 
-                points[index] = new Vector3(
-                    fx * gridCell[0][0] + fy * gridCell[1][0] + fz * gridCell[2][0],
-                    fx * gridCell[0][1] + fy * gridCell[1][1] + fz * gridCell[2][1],
-                    fx * gridCell[0][2] + fy * gridCell[1][2] + fz * gridCell[2][2],
-                );
+    for (let z = 0; z < zLimit; z++) {
+        for (let y = 0; y < yLimit; y++) {
+            for (let x = 0; x < xLimit; x++) {
+                const value0 = getGridValue(values, x, y, z, sizex, sizey, sizez, size2, periodic);
+                const value1 = getGridValue(values, x + 1, y, z, sizex, sizey, sizez, size2, periodic);
+                const value2 = getGridValue(values, x, y + 1, z, sizex, sizey, sizez, size2, periodic);
+                const value3 = getGridValue(values, x + 1, y + 1, z, sizex, sizey, sizez, size2, periodic);
+                const value4 = getGridValue(values, x, y, z + 1, sizex, sizey, sizez, size2, periodic);
+                const value5 = getGridValue(values, x + 1, y, z + 1, sizex, sizey, sizez, size2, periodic);
+                const value6 = getGridValue(values, x, y + 1, z + 1, sizex, sizey, sizez, size2, periodic);
+                const value7 = getGridValue(values, x + 1, y + 1, z + 1, sizex, sizey, sizez, size2, periodic);
+                const cubeindex = computeCubeIndex(value0, value1, value2, value3, value4, value5, value6, value7, isolevel, insideIsAbove);
+                triangleCount += triangleCountTable[cubeindex];
             }
         }
     }
 
-    for (let z = 0; z < sizez - 1; z++) {
-        for (let y = 0; y < sizey - 1; y++) {
-            for (let x = 0; x < sizex - 1; x++) {
-                const p = x + sizex * y + size2 * z;
-                const px = p + 1;
-                const py = p + sizex;
-                const pxy = py + 1;
-                const pz = p + size2;
-                const pxz = px + size2;
-                const pyz = py + size2;
-                const pxyz = pxy + size2;
+    const positions = new Float32Array(triangleCount * 9);
+    const normals = new Float32Array(triangleCount * 9);
+    let writeOffset = 0;
 
-                const value0 = values[p];
-                const value1 = values[px];
-                const value2 = values[py];
-                const value3 = values[pxy];
-                const value4 = values[pz];
-                const value5 = values[pxz];
-                const value6 = values[pyz];
-                const value7 = values[pxyz];
-
-                let cubeindex = 0;
-                if (value0 < isolevel) cubeindex |= 1;
-                if (value1 < isolevel) cubeindex |= 2;
-                if (value2 < isolevel) cubeindex |= 8;
-                if (value3 < isolevel) cubeindex |= 4;
-                if (value4 < isolevel) cubeindex |= 16;
-                if (value5 < isolevel) cubeindex |= 32;
-                if (value6 < isolevel) cubeindex |= 128;
-                if (value7 < isolevel) cubeindex |= 64;
-
+    for (let z = 0; z < zLimit; z++) {
+        for (let y = 0; y < yLimit; y++) {
+            for (let x = 0; x < xLimit; x++) {
+                const value0 = getGridValue(values, x, y, z, sizex, sizey, sizez, size2, periodic);
+                const value1 = getGridValue(values, x + 1, y, z, sizex, sizey, sizez, size2, periodic);
+                const value2 = getGridValue(values, x, y + 1, z, sizex, sizey, sizez, size2, periodic);
+                const value3 = getGridValue(values, x + 1, y + 1, z, sizex, sizey, sizez, size2, periodic);
+                const value4 = getGridValue(values, x, y, z + 1, sizex, sizey, sizez, size2, periodic);
+                const value5 = getGridValue(values, x + 1, y, z + 1, sizex, sizey, sizez, size2, periodic);
+                const value6 = getGridValue(values, x, y + 1, z + 1, sizex, sizey, sizez, size2, periodic);
+                const value7 = getGridValue(values, x + 1, y + 1, z + 1, sizex, sizey, sizez, size2, periodic);
+                const cubeindex = computeCubeIndex(value0, value1, value2, value3, value4, value5, value6, value7, isolevel, insideIsAbove);
                 const bits = edgeTable[cubeindex];
                 if (bits === 0) {
                     continue;
                 }
 
-                if (bits & 1) {
-                    vlist[0] = interpolateVertex(points[p], points[px], value0, value1, isolevel);
-                }
-                if (bits & 2) {
-                    vlist[1] = interpolateVertex(points[px], points[pxy], value1, value3, isolevel);
-                }
-                if (bits & 4) {
-                    vlist[2] = interpolateVertex(points[py], points[pxy], value2, value3, isolevel);
-                }
-                if (bits & 8) {
-                    vlist[3] = interpolateVertex(points[p], points[py], value0, value2, isolevel);
-                }
-                if (bits & 16) {
-                    vlist[4] = interpolateVertex(points[pz], points[pxz], value4, value5, isolevel);
-                }
-                if (bits & 32) {
-                    vlist[5] = interpolateVertex(points[pxz], points[pxyz], value5, value7, isolevel);
-                }
-                if (bits & 64) {
-                    vlist[6] = interpolateVertex(points[pyz], points[pxyz], value6, value7, isolevel);
-                }
-                if (bits & 128) {
-                    vlist[7] = interpolateVertex(points[pz], points[pyz], value4, value6, isolevel);
-                }
-                if (bits & 256) {
-                    vlist[8] = interpolateVertex(points[p], points[pz], value0, value4, isolevel);
-                }
-                if (bits & 512) {
-                    vlist[9] = interpolateVertex(points[px], points[pxz], value1, value5, isolevel);
-                }
-                if (bits & 1024) {
-                    vlist[10] = interpolateVertex(points[pxy], points[pxyz], value3, value7, isolevel);
-                }
-                if (bits & 2048) {
-                    vlist[11] = interpolateVertex(points[py], points[pyz], value2, value6, isolevel);
-                }
+                getGridPointCoords(points, 0, x, y, z, sizex, sizey, sizez, periodic, gridCell);
+                getGridPointCoords(points, 3, x + 1, y, z, sizex, sizey, sizez, periodic, gridCell);
+                getGridPointCoords(points, 6, x, y + 1, z, sizex, sizey, sizez, periodic, gridCell);
+                getGridPointCoords(points, 9, x + 1, y + 1, z, sizex, sizey, sizez, periodic, gridCell);
+                getGridPointCoords(points, 12, x, y, z + 1, sizex, sizey, sizez, periodic, gridCell);
+                getGridPointCoords(points, 15, x + 1, y, z + 1, sizex, sizey, sizez, periodic, gridCell);
+                getGridPointCoords(points, 18, x, y + 1, z + 1, sizex, sizey, sizez, periodic, gridCell);
+                getGridPointCoords(points, 21, x + 1, y + 1, z + 1, sizex, sizey, sizez, periodic, gridCell);
 
-                let i = 0;
+                if (bits & 1) interpolateVertex(vlist, 0, points, 0, points, 3, value0, value1, isolevel);
+                if (bits & 2) interpolateVertex(vlist, 3, points, 3, points, 9, value1, value3, isolevel);
+                if (bits & 4) interpolateVertex(vlist, 6, points, 6, points, 9, value2, value3, isolevel);
+                if (bits & 8) interpolateVertex(vlist, 9, points, 0, points, 6, value0, value2, isolevel);
+                if (bits & 16) interpolateVertex(vlist, 12, points, 12, points, 15, value4, value5, isolevel);
+                if (bits & 32) interpolateVertex(vlist, 15, points, 15, points, 21, value5, value7, isolevel);
+                if (bits & 64) interpolateVertex(vlist, 18, points, 18, points, 21, value6, value7, isolevel);
+                if (bits & 128) interpolateVertex(vlist, 21, points, 12, points, 18, value4, value6, isolevel);
+                if (bits & 256) interpolateVertex(vlist, 24, points, 0, points, 12, value0, value4, isolevel);
+                if (bits & 512) interpolateVertex(vlist, 27, points, 3, points, 15, value1, value5, isolevel);
+                if (bits & 1024) interpolateVertex(vlist, 30, points, 9, points, 21, value3, value7, isolevel);
+                if (bits & 2048) interpolateVertex(vlist, 33, points, 6, points, 18, value2, value6, isolevel);
+
                 const triOffset = cubeindex << 4;
-
-                while (triTable[triOffset + i] !== -1) {
-                    const vertex1 = vlist[triTable[triOffset + i]];
-                    const vertex2 = vlist[triTable[triOffset + i + 1]];
-                    const vertex3 = vlist[triTable[triOffset + i + 2]];
-
-                    vertices.push(
-                        vertex1.x, vertex1.y, vertex1.z,
-                        vertex2.x, vertex2.y, vertex2.z,
-                        vertex3.x, vertex3.y, vertex3.z,
+                for (let i = 0; triTable[triOffset + i] !== -1; i += 3) {
+                    writeTriangle(
+                        positions,
+                        normals,
+                        writeOffset,
+                        vlist,
+                        triTable[triOffset + i],
+                        triTable[triOffset + i + 1],
+                        triTable[triOffset + i + 2],
                     );
-
-                    i += 3;
+                    writeOffset += 9;
                 }
             }
         }
     }
 
-    const geometry = new BufferGeometry();
-    geometry.setAttribute('position', new Float32BufferAttribute(vertices, 3));
-    geometry.computeVertexNormals();
+    return {
+        positions,
+        normals,
+    };
+}
 
+function buildMarchingCubesGeometry(values, sizex, sizey, sizez, gridCell, isolevel, options = {}) {
+    const buffers = buildMarchingCubesBuffers(values, sizex, sizey, sizez, gridCell, isolevel, options);
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new BufferAttribute(buffers.positions, 3));
+    geometry.setAttribute('normal', new BufferAttribute(buffers.normals, 3));
     return geometry;
 }
 
@@ -64294,6 +64416,27 @@ function subscript_numbers(old_string) {
         }
     }
     return string;
+}
+
+function normalize_formula_string(value) {
+    if (typeof value !== 'string' || !value) {
+        return value;
+    }
+
+    if (!/^(?:[A-Z][a-z]?\d*)+$/.test(value)) {
+        return value;
+    }
+
+    return value.replace(/([A-Z][a-z]?)(\d*)/g, function(match, element, count) {
+        if (!count || count === '1') {
+            return element;
+        }
+        return element + count;
+    });
+}
+
+function format_formula_html(value) {
+    return subscript_numbers(normalize_formula_string(value));
 }
 
 const vecY = new Vector3(0, 1, 0);
@@ -64323,6 +64466,7 @@ class ExcitonWf {
         this.sizez = 1;
         this.cell = null;
         this.isolevel = 0.02;
+        this.isosurfaceOpacity = 0.18;
         this.excitonIndex = 0;
         this.isInitialized = false;
 
@@ -64340,7 +64484,7 @@ class ExcitonWf {
 
         this.bondscolor = 0xffffff;
         this.defaultBondsColor = this.bondscolor;
-        this.bondColorByAtom = false;
+        this.bondColorByAtom = true;
         this.defaultBondColorByAtom = this.bondColorByAtom;
         this.defaultBondRadius = this.bondRadius;
         this.atomColorOverrides = {};
@@ -64348,6 +64492,11 @@ class ExcitonWf {
         this.defaultAtomRadiusScale = 1.0;
         this.appearanceSelectedAtomNumber = null;
         this.bondRules = {};
+        this.marchingCubesWorker = null;
+        this.marchingCubesWorkerFailed = false;
+        this.marchingCubesRequestId = 0;
+        this.marchingCubesWorkerBusy = false;
+        this.isosurfacePreviewCache = null;
     }
 
     init(container) {
@@ -64375,6 +64524,15 @@ class ExcitonWf {
         this.renderer.setPixelRatio(window.devicePixelRatio || 1);
         this.renderer.setSize(this.dimensions.width, this.dimensions.height, false);
         containerElement.appendChild(this.renderer.domElement);
+        this.canvas = this.renderer.domElement;
+        this.canvas.style.display = 'block';
+
+        if (!containerElement.clientHeight) {
+            containerElement.style.height = `${this.dimensions.height}px`;
+        }
+        if (containerElement.parentElement && !containerElement.parentElement.clientHeight) {
+            containerElement.parentElement.style.height = `${this.dimensions.height}px`;
+        }
 
         this.controls = new TrackballControls(this.camera, this.renderer.domElement);
         this.controls.rotateSpeed = 1.0;
@@ -64386,6 +64544,7 @@ class ExcitonWf {
         window.addEventListener('resize', this.onWindowResize.bind(this), false);
 
         this.isInitialized = true;
+        this.onWindowResize();
         this.animate();
     }
 
@@ -64401,6 +64560,8 @@ class ExcitonWf {
         this.atoms = absorption.atoms;
         this.natoms = absorption.atoms.length;
         this.atom_numbers = absorption.atom_numbers;
+        this.clearIsosurfacePreviewCache();
+        this.updateRecommendedIsolevel();
 
         this.geometricCenter = new Vector3(0, 0, 0);
         for (let i = 0; i < this.atoms.length; i++) {
@@ -64418,12 +64579,69 @@ class ExcitonWf {
         this.excitonIndex = index;
         if (this.excitons && this.excitons[index]) {
             this.values = this.excitons[index].datagrid;
+            this.clearIsosurfacePreviewCache();
+            this.updateRecommendedIsolevel();
+        }
+    }
+
+    clearIsosurfacePreviewCache() {
+        this.isosurfacePreviewCache = null;
+    }
+
+    updateRecommendedIsolevel(force = false) {
+        if (!Array.isArray(this.values) || !this.values.length) {
+            return;
+        }
+
+        const positiveValues = this.values.filter((value) => Number.isFinite(value) && value > 0).sort((a, b) => a - b);
+        if (!positiveValues.length) {
+            return;
+        }
+
+        const quantile = (fraction) => {
+            const position = Math.max(0, Math.min(1, fraction)) * (positiveValues.length - 1);
+            const lower = Math.floor(position);
+            const upper = Math.ceil(position);
+            const weight = position - lower;
+            if (lower === upper) {
+                return positiveValues[lower];
+            }
+            return positiveValues[lower] * (1 - weight) + positiveValues[upper] * weight;
+        };
+
+        const recommended = Math.min(Math.max(quantile(0.99), positiveValues[positiveValues.length - 1] * 0.02), 0.9);
+        if (force || !Number.isFinite(this.isolevel) || this.isolevel <= 0 || this.isolevel === 0.02) {
+            this.isolevel = recommended;
+        }
+
+        if (this.onIsolevelRangeChanged) {
+            this.onIsolevelRangeChanged({
+                min: 0,
+                max: Math.max(quantile(0.999), positiveValues[positiveValues.length - 1] * 0.1),
+                step: Math.max(1e-4, positiveValues[positiveValues.length - 1] / 500),
+                value: this.isolevel,
+            });
         }
     }
 
     getContainerDimensions() {
-        const width = this.container.width();
-        const height = this.container.height();
+        let width = this.container.width();
+        let height = this.container.height();
+
+        if (!width || !height) {
+            const rect = this.container.get(0).getBoundingClientRect();
+            width = rect.width;
+            height = rect.height;
+        }
+        if ((!width || !height) && this.container.get(0).parentElement) {
+            const rect = this.container.get(0).parentElement.getBoundingClientRect();
+            width = rect.width;
+            height = rect.height;
+        }
+        if (!width || !height) {
+            width = Math.max(window.innerWidth * 0.5, 300);
+            height = Math.max(window.innerHeight * 0.5, 300);
+        }
 
         return {
             width,
@@ -64747,7 +64965,7 @@ class ExcitonWf {
             for (let i = 0; i < uniqueAtomNumbers.length; i++) {
                 const atomNumber = uniqueAtomNumbers[i];
                 this.domAppearanceAtomList.append(
-                    `<button type="button" data-atom-number="${atomNumber}">${atomic_symbol[atomNumber]}</button>`
+                    `<button type="button" data-atom-number="${atomNumber}">${createAtomBadgeHtml(atomic_symbol[atomNumber], atomNumber, this.getAtomColorHex.bind(this))}</button>`
                 );
             }
         }
@@ -64864,10 +65082,15 @@ class ExcitonWf {
         }
         for (let i = 0; i < keys.length; i++) {
             const rule = this.bondRules[keys[i]];
-            const label = `${atomic_symbol[rule.a]}-${atomic_symbol[rule.b]}`;
+            const label =
+                `<span class="atom-badge-pair">` +
+                `${createAtomBadgeHtml(atomic_symbol[rule.a], rule.a, this.getAtomColorHex.bind(this))}` +
+                `<span class="atom-badge-separator">-</span>` +
+                `${createAtomBadgeHtml(atomic_symbol[rule.b], rule.b, this.getAtomColorHex.bind(this))}` +
+                `</span>`;
             const cutoff = Number(rule.cutoff).toFixed(2);
             this.domBondRulesList.append(
-                `<div class="appearance-controls"><span>${label} (${cutoff})</span><button type="button" data-remove-key="${keys[i]}">remove</button></div>`
+                `<div class="appearance-controls"><span>${label} ${cutoff}</span><button type="button" data-remove-key="${keys[i]}">remove</button></div>`
             );
         }
     }
@@ -64960,9 +65183,14 @@ class ExcitonWf {
                         this.bondVertical,
                         true,
                     );
-                    const material = this.display === 'vesta'
-                        ? new MeshPhongMaterial({ color: colorHex, reflectivity: 1, shininess: 50 })
-                        : new MeshLambertMaterial({ color: colorHex });
+                    let material;
+                    if (!this.shading) {
+                        material = new MeshBasicMaterial({ color: colorHex });
+                    } else if (this.display === 'vesta') {
+                        material = new MeshPhongMaterial({ color: colorHex, reflectivity: 1, shininess: 50 });
+                    } else {
+                        material = new MeshLambertMaterial({ color: colorHex });
+                    }
                     const object = new Mesh(geometry, material);
                     object.setRotationFromQuaternion(bond.quaternion);
                     object.position.copy(midpoint);
@@ -65012,13 +65240,329 @@ class ExcitonWf {
         }
 
         for (let i = this.scene.children.length - 1; i >= 0; i--) {
+            this.disposeSceneObject(this.scene.children[i]);
             this.scene.remove(this.scene.children[i]);
         }
     }
 
+    disposeSceneObject(object) {
+        if (!object) {
+            return;
+        }
+        if (object.geometry) {
+            object.geometry.dispose();
+        }
+        if (object.material) {
+            if (Array.isArray(object.material)) {
+                for (let i = 0; i < object.material.length; i++) {
+                    if (object.material[i] && object.material[i].dispose) {
+                        object.material[i].dispose();
+                    }
+                }
+            } else if (object.material.dispose) {
+                object.material.dispose();
+            }
+        }
+    }
+
+    removeNamedSceneObjects(name) {
+        if (!this.scene) {
+            return;
+        }
+
+        for (let i = this.scene.children.length - 1; i >= 0; i--) {
+            const child = this.scene.children[i];
+            if (child && child.name === name) {
+                this.disposeSceneObject(child);
+                this.scene.remove(child);
+            }
+        }
+    }
+
+    forEachNamedSceneObject(name, callback) {
+        if (!this.scene || typeof callback !== 'function') {
+            return;
+        }
+
+        for (let i = 0; i < this.scene.children.length; i++) {
+            const child = this.scene.children[i];
+            if (child && child.name === name) {
+                callback(child);
+            }
+        }
+    }
+
+    getMarchingCubesOptions() {
+        return { insideIsAbove: true };
+    }
+
+    getPreviewStride() {
+        const voxelCount = (this.sizex || 1) * (this.sizey || 1) * (this.sizez || 1);
+        const minSize = Math.min(this.sizex || 1, this.sizey || 1, this.sizez || 1);
+        if (minSize < 12) {
+            return 1;
+        }
+        if (voxelCount > 800000 && minSize >= 24) {
+            return 4;
+        }
+        if (voxelCount > 250000 && minSize >= 18) {
+            return 3;
+        }
+        if (voxelCount > 80000 && minSize >= 12) {
+            return 2;
+        }
+        return 1;
+    }
+
+    buildDownsampledField(values, sizex, sizey, sizez, stride, periodic) {
+        if (stride <= 1) {
+            return {
+                values,
+                sizex,
+                sizey,
+                sizez,
+            };
+        }
+
+        const reducedX = periodic ? Math.max(2, Math.floor(sizex / stride)) : Math.max(2, Math.floor((sizex - 1) / stride) + 1);
+        const reducedY = periodic ? Math.max(2, Math.floor(sizey / stride)) : Math.max(2, Math.floor((sizey - 1) / stride) + 1);
+        const reducedZ = periodic ? Math.max(2, Math.floor((sizez) / stride)) : Math.max(2, Math.floor((sizez - 1) / stride) + 1);
+        const reducedValues = new Float32Array(reducedX * reducedY * reducedZ);
+        let writeIndex = 0;
+
+        for (let z = 0; z < reducedZ; z++) {
+            const sourceZ = periodic ? (z * stride) % sizez : Math.min(z * stride, sizez - 1);
+            for (let y = 0; y < reducedY; y++) {
+                const sourceY = periodic ? (y * stride) % sizey : Math.min(y * stride, sizey - 1);
+                for (let x = 0; x < reducedX; x++) {
+                    const sourceX = periodic ? (x * stride) % sizex : Math.min(x * stride, sizex - 1);
+                    reducedValues[writeIndex] = values[sourceX + sizex * sourceY + sizex * sizey * sourceZ];
+                    writeIndex += 1;
+                }
+            }
+        }
+
+        return {
+            values: reducedValues,
+            sizex: reducedX,
+            sizey: reducedY,
+            sizez: reducedZ,
+        };
+    }
+
+    getInteractiveMarchingCubesInput() {
+        const stride = this.getPreviewStride();
+        if (stride <= 1) {
+            return {
+                values: this.values,
+                sizex: this.sizex,
+                sizey: this.sizey,
+                sizez: this.sizez,
+            };
+        }
+
+        const options = this.getMarchingCubesOptions();
+        const periodic = !!options.periodic;
+        const cacheKey = `${stride}:${this.sizex}:${this.sizey}:${this.sizez}:${periodic ? 'p' : 'n'}`;
+        if (!this.isosurfacePreviewCache || this.isosurfacePreviewCache.key !== cacheKey) {
+            this.isosurfacePreviewCache = {
+                key: cacheKey,
+                data: this.buildDownsampledField(this.values, this.sizex, this.sizey, this.sizez, stride, periodic),
+            };
+        }
+
+        return this.isosurfacePreviewCache.data;
+    }
+
+    getMarchingCubesWorker() {
+        if (this.marchingCubesWorkerFailed || typeof Worker === 'undefined') {
+            return null;
+        }
+        if (this.marchingCubesWorker) {
+            return this.marchingCubesWorker;
+        }
+
+        try {
+            this.marchingCubesWorker = new Worker(
+                new URL('./marchingcubesworker.js', import.meta.url),
+                { type: 'module' },
+            );
+            this.marchingCubesWorker.onmessage = (event) => {
+                this.marchingCubesWorkerBusy = false;
+                const { requestId, positions, normals } = event.data;
+                this.applyMarchingCubesBuffers(
+                    requestId,
+                    new Float32Array(positions),
+                    new Float32Array(normals),
+                );
+            };
+            this.marchingCubesWorker.onerror = () => {
+                this.marchingCubesWorkerBusy = false;
+                this.marchingCubesWorkerFailed = true;
+                if (this.marchingCubesWorker) {
+                    this.marchingCubesWorker.terminate();
+                    this.marchingCubesWorker = null;
+                }
+            };
+        } catch (error) {
+            this.marchingCubesWorkerFailed = true;
+            this.marchingCubesWorker = null;
+        }
+
+        return this.marchingCubesWorker;
+    }
+
+    resetMarchingCubesWorker() {
+        this.marchingCubesWorkerBusy = false;
+        if (this.marchingCubesWorker) {
+            this.marchingCubesWorker.terminate();
+            this.marchingCubesWorker = null;
+        }
+    }
+
+    createMarchingCubesGeometry(positions, normals) {
+        const geometry = new BufferGeometry();
+        geometry.setAttribute('position', new BufferAttribute(positions, 3));
+        geometry.setAttribute('normal', new BufferAttribute(normals, 3));
+        return geometry;
+    }
+
+    applyMarchingCubesBuffers(requestId, positions, normals) {
+        if (requestId !== this.marchingCubesRequestId || !this.scene) {
+            return;
+        }
+
+        this.removeNamedSceneObjects('isosurface');
+        const geometry = this.createMarchingCubesGeometry(positions, normals);
+        this.addMarchingCubesGeometry(geometry);
+        this.render();
+    }
+
+    requestMarchingCubesUpdate() {
+        if (!Array.isArray(this.values) || !this.values.length || !this.scene) {
+            return;
+        }
+
+        const requestId = ++this.marchingCubesRequestId;
+        const payload = {
+            requestId,
+            values: Float32Array.from(this.values),
+            sizex: this.sizex,
+            sizey: this.sizey,
+            sizez: this.sizez,
+            gridCell: this.gridCell,
+            isolevel: this.isolevel,
+            options: this.getMarchingCubesOptions(),
+        };
+
+        const worker = this.getMarchingCubesWorker();
+        if (worker) {
+            if (this.marchingCubesWorkerBusy) {
+                this.resetMarchingCubesWorker();
+            }
+            const activeWorker = this.getMarchingCubesWorker();
+            if (activeWorker) {
+                this.marchingCubesWorkerBusy = true;
+                activeWorker.postMessage(
+                    payload,
+                    [payload.values.buffer],
+                );
+                return;
+            }
+        }
+
+        const geometry = buildMarchingCubesGeometry(
+            this.values,
+            this.sizex,
+            this.sizey,
+            this.sizez,
+            this.gridCell,
+            this.isolevel,
+            this.getMarchingCubesOptions(),
+        );
+        this.removeNamedSceneObjects('isosurface');
+        this.addMarchingCubesGeometry(geometry);
+        this.render();
+    }
+
+    updateIsosurfaceSync() {
+        if (!this.scene || !Array.isArray(this.values) || !this.values.length) {
+            return;
+        }
+
+        this.marchingCubesRequestId += 1;
+        if (this.marchingCubesWorkerBusy) {
+            this.resetMarchingCubesWorker();
+        }
+
+        const geometry = buildMarchingCubesGeometry(
+            this.values,
+            this.sizex,
+            this.sizey,
+            this.sizez,
+            this.gridCell,
+            this.isolevel,
+            this.getMarchingCubesOptions(),
+        );
+        this.removeNamedSceneObjects('isosurface');
+        this.addMarchingCubesGeometry(geometry);
+        this.render();
+    }
+
+    updateIsosurfacePreview() {
+        if (!this.scene || !Array.isArray(this.values) || !this.values.length) {
+            return;
+        }
+
+        this.marchingCubesRequestId += 1;
+        if (this.marchingCubesWorkerBusy) {
+            this.resetMarchingCubesWorker();
+        }
+
+        const preview = this.getInteractiveMarchingCubesInput();
+        const geometry = buildMarchingCubesGeometry(
+            preview.values,
+            preview.sizex,
+            preview.sizey,
+            preview.sizez,
+            this.gridCell,
+            this.isolevel,
+            this.getMarchingCubesOptions(),
+        );
+        this.removeNamedSceneObjects('isosurface');
+        this.addMarchingCubesGeometry(geometry);
+        this.render();
+    }
+
+    updateIsosurface() {
+        this.requestMarchingCubesUpdate();
+    }
+
     changeIsolevel(isolevel) {
         this.isolevel = Number(isolevel);
-        this.updateStructure();
+        this.updateIsosurfaceSync();
+    }
+
+    changeIsosurfaceOpacity(opacity) {
+        const numericOpacity = Number(opacity);
+        if (!Number.isFinite(numericOpacity)) {
+            return;
+        }
+
+        this.isosurfaceOpacity = Math.max(0, Math.min(1, numericOpacity));
+        this.forEachNamedSceneObject('isosurface', (mesh) => {
+            if (mesh.material) {
+                mesh.material.opacity = this.isosurfaceOpacity;
+                mesh.material.transparent = this.isosurfaceOpacity < 1;
+                mesh.material.needsUpdate = true;
+            }
+        });
+        this.render();
+    }
+
+    previewIsolevel(isolevel) {
+        this.isolevel = Number(isolevel);
+        this.updateIsosurfacePreview();
     }
 
     setCameraDirection(direction) {
@@ -65046,35 +65590,31 @@ class ExcitonWf {
         }
 
         this.values = this.excitons[this.excitonIndex].datagrid;
+        this.marchingCubesRequestId += 1;
         this.removeStructure();
 
         this.addLights();
         this.addMarchingCubes();
         this.getAtomMaterials();
         this.addStructure();
+        this.render();
     }
 
     addMarchingCubes() {
-        const geometry = buildMarchingCubesGeometry(
-            this.values,
-            this.sizex,
-            this.sizey,
-            this.sizez,
-            this.gridCell,
-            this.isolevel,
-        );
+        this.requestMarchingCubesUpdate();
+    }
 
+    addMarchingCubesGeometry(geometry) {
         const mesh = new Mesh(
             geometry,
             new MeshLambertMaterial({
                 color: 0xffff00,
                 side: DoubleSide,
-                transparent: true,
-                opacity: 0.18,
+                transparent: this.isosurfaceOpacity < 1,
+                opacity: this.isosurfaceOpacity,
                 depthWrite: false,
             }),
         );
-
         mesh.name = 'isosurface';
         mesh.position.sub(this.geometricCenter);
         this.scene.add(mesh);
@@ -65086,6 +65626,9 @@ class ExcitonWf {
         }
 
         this.dimensions = this.getContainerDimensions();
+        if (!this.dimensions.width || !this.dimensions.height) {
+            return;
+        }
         this.camera.aspect = this.dimensions.ratio;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(this.dimensions.width, this.dimensions.height, false);
@@ -65109,6 +65652,29 @@ class ExcitonWf {
         if (this.renderer && this.scene && this.camera) {
             this.renderer.render(this.scene, this.camera);
         }
+    }
+}
+
+function clearDom(domNode) {
+    if (domNode && domNode.length) {
+        domNode.empty();
+    }
+}
+
+function renderLatticeTable(domLattice, lattice) {
+    if (!domLattice || !domLattice.length || !lattice) {
+        return;
+    }
+
+    clearDom(domLattice);
+    for (let i = 0; i < 3; i++) {
+        const tr = document.createElement('tr');
+        for (let j = 0; j < 3; j++) {
+            const td = document.createElement('td');
+            td.appendChild(document.createTextNode(Number(lattice[i][j]).toPrecision(4)));
+            tr.append(td);
+        }
+        domLattice.append(tr);
     }
 }
 
@@ -65139,6 +65705,7 @@ class ExcitonWebpage {
         this.spectra.setSelectionHandler((index) => {
             this.selectExciton(index);
         });
+        this.viewer.onIsolevelRangeChanged = this.updateIsolevelControls.bind(this);
     }
 
     setTitle(domTitle) {
@@ -65147,6 +65714,10 @@ class ExcitonWebpage {
 
     setMaterialsList(domList) {
         this.domMaterials = domList;
+    }
+
+    setLattice(domLattice) {
+        this.domLattice = domLattice;
     }
 
     setFileInput(domInput) {
@@ -65159,16 +65730,57 @@ class ExcitonWebpage {
         this.domIsolevelInput = domInput;
         this.domIsolevelValue = domValue;
 
-        const handler = () => {
+        const updateLabel = () => {
             const value = Number(domInput.val());
             if (this.domIsolevelValue) {
                 this.domIsolevelValue.text(value.toFixed(3));
             }
+            return value;
+        };
+
+        const previewHandler = () => {
+            const value = updateLabel();
+            this.viewer.previewIsolevel(value);
+        };
+
+        const finalHandler = () => {
+            const value = updateLabel();
             this.viewer.changeIsolevel(value);
+        };
+
+        domInput.on('input', previewHandler);
+        domInput.on('change', finalHandler);
+        finalHandler();
+    }
+
+    setIsosurfaceOpacityInput(domInput, domValue = null) {
+        this.domOpacityInput = domInput;
+        this.domOpacityValue = domValue;
+
+        const handler = () => {
+            const value = Number(domInput.val());
+            if (this.domOpacityValue) {
+                this.domOpacityValue.text(value.toFixed(2).replace(/\.?0+$/, ''));
+            }
+            this.viewer.changeIsosurfaceOpacity(value);
         };
 
         domInput.on('input change', handler);
         handler();
+    }
+
+    updateIsolevelControls(range) {
+        if (!this.domIsolevelInput || !this.domIsolevelInput.length || !range) {
+            return;
+        }
+
+        this.domIsolevelInput.attr('min', range.min);
+        this.domIsolevelInput.attr('max', range.max);
+        this.domIsolevelInput.attr('step', range.step);
+        this.domIsolevelInput.val(range.value);
+        if (this.domIsolevelValue) {
+            this.domIsolevelValue.text(Number(range.value).toPrecision(4).replace(/\.?0+$/, ''));
+        }
     }
 
     setCameraDirectionButton(domButton, direction) {
@@ -65193,7 +65805,7 @@ class ExcitonWebpage {
                 return;
             }
             const link = $('<a href="#"></a>');
-            link.html(subscript_numbers(material.name));
+            link.html(format_formula_html(material.name));
             link.on('click', (event) => {
                 event.preventDefault();
                 this.loadMaterial(key);
@@ -65219,8 +65831,7 @@ class ExcitonWebpage {
         this.setTitleText(material.name);
 
         return this.spectra.getDataFilename(material.file).then(() => {
-            this.viewer.setData(this.spectra);
-            this.viewer.updateStructure();
+            this.syncViewerFromSpectra();
         });
     }
 
@@ -65239,8 +65850,7 @@ class ExcitonWebpage {
             this.setTitleText(file.name.replace(/\.json$/i, ''));
             this.spectra.getDataObject(data);
             this.spectra.render();
-            this.viewer.setData(this.spectra);
-            this.viewer.updateStructure();
+            this.syncViewerFromSpectra();
         };
     }
 
@@ -65252,8 +65862,27 @@ class ExcitonWebpage {
 
     setTitleText(title) {
         if (this.domTitle) {
-            this.domTitle.html(subscript_numbers(title));
+            this.domTitle.html(format_formula_html(title));
         }
+    }
+
+    updateStructureInfo() {
+        if (!this.spectra) {
+            return;
+        }
+
+        const lattice = this.spectra.gridCell || this.spectra.cell;
+        renderLatticeTable(this.domLattice, lattice);
+    }
+
+    syncViewerFromSpectra() {
+        if (!this.viewer || !this.spectra) {
+            return;
+        }
+
+        this.viewer.setData(this.spectra);
+        this.updateStructureInfo();
+        this.viewer.updateStructure();
     }
 }
 
@@ -65270,8 +65899,10 @@ const page = new ExcitonWebpage(viewer, spectra);
 
 page.setTitle($('#name'));
 page.setMaterialsList($('#mat'));
+page.setLattice($('#lattice'));
 page.setFileInput($('#file-input'));
 page.setIsolevelInput($('#isolevel_range'), $('#isolevel_value'));
+page.setIsosurfaceOpacityInput($('#isosurface_opacity_range'), $('#isosurface_opacity_value'));
 page.setCameraDirectionButton($('#camerax'), 'x');
 page.setCameraDirectionButton($('#cameray'), 'y');
 page.setCameraDirectionButton($('#cameraz'), 'z');

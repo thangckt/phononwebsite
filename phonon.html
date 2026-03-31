@@ -30,6 +30,7 @@
             <li><a href="index.html">Home</a></li>
             <li><a href="phonon.html">Phonons</a></li>
             <li><a href="exciton.html">Excitons</a></li>
+            <li><a href="structure.html">Structures</a></li>
         </ul>
         <div class="material-name"><h1 id="name">Material</h1></div>
         <div class="flex-container">
@@ -37,6 +38,7 @@
                 <div id="menu">
                 <div id="material-list">
                     <h3>Materials:</h3>
+                    <input id="materials_filter" type="text" placeholder="Filter materials or elements, e.g. Be C">
                     <ul id="mat"></ul>
                     <ul id="ref"></ul>
                 </div>
@@ -76,11 +78,6 @@
                         <button id="modeselect" type="button">apply</button>
                     </div>
 
-                    <div>
-                        <h3>Mode weights:</h3>
-                        <input id="mode_weights_plot" type="checkbox">show on plot</input>
-                    </div>
-
                     <div style="display: table;">
                         <div style="display: table-cell; padding-right: 5px;">
                             <h3>Camera:</h3>
@@ -92,16 +89,17 @@
                             <h3>Cell:</h3>
                             <input id="drawcell" type="checkbox">on</input>
                         </div>
-                        <div style="display: table-cell; padding-right: 5px;">
-                            <h3>Shading:</h3>
-                            <input id="drawshading" type="checkbox" checked>on</input>
-                        </div>
                         <div style="display: table-cell;">
                             <h3>Export movie:</h3>
                             <button id="gifbutton"  type="button">gif</button>
                             <button id="webmbutton" type="button">webm</button>
                             <div id="progress"></div>
                         </div>
+                    </div>
+
+                    <div>
+                        <input id="mode_weights_plot" type="checkbox">mode weights</input>
+                        <input id="drawshading" type="checkbox" checked>shading</input>
                     </div>
 
                     <div>
@@ -126,15 +124,15 @@
                             </select>
                         </div>
                         <div class="appearance-row">
-                            <label for="appearance_atom_list">atom type</label>
+                            <label for="appearance_atom_list">type</label>
                             <div id="appearance_atom_list" class="appearance-atom-list"></div>
                         </div>
                         <div class="appearance-row">
-                            <label for="atom_color_input">atom color</label>
+                            <label for="atom_color_input">color</label>
                             <input id="atom_color_input" type="color">
                         </div>
                         <div class="appearance-row">
-                            <label for="atom_radius_input">atom radius</label>
+                            <label for="atom_radius_input">radius</label>
                             <div class="appearance-controls">
                                 <input id="atom_radius_input" type="number" min="0.1" max="5.0" step="0.05" value="1.0">
                                 <button id="appearance_reset_atom_button" type="button">reset</button>
@@ -142,14 +140,14 @@
                         </div>
                         <div class="appearance-subsection">Bonds</div>
                         <div class="appearance-row">
-                            <label for="bond_color_input">bond color</label>
+                            <label for="bond_color_input">color</label>
                             <div class="appearance-controls">
                                 <input id="bond_color_input" type="color">
                                 <button id="appearance_reset_bonds_button" type="button">reset</button>
                             </div>
                         </div>
                         <div class="appearance-row">
-                            <label for="bond_radius_input">bond radius</label>
+                            <label for="bond_radius_input">radius</label>
                             <input id="bond_radius_input" type="number" min="0.01" max="1.0" step="0.01" value="0.1">
                         </div>
                         <div class="appearance-row">
@@ -159,11 +157,11 @@
                             </div>
                         </div>
                         <div class="appearance-row">
-                            <label for="bond_rules_list">bond types</label>
+                            <label for="bond_rules_list">types</label>
                             <div id="bond_rules_list"></div>
                         </div>
                         <div class="appearance-row">
-                            <label for="bond_add_atom_a">add bond</label>
+                            <label for="bond_add_atom_a">bond</label>
                             <div class="appearance-controls">
                                 <select id="bond_add_atom_a"></select>
                                 <select id="bond_add_atom_b"></select>
@@ -173,7 +171,7 @@
 
                         <div class="appearance-subsection">Vectors</div>
                         <div class="appearance-row">
-                            <label for="arrow_color_input">arrow color</label>
+                            <label for="arrow_color_input">color</label>
                             <input id="arrow_color_input" type="color">
                         </div>
                         <div class="appearance-row">
@@ -183,22 +181,16 @@
                             </div>
                         </div>
                         <div class="appearance-row">
-                            <label for="vectors_amplitude_range">vector size</label>
+                            <label for="vectors_amplitude_range">size</label>
                             <input id="vectors_amplitude_range" type="range">
                         </div>
                         <div class="appearance-row">
-                            <label for="arrow_radius_input">vector radius</label>
+                            <label for="arrow_radius_input">radius</label>
                             <div class="appearance-controls">
                                 <input id="arrow_radius_input" type="number" min="0.01" max="1.0" step="0.01" value="0.1">
                                 <button id="appearance_reset_vectors_button" type="button">reset</button>
                             </div>
                         </div>
-                    </div>
-
-                    <div>
-                        <h3><a href="https://next-gen.materialsproject.org/api">Materials project API key:</a></h3>
-                        <input id="mp_api_key_input" type="text">
-                        <button id="mp_api_key_button" type="button">update</button>
                     </div>
 
                     <!--

@@ -68967,7 +68967,10 @@ function get_formula(atom_types) {
     //make the name from the counter
     let name = "";
     for (let element in counts) {
-        name += element+counts[element];
+        name += element;
+        if (counts[element] !== 1) {
+            name += counts[element];
+        }
     }
     return name;
 }
@@ -68984,6 +68987,73 @@ function getReasonableRepetitions(natoms,lat) {
     if (natoms > 15 && natoms <= 50)             { return [2,2,1]; }
     return [1,1,1];
 
+}
+
+function subscript_numbers(old_string) {
+    let string = "";
+    for (const a of old_string) {
+        if (!isNaN(a)) {
+            string += "<sub>"+a+"</sub>";
+        }
+        else {
+            string += a;
+        }
+    }
+    return string;
+}
+
+function normalize_formula_string(value) {
+    if (typeof value !== 'string' || !value) {
+        return value;
+    }
+
+    if (!/^(?:[A-Z][a-z]?\d*)+$/.test(value)) {
+        return value;
+    }
+
+    return value.replace(/([A-Z][a-z]?)(\d*)/g, function(match, element, count) {
+        if (!count || count === '1') {
+            return element;
+        }
+        return element + count;
+    });
+}
+
+function format_formula_html(value) {
+    return subscript_numbers(normalize_formula_string(value));
+}
+
+function atomColorHexToCss(colorHex) {
+    return '#' + Number(colorHex).toString(16).padStart(6, '0');
+}
+
+function getAtomBadgeTextColor(colorHex) {
+    let color = Number(colorHex);
+    let red = (color >> 16) & 255;
+    let green = (color >> 8) & 255;
+    let blue = color & 255;
+    let luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
+    return luminance > 0.6 ? '#111827' : '#ffffff';
+}
+
+function applyAtomBadgeStyle(element, atomNumber, getAtomColorHex) {
+    if (!element || !Number.isFinite(atomNumber) || typeof getAtomColorHex !== 'function') {
+        return;
+    }
+    let colorHex = getAtomColorHex(atomNumber);
+    element.style.setProperty('--atom-badge-bg', atomColorHexToCss(colorHex));
+    element.style.setProperty('--atom-badge-fg', getAtomBadgeTextColor(colorHex));
+}
+
+function createAtomBadgeHtml(label, atomNumber, getAtomColorHex) {
+    let style = '';
+    if (Number.isFinite(atomNumber) && typeof getAtomColorHex === 'function') {
+        let colorHex = getAtomColorHex(atomNumber);
+        style =
+            ' style="--atom-badge-bg: ' + atomColorHexToCss(colorHex) +
+            '; --atom-badge-fg: ' + getAtomBadgeTextColor(colorHex) + ';"';
+    }
+    return '<span class="atom-type-badge"' + style + '>' + label + '</span>';
 }
 
 const vec_y = new Vector3( 0, 1, 0 );
@@ -69097,9 +69167,11 @@ class VibCrystal {
 
         //amplitude
         this.amplitude = 0.2;
+        this.defaultAmplitude = this.amplitude;
         this.minAmplitude = 0.0;
-        this.maxAmplitude = 1.0;
+        this.maxAmplitude = 5.0;
         this.stepAmplitude = 0.01;
+        this.modeScaleAutoInitialized = false;
 
         //speed
         this.speed = 0.7;
@@ -69113,7 +69185,7 @@ class VibCrystal {
         this.bondscolor = 0xffffff;
         this.defaultArrowColor = this.arrowcolor;
         this.defaultBondsColor = this.bondscolor;
-        this.bondColorByAtom = false;
+        this.bondColorByAtom = true;
         this.defaultBondColorByAtom = this.bondColorByAtom;
         this.atomRadiusScale = 1.0;
         this.defaultAtomRadiusScale = this.atomRadiusScale;
@@ -69126,6 +69198,7 @@ class VibCrystal {
         this.arrowobjects = [];
         this.atomobjects = [];
         this.atommeshes = [];
+        this.atommeshTypeIndices = [];
         this.atomInstanceRefs = [];
         this.bondobjects = [];
         this.bondmesh = null;
@@ -69208,10 +69281,69 @@ class VibCrystal {
         return a + '-' + b;
     }
 
+    getCovalentRadius(atomNumber) {
+        if (this.modified_covalent_radii && Number.isFinite(this.modified_covalent_radii[atomNumber])) {
+            return this.modified_covalent_radii[atomNumber];
+        }
+        return covalent_radii[atomNumber] || 0;
+    }
+
+    getCovalentBondLength(atomNumberA, atomNumberB) {
+        return this.getCovalentRadius(atomNumberA) + this.getCovalentRadius(atomNumberB);
+    }
+
+    getBondSearchLimit(atomNumberA, atomNumberB) {
+        let chemical = this.getChemicalBondLimit(atomNumberA, atomNumberB);
+        return chemical + Math.max(0.5, chemical * 0.2);
+    }
+
+    getChemicalBondLimit(atomNumberA, atomNumberB) {
+        let covalent = this.getCovalentBondLength(atomNumberA, atomNumberB);
+        // IsayevNN-style chemistry gate: keep a modest radius-based slack, but do not
+        // let long second-shell distances in crystals sneak in too easily.
+        return Math.max(0.4, covalent + 0.45);
+    }
+
     getDefaultBondCutoff(atomNumberA, atomNumberB) {
-        let covalent = covalent_radii[atomNumberA] + covalent_radii[atomNumberB];
-        let nnd = this.phonon && Number.isFinite(this.phonon.nndist) ? this.phonon.nndist + 0.05 : 0;
-        return Math.max(covalent, nnd);
+        return this.getChemicalBondLimit(atomNumberA, atomNumberB);
+    }
+
+    getEffectiveCoordinationCandidates(siteNeighbors) {
+        if (!siteNeighbors || !siteNeighbors.length) {
+            return [];
+        }
+
+        let sorted = siteNeighbors
+            .filter((neighbor) => Number.isFinite(neighbor.distance) && neighbor.distance >= 0.4)
+            .sort((a, b) => a.distance - b.distance);
+        if (!sorted.length) {
+            return [];
+        }
+
+        let shortest = sorted[0].distance;
+        let accepted = [];
+
+        for (let i = 0; i < sorted.length; i++) {
+            let neighbor = sorted[i];
+            if (neighbor.distance > shortest + Math.max(1.0, shortest * 0.6)) {
+                break;
+            }
+
+            let relative = neighbor.distance / shortest;
+            let weight = Math.exp(1.0 - Math.pow(relative, 6));
+            if (weight < 0.35) {
+                continue;
+            }
+
+            accepted.push({
+                index: neighbor.index,
+                atom_number: neighbor.atom_number,
+                distance: neighbor.distance,
+                weight: weight
+            });
+        }
+
+        return accepted;
     }
 
     setBondRule(atomNumberA, atomNumberB, cutoff) {
@@ -69237,18 +69369,76 @@ class VibCrystal {
         let tmpAtoms = [];
         for (let i=0; i<atoms.length; i++) {
             tmpAtoms.push({
+                index: i,
                 atom_number: atom_numbers[atoms[i][0]],
                 position: new Vector3(atoms[i][1], atoms[i][2], atoms[i][3])
             });
         }
+
+        let pairDistances = {};
+        let siteNeighbors = tmpAtoms.map(() => []);
         let combinations = getCombinations(tmpAtoms);
         for (let i=0; i<combinations.length; i++) {
             let a = combinations[i][0];
             let b = combinations[i][1];
             let length = a.position.distanceTo(b.position);
-            let cutoff = this.getDefaultBondCutoff(a.atom_number, b.atom_number);
-            if (length < cutoff) {
-                this.setBondRule(a.atom_number, b.atom_number, cutoff);
+            let searchLimit = this.getBondSearchLimit(a.atom_number, b.atom_number);
+            if (length <= searchLimit && length >= 0.4) {
+                siteNeighbors[a.index].push({
+                    index: b.index,
+                    atom_number: b.atom_number,
+                    distance: length
+                });
+                siteNeighbors[b.index].push({
+                    index: a.index,
+                    atom_number: a.atom_number,
+                    distance: length
+                });
+            }
+        }
+
+        let acceptedNeighbors = siteNeighbors.map((neighbors) => this.getEffectiveCoordinationCandidates(neighbors));
+        let acceptedNeighborMaps = acceptedNeighbors.map((neighbors) => {
+            let lookup = {};
+            for (let i=0; i<neighbors.length; i++) {
+                lookup[neighbors[i].index] = neighbors[i];
+            }
+            return lookup;
+        });
+
+        for (let i=0; i<combinations.length; i++) {
+            let a = combinations[i][0];
+            let b = combinations[i][1];
+            let length = a.position.distanceTo(b.position);
+            let chemicalLimit = this.getChemicalBondLimit(a.atom_number, b.atom_number);
+            let acceptedByA = acceptedNeighborMaps[a.index][b.index];
+            let acceptedByB = acceptedNeighborMaps[b.index][a.index];
+
+            if (!acceptedByA || !acceptedByB || length > chemicalLimit) {
+                continue;
+            }
+
+            let key = this.getBondRuleKey(a.atom_number, b.atom_number);
+            if (!pairDistances[key]) {
+                pairDistances[key] = {
+                    a: Math.min(a.atom_number, b.atom_number),
+                    b: Math.max(a.atom_number, b.atom_number),
+                    distances: []
+                };
+            }
+            pairDistances[key].distances.push(length);
+        }
+
+        let keys = Object.keys(pairDistances);
+        for (let i=0; i<keys.length; i++) {
+            let pair = pairDistances[keys[i]];
+            if (!pair.distances.length) {
+                continue;
+            }
+            let cutoff = Math.max.apply(null, pair.distances) + 0.04;
+            cutoff = Math.min(cutoff, this.getChemicalBondLimit(pair.a, pair.b));
+            if (Number.isFinite(cutoff) && cutoff >= 0.4) {
+                this.setBondRule(pair.a, pair.b, cutoff);
             }
         }
     }
@@ -69267,11 +69457,16 @@ class VibCrystal {
 
         for (let i=0; i<keys.length; i++) {
             let rule = this.bondRules[keys[i]];
-            let label = atomic_symbol$1[rule.a] + '-' + atomic_symbol$1[rule.b];
+            let label =
+                '<span class="atom-badge-pair">' +
+                createAtomBadgeHtml(atomic_symbol$1[rule.a], rule.a, this.getAtomColorHex.bind(this)) +
+                '<span class="atom-badge-separator">-</span>' +
+                createAtomBadgeHtml(atomic_symbol$1[rule.b], rule.b, this.getAtomColorHex.bind(this)) +
+                '</span>';
             let cutoff = Number(rule.cutoff).toFixed(2);
             this.dom_bond_rules_list.append(
                 '<div class="appearance-controls">' +
-                '<span>' + label + ' (' + cutoff + ')</span>' +
+                '<span>' + label + ' ' + cutoff + '</span>' +
                 '<button type="button" data-remove-key="' + keys[i] + '">remove</button>' +
                 '</div>'
             );
@@ -69355,18 +69550,20 @@ class VibCrystal {
         dom_range.attr('max',self.maxArrowScale);
         dom_range.attr('step',self.stepArrowScale);
         dom_range.change( function () {
-            self.arrowScale = this.value;
+            self.arrowScale = parseFloat(this.value);
         });
     }
 
    setAmplitudeInput(dom_number,dom_range) {
         let self = this;
+        this.dom_amplitude_box = dom_number;
+        this.dom_amplitude_range = dom_range;
 
         dom_number.val(self.amplitude);
         dom_number.keyup( function () {
             if (this.value < dom_range.min) { dom_range.attr('min', this.value); }
             if (this.value > dom_range.max) { dom_range.attr('max', this.value); }
-            self.amplitude = this.value;
+            self.amplitude = parseFloat(this.value);
             dom_range.val(this.value);
         });
 
@@ -69375,9 +69572,83 @@ class VibCrystal {
         dom_range.attr('max',self.maxAmplitude);
         dom_range.attr('step',self.stepAmplitude);
         dom_range.change( function () {
-            self.amplitude = this.value;
+            self.amplitude = parseFloat(this.value);
             dom_number.val(this.value);
         });
+    }
+
+    isApproximatelyEqual(a, b, tolerance = 1e-6) {
+        return Math.abs(Number(a) - Number(b)) <= tolerance;
+    }
+
+    formatControlNumber(value, decimals = 3) {
+        value = Number(value);
+        if (!Number.isFinite(value)) {
+            return '';
+        }
+        return value.toFixed(decimals).replace(/\.?0+$/, '');
+    }
+
+    setArrowScaleValue(value) {
+        value = Number(value);
+        if (!Number.isFinite(value)) {
+            return;
+        }
+
+        this.arrowScale = value;
+        if (this.dom_vectors_amplitude_range && this.dom_vectors_amplitude_range.length) {
+            if (value > Number(this.dom_vectors_amplitude_range.attr('max'))) {
+                this.dom_vectors_amplitude_range.attr('max', value);
+            }
+            this.dom_vectors_amplitude_range.val(value);
+        }
+    }
+
+    setAmplitudeValue(value) {
+        value = Number(value);
+        if (!Number.isFinite(value)) {
+            return;
+        }
+
+        this.amplitude = value;
+        if (this.dom_amplitude_box && this.dom_amplitude_box.length) {
+            this.dom_amplitude_box.val(this.formatControlNumber(value, 3));
+        }
+        if (this.dom_amplitude_range && this.dom_amplitude_range.length) {
+            if (value > Number(this.dom_amplitude_range.attr('max'))) {
+                this.dom_amplitude_range.attr('max', value);
+            }
+            this.dom_amplitude_range.val(value);
+        }
+    }
+
+    syncModeScaleDefaults(amplitudeValue, arrowScaleValue = amplitudeValue, force = false) {
+        amplitudeValue = Number(amplitudeValue);
+        arrowScaleValue = Number(arrowScaleValue);
+        if (!Number.isFinite(amplitudeValue) || amplitudeValue < 0) {
+            return;
+        }
+        if (!Number.isFinite(arrowScaleValue) || arrowScaleValue < 0) {
+            return;
+        }
+
+        let previousDefaultAmplitude = Number(this.defaultAmplitude);
+        let previousDefaultArrowScale = Number(this.defaultArrowScale);
+        let shouldUpdateAmplitude = force || !this.modeScaleAutoInitialized ||
+            this.isApproximatelyEqual(this.amplitude, previousDefaultAmplitude);
+        let shouldUpdateArrowScale = force || !this.modeScaleAutoInitialized ||
+            this.isApproximatelyEqual(this.arrowScale, previousDefaultArrowScale);
+
+        this.defaultAmplitude = amplitudeValue;
+        this.defaultArrowScale = arrowScaleValue;
+        this.modeScaleAutoInitialized = true;
+
+        if (shouldUpdateAmplitude) {
+            this.setAmplitudeValue(amplitudeValue);
+        }
+        if (shouldUpdateArrowScale) {
+            this.setArrowScaleValue(arrowScaleValue);
+        }
     }
 
     setSpeedInput(dom_range) {
@@ -69432,7 +69703,7 @@ class VibCrystal {
             let atomNumber = unique_atom_numbers[i];
             this.dom_appearance_atom_list.append(
                 '<button type="button" data-atom-number="' + atomNumber + '">' +
-                atomic_symbol$1[atomNumber] +
+                createAtomBadgeHtml(atomic_symbol$1[atomNumber], atomNumber, this.getAtomColorHex.bind(this)) +
                 '</button>'
             );
         }
@@ -69559,6 +69830,14 @@ class VibCrystal {
 
         const applyAppearanceSettings = function() {
             let atomNumber = Number(self.getSelectedAppearanceAtomNumber());
+            let previousDisplay = self.display;
+            let previousBondColorByAtom = self.bondColorByAtom;
+            let previousBondRadius = self.bondRadius;
+            let previousArrowRadius = self.arrowRadius;
+            let previousArrowColor = self.arrowcolor;
+            let previousBondColor = self.bondscolor;
+            let previousAtomColor = Number.isFinite(atomNumber) ? self.getAtomColorHex(atomNumber) : null;
+            let previousAtomRadius = Number.isFinite(atomNumber) ? self.getAtomRadiusScale(atomNumber) : null;
             if (Number.isFinite(atomNumber)) {
                 if (domAtomColorInput && domAtomColorInput.length) {
                     let rawAtomColor = domAtomColorInput.val();
@@ -69603,7 +69882,21 @@ class VibCrystal {
                 domArrowRadiusInput.val(self.arrowRadius);
             }
 
-            self.updatelocal(true);
+            let displayChanged = self.display !== previousDisplay;
+            let bondColorModeChanged = self.bondColorByAtom !== previousBondColorByAtom;
+            let bondRadiusChanged = self.bondRadius !== previousBondRadius;
+            let arrowRadiusChanged = self.arrowRadius !== previousArrowRadius;
+            let atomRadiusChanged = Number.isFinite(atomNumber) && self.getAtomRadiusScale(atomNumber) !== previousAtomRadius;
+
+            let atomColorChanged = Number.isFinite(atomNumber) && self.getAtomColorHex(atomNumber) !== previousAtomColor;
+            let bondColorChanged = self.bondscolor !== previousBondColor;
+            let arrowColorChanged = self.arrowcolor !== previousArrowColor;
+
+            if (displayChanged || bondColorModeChanged || bondRadiusChanged || arrowRadiusChanged || atomRadiusChanged) {
+                self.updatelocal(true);
+            } else if (atomColorChanged || bondColorChanged || arrowColorChanged) {
+                self.refreshColorsInPlace(true);
+            }
         };
 
         if (domArrowColorInput && domArrowColorInput.length) {
@@ -69986,6 +70279,91 @@ class VibCrystal {
         }
     }
 
+    refreshAtomMeshColors() {
+        if (!this.atommeshes || !this.atom_numbers) {
+            return;
+        }
+
+        for (let i=0; i<this.atommeshes.length; i++) {
+            let mesh = this.atommeshes[i];
+            let typeIndex = this.atommeshTypeIndices[i];
+            if (!mesh || !mesh.material || !Number.isFinite(typeIndex)) {
+                continue;
+            }
+
+            let atomNumber = this.atom_numbers[typeIndex];
+            if (!Number.isFinite(atomNumber)) {
+                continue;
+            }
+
+            mesh.material.color.copy(this.getAtomColor(atomNumber));
+            mesh.material.needsUpdate = true;
+        }
+    }
+
+    refreshBondMeshColors() {
+        if (!this.bondmeshes || !this.bondmeshes.length) {
+            return;
+        }
+
+        if (this.bondColorByAtom && this.bondmeshes.length >= 2) {
+            let meshA = this.bondmeshes[0];
+            let meshB = this.bondmeshes[1];
+
+            for (let i=0; i<this.bonds.length; i++) {
+                let bond = this.bonds[i];
+                if (meshA.setColorAt) {
+                    meshA.setColorAt(i, this.getAtomColor(bond.a_atom_number));
+                }
+                if (meshB.setColorAt) {
+                    meshB.setColorAt(i, this.getAtomColor(bond.b_atom_number));
+                }
+            }
+
+            if (meshA.instanceColor) { meshA.instanceColor.needsUpdate = true; }
+            if (meshB.instanceColor) { meshB.instanceColor.needsUpdate = true; }
+            if (meshA.material) { meshA.material.needsUpdate = true; }
+            if (meshB.material) { meshB.material.needsUpdate = true; }
+            return;
+        }
+
+        for (let i=0; i<this.bondmeshes.length; i++) {
+            let mesh = this.bondmeshes[i];
+            if (!mesh || !mesh.material) {
+                continue;
+            }
+            mesh.material.color.setHex(this.bondscolor);
+            mesh.material.needsUpdate = true;
+        }
+    }
+
+    refreshArrowColors() {
+        if (!this.arrowobjects || !this.arrowobjects.length) {
+            return;
+        }
+
+        for (let i=0; i<this.arrowobjects.length; i++) {
+            let arrow = this.arrowobjects[i];
+            if (!arrow || !arrow.material) {
+                continue;
+            }
+            arrow.material.color.setHex(this.arrowcolor);
+            arrow.material.needsUpdate = true;
+        }
+    }
+
+    refreshColorsInPlace(notifyAppearanceUpdate = false) {
+        this.refreshAtomMeshColors();
+        this.refreshBondMeshColors();
+        this.refreshArrowColors();
+        this.adjustCovalentRadiiSelect();
+        if (notifyAppearanceUpdate && typeof this.onAppearanceUpdated === 'function') {
+            this.onAppearanceUpdated();
+        }
+        this.needsRender = true;
+        this.startAnimationLoop();
+    }
+
     addCell(lat) {
         /*
         Represent the unit cell
@@ -70044,6 +70422,7 @@ class VibCrystal {
         */
         this.atomobjects  = [];
         this.atommeshes = [];
+        this.atommeshTypeIndices = [];
         this.atomInstanceRefs = [];
         this.bondobjects  = [];
         this.bondmesh = null;
@@ -70096,6 +70475,7 @@ class VibCrystal {
             instancedMesh.frustumCulled = false;
             this.scene.add(instancedMesh);
             this.atommeshes.push(instancedMesh);
+            this.atommeshTypeIndices.push(typeIndex);
             meshesByType.set(typeIndex, instancedMesh);
             nextInstanceByType.set(typeIndex, 0);
         });
@@ -70414,19 +70794,35 @@ class VibCrystal {
 
     pause() {
         if (this.animationFrameId !== null) {
-            cancelAnimationFrame(this.animationFrameId);
+            if (typeof cancelAnimationFrame === 'function') {
+                cancelAnimationFrame(this.animationFrameId);
+            } else {
+                clearTimeout(this.animationFrameId);
+            }
             this.animationFrameId = null;
         }
     }
 
     startAnimationLoop() {
+        if (!this.controls || !this.camera || !this.scene || !this.renderer) {
+            this.render();
+            return;
+        }
         if (this.animationFrameId === null) {
             this.lastFrameTime = null;
-            this.animationFrameId = requestAnimationFrame( this.animate.bind(this) );
+            if (typeof requestAnimationFrame === 'function') {
+                this.animationFrameId = requestAnimationFrame( this.animate.bind(this) );
+            } else {
+                this.animationFrameId = setTimeout(() => this.animate(Date.now()), 16);
+            }
         }
     }
 
     animate(timestamp) {
+        if (!this.controls || !this.camera || !this.scene || !this.renderer) {
+            this.animationFrameId = null;
+            return;
+        }
         if (this.lastFrameTime === null) {
             this.lastFrameTime = timestamp;
         }
@@ -70442,10 +70838,18 @@ class VibCrystal {
         if (!this.paused || this.needsRender) {
             this.render();
         }
-        this.animationFrameId = requestAnimationFrame( this.animate.bind(this) );
+        if (typeof requestAnimationFrame === 'function') {
+            this.animationFrameId = requestAnimationFrame( this.animate.bind(this) );
+        } else {
+            this.animationFrameId = setTimeout(() => this.animate(Date.now()), 16);
+        }
     }
 
     render() {
+        if (!this.renderer || !this.scene || !this.camera) {
+            this.needsRender = false;
+            return;
+        }
         let phaseAngle = this.time * 2.0 * pi$1;
         let phaseRe = this.amplitude * Math.cos(phaseAngle);
         let phaseIm = this.amplitude * Math.sin(phaseAngle);
@@ -70535,7 +70939,9 @@ class VibCrystal {
             this.capturer.capture( this.canvas );
         }
 
-        this.stats.update();
+        if (this.stats) {
+            this.stats.update();
+        }
         this.needsRender = false;
     }
 }
@@ -70554,6 +70960,9 @@ class PhononHighcharts {
         this.weightLineWidthScale = 8.0;
         this.legendVisibility = {};
         this.currentOptions = {};
+        this.selectedPoint = null;
+        this.selectedBandIndex = null;
+        this.selectedX = null;
 
         this.phonon;
 
@@ -70638,25 +71047,35 @@ class PhononHighcharts {
         let targetX = phonon.distances[k];
         if (!Number.isFinite(targetX)) { return; }
 
-        for (let i=0; i<this.chart.series.length; i++) {
-            let series = this.chart.series[i];
-            for (let j=0; j<series.points.length; j++) {
-                let point = series.points[j];
-                point.select(false, false);
-            }
+        if (this.selectedPoint &&
+            this.selectedBandIndex === n &&
+            this.selectedX === targetX) {
+            return;
+        }
+
+        if (this.selectedPoint) {
+            this.selectedPoint.select(false, false);
+            this.selectedPoint = null;
         }
 
         for (let i=0; i<this.chart.series.length; i++) {
             let series = this.chart.series[i];
+            if (series.options.isLegendSeries || series.options.isWeightSeries) { continue; }
             if (String(series.name) !== String(n)) { continue; }
             for (let j=0; j<series.points.length; j++) {
                 let point = series.points[j];
                 if (Math.abs(point.x - targetX) < 1e-12) {
                     point.select(true, false);
+                    this.selectedPoint = point;
+                    this.selectedBandIndex = n;
+                    this.selectedX = targetX;
                     return;
                 }
             }
         }
+
+        this.selectedBandIndex = null;
+        this.selectedX = null;
     }
 
     setModeWeightsOptions(options = {}) {
@@ -70784,10 +71203,31 @@ class PhononHighcharts {
             }
 
             let atomNumber = item.options.atomNumber;
-            item.legendItem.css({
-                textDecoration: this.isAtomNumberVisible(atomNumber) ? 'none' : 'line-through',
-                opacity: this.isAtomNumberVisible(atomNumber) ? 1 : 0.65
-            });
+            let visible = this.isAtomNumberVisible(atomNumber);
+            let textDecoration = visible ? 'none' : 'line-through';
+            let opacity = visible ? 1 : 0.65;
+            let legendItem = item.legendItem;
+
+            if (legendItem && typeof legendItem.css === 'function') {
+                legendItem.css({
+                    textDecoration: textDecoration,
+                    opacity: opacity
+                });
+            } else if (legendItem && typeof legendItem.attr === 'function') {
+                legendItem.attr({
+                    opacity: opacity
+                });
+                if (legendItem.element && legendItem.element.style) {
+                    legendItem.element.style.textDecoration = textDecoration;
+                }
+            } else if (legendItem && legendItem.style) {
+                legendItem.style.textDecoration = textDecoration;
+                legendItem.style.opacity = String(opacity);
+            }
+
+            if (item.legendGroup && typeof item.legendGroup.attr === 'function') {
+                item.legendGroup.attr({ opacity: opacity });
+            }
         }
     }
 
@@ -70841,7 +71281,6 @@ class PhononHighcharts {
             return;
         }
 
-        let weightCache = this.ensureAtomTypeWeights(this.phonon);
         let visibleTypeIndices = this.getVisibleAtomTypeIndices();
         let singleVisibleType = visibleTypeIndices.length === 1 ? visibleTypeIndices[0] : null;
 
@@ -70851,9 +71290,8 @@ class PhononHighcharts {
                 continue;
             }
 
-            let bandIndex = series.options.bandIndex;
-            let segmentStartK = series.options.segmentStartK;
-            if (!Number.isFinite(bandIndex) || !Number.isFinite(segmentStartK)) {
+            let avgWeights = series.options.avgWeights;
+            if (!avgWeights) {
                 continue;
             }
 
@@ -70862,9 +71300,6 @@ class PhononHighcharts {
             let lineWidth = this.weightLineWidthMin + this.weightLineWidthScale;
 
             if (visible) {
-                let weights0 = weightCache.weights[segmentStartK][bandIndex];
-                let weights1 = weightCache.weights[segmentStartK + 1][bandIndex];
-                let avgWeights = weights0.map((value, index) => (value + weights1[index]) / 2);
                 color = this.getWeightedColorForIndices(visibleTypeIndices, avgWeights);
 
                 if (singleVisibleType !== null) {
@@ -70873,13 +71308,106 @@ class PhononHighcharts {
                 }
             }
 
+            series.visible = visible;
+            series.options.visible = visible;
+            series.color = color;
+            series.options.color = color;
+            series.options.lineWidth = lineWidth;
+
+            if (series.group) {
+                if (visible) {
+                    series.group.show();
+                } else {
+                    series.group.hide();
+                }
+            }
+
+            if (series.graph) {
+                series.graph.attr({
+                    stroke: color,
+                    'stroke-width': lineWidth
+                });
+            }
+        }
+    }
+
+    refreshWeightedSeriesColors() {
+        if (!this.chart || !this.phonon || !this.showModeWeights) {
+            return;
+        }
+
+        let visibleTypeIndices = this.getVisibleAtomTypeIndices();
+        let singleVisibleType = visibleTypeIndices.length === 1 ? visibleTypeIndices[0] : null;
+
+        for (let i = 0; i < this.chart.series.length; i++) {
+            let series = this.chart.series[i];
+            if (!series.options.isWeightSeries) {
+                continue;
+            }
+
+            let avgWeights = series.options.avgWeights;
+            if (!avgWeights) {
+                continue;
+            }
+
+            let color = this.getWeightedColorForIndices(visibleTypeIndices, avgWeights);
+            if (singleVisibleType !== null) {
+                color = '#' + Number(this.getAtomColorHex(this.atomTypeLegend[singleVisibleType].atomNumber)).toString(16).padStart(6, '0');
+            }
+
+            series.color = color;
+            series.options.color = color;
+            if (series.graph) {
+                series.graph.attr({ stroke: color });
+            }
+        }
+    }
+
+    refreshAppearance(options = {}) {
+        if (!this.chart || !this.phonon) {
+            return;
+        }
+
+        let previousShowModeWeights = this.showModeWeights;
+        this.setModeWeightsOptions(options);
+
+        if (previousShowModeWeights !== this.showModeWeights) {
+            this.update(this.phonon, options);
+            return;
+        }
+
+        if (!this.showModeWeights) {
+            return;
+        }
+
+        this.atomTypeLegend = this.getAtomTypeLegend(this.phonon);
+
+        for (let i = 0; i < this.chart.series.length; i++) {
+            let series = this.chart.series[i];
+            if (!series.options.isLegendSeries) {
+                continue;
+            }
+
+            let atomNumber = series.options.atomNumber;
+            let legendEntry = null;
+            for (let j = 0; j < this.atomTypeLegend.length; j++) {
+                if (this.atomTypeLegend[j].atomNumber === atomNumber) {
+                    legendEntry = this.atomTypeLegend[j];
+                    break;
+                }
+            }
+            if (!legendEntry) {
+                continue;
+            }
+
             series.update({
-                visible: visible,
-                color: color,
-                lineWidth: lineWidth
+                name: legendEntry.label,
+                color: legendEntry.color
             }, false);
         }
 
+        this.refreshWeightedSeriesColors();
+        this.applyLegendStyles();
         this.chart.redraw(false);
     }
 
@@ -70936,6 +71464,65 @@ class PhononHighcharts {
         this.refreshLegendAndWeights();
     }
 
+    isGammaLabel(label) {
+        if (typeof label !== 'string') {
+            return false;
+        }
+        let normalized = label.replace(/\$/g, '').replace(/\s+/g, '').toUpperCase();
+        return normalized === 'G' || normalized === 'GAMMA' || normalized === '\\GAMMA' || normalized === 'Γ';
+    }
+
+    hasGammaDiscontinuity(phonon, previousIndex, nextIndex) {
+        if (!phonon || !phonon.kpoints || !phonon.distances) {
+            return false;
+        }
+
+        let prevQ = phonon.kpoints[previousIndex];
+        let nextQ = phonon.kpoints[nextIndex];
+        if (!prevQ || !nextQ) {
+            return false;
+        }
+
+        let sameQpoint = true;
+        for (let axis = 0; axis < 3; axis++) {
+            if (Math.abs(Number(prevQ[axis]) - Number(nextQ[axis])) > 1e-8) {
+                sameQpoint = false;
+                break;
+            }
+        }
+        if (!sameQpoint) {
+            return false;
+        }
+
+        let sameDistance = Math.abs(Number(phonon.distances[previousIndex]) - Number(phonon.distances[nextIndex])) < 1e-10;
+        if (!sameDistance) {
+            return false;
+        }
+
+        let label = phonon.highsym_qpts ? phonon.highsym_qpts[phonon.distances[nextIndex]] : null;
+        return this.isGammaLabel(label);
+    }
+
+    getPlotSegments(phonon, startk, endk) {
+        let segments = [];
+        let segmentStart = startk;
+
+        for (let k = startk + 1; k < endk; k++) {
+            if (this.hasGammaDiscontinuity(phonon, k - 1, k)) {
+                if (k - segmentStart > 0) {
+                    segments.push([segmentStart, k]);
+                }
+                segmentStart = k;
+            }
+        }
+
+        if (endk - segmentStart > 0) {
+            segments.push([segmentStart, endk]);
+        }
+
+        return segments;
+    }
+
     getGraph(phonon) {
         /*
         From a phonon object containing:
@@ -70961,60 +71548,64 @@ class PhononHighcharts {
             for (let i=0; i<line_breaks.length; i++) {
                 let startk = line_breaks[i][0];
                 let endk = line_breaks[i][1];
+                let plotSegments = this.getPlotSegments(phonon, startk, endk);
 
-                let eig = [];
+                for (let segmentIndex = 0; segmentIndex < plotSegments.length; segmentIndex++) {
+                    let segmentStart = plotSegments[segmentIndex][0];
+                    let segmentEnd = plotSegments[segmentIndex][1];
+                    let eig = [];
 
-                //iterate over the q-points
-                for (let k=startk; k<endk; k++) {
-                    eig.push([dists[k],eival[k][n]]);
-                }
+                    for (let k=segmentStart; k<segmentEnd; k++) {
+                        eig.push([dists[k],eival[k][n]]);
+                    }
 
-                //add data
-                this.highcharts.push({
-                    name:  n+"",
-                    bandIndex: n,
-                    color: baseColor,
-                    lineWidth: this.showModeWeights ? 0.8 : 2,
-                    zIndex: 5,
-                    showInLegend: false,
-                    marker: { radius: 1, symbol: "circle"},
-                    data: eig
-                   });
+                    this.highcharts.push({
+                        name:  n+"",
+                        bandIndex: n,
+                        color: baseColor,
+                        lineWidth: this.showModeWeights ? 0.8 : 2,
+                        zIndex: 5,
+                        showInLegend: false,
+                        marker: { radius: 1, symbol: "circle"},
+                        data: eig
+                    });
 
-                if (this.showModeWeights) {
-                    for (let k=startk; k<endk - 1; k++) {
-                        if (!visibleTypeIndices.length) {
-                            continue;
+                    if (this.showModeWeights) {
+                        for (let k=segmentStart; k<segmentEnd - 1; k++) {
+                            if (!visibleTypeIndices.length) {
+                                continue;
+                            }
+
+                            let weights0 = weightCache.weights[k][n];
+                            let weights1 = weightCache.weights[k + 1][n];
+                            let avgWeights = weights0.map((value, index) => (value + weights1[index]) / 2);
+                            let lineWidth = this.weightLineWidthMin + this.weightLineWidthScale;
+                            let color = this.getWeightedColorForIndices(visibleTypeIndices, avgWeights);
+
+                            if (singleVisibleType !== null) {
+                                lineWidth = this.weightLineWidthMin + avgWeights[singleVisibleType] * this.weightLineWidthScale;
+                                color = '#' + Number(this.getAtomColorHex(this.atomTypeLegend[singleVisibleType].atomNumber)).toString(16).padStart(6, '0');
+                            }
+
+                            this.highcharts.push({
+                                name: 'weights',
+                                isWeightSeries: true,
+                                bandIndex: n,
+                                segmentStartK: k,
+                                avgWeights: avgWeights,
+                                color: color,
+                                lineWidth: lineWidth,
+                                zIndex: 3,
+                                enableMouseTracking: false,
+                                showInLegend: false,
+                                states: { inactive: { opacity: 1 } },
+                                marker: { enabled: false },
+                                data: [
+                                    [dists[k], eival[k][n]],
+                                    [dists[k + 1], eival[k + 1][n]]
+                                ]
+                            });
                         }
-
-                        let weights0 = weightCache.weights[k][n];
-                        let weights1 = weightCache.weights[k + 1][n];
-                        let avgWeights = weights0.map((value, index) => (value + weights1[index]) / 2);
-                        let lineWidth = this.weightLineWidthMin + this.weightLineWidthScale;
-                        let color = this.getWeightedColorForIndices(visibleTypeIndices, avgWeights);
-
-                        if (singleVisibleType !== null) {
-                            lineWidth = this.weightLineWidthMin + avgWeights[singleVisibleType] * this.weightLineWidthScale;
-                            color = '#' + Number(this.getAtomColorHex(this.atomTypeLegend[singleVisibleType].atomNumber)).toString(16).padStart(6, '0');
-                        }
-
-                        this.highcharts.push({
-                            name: 'weights',
-                            isWeightSeries: true,
-                            bandIndex: n,
-                            segmentStartK: k,
-                            color: color,
-                            lineWidth: lineWidth,
-                            zIndex: 3,
-                            enableMouseTracking: false,
-                            showInLegend: false,
-                            states: { inactive: { opacity: 1 } },
-                            marker: { enabled: false },
-                            data: [
-                                [dists[k], eival[k][n]],
-                                [dists[k + 1], eival[k + 1][n]]
-                            ]
-                        });
                     }
                 }
             }
@@ -71135,39 +71726,41 @@ class MaterialsProjectDB {
     Hosted on Github
     */
 
-    constructor(apikey) {
+    constructor() {
         this.name = "mpdb";
         this.year = 2025;
         this.author = "G. Petretto et al.";
         this.url = "https://materialsproject-parsed.s3.amazonaws.com/index.html#ph-bandstructures/dfpt/";
-        this.apikey = apikey;
-    }
-
-    isAPIKeyValid(apikey,callback) {
-        if (typeof apikey != 'string') {
-            return false
-        }
-        if (apikey.length != 32) {
-            return false
-        }
-        // now we make a simple request and check if APIkey is valid
-        let xhr = new XMLHttpRequest();
-        let url = "https://api.materialsproject.org/materials/phonon/?material_ids=mp-149&_fields=material_id";
-        xhr.open('GET', url, true);
-        xhr.setRequestHeader('x-api-key', apikey);
-        xhr.onload = function () {
-            if (xhr.status === 200) {
-                callback();
-            }
-            else {
-                console.log(apikey,xhr.status);
-            }
-        }.bind(this);
-        xhr.send(null);
+        this.probeUrl = "https://materialsproject-parsed.s3.amazonaws.com/ph-bandstructures/dfpt/mp-1000.json.gz";
     }
 
     isAvailable() {
         return false;
+    }
+
+    checkAvailability(callback) {
+        if (MaterialsProjectDB.availabilityState !== undefined) {
+            callback(MaterialsProjectDB.availabilityState);
+            return;
+        }
+
+        if (typeof fetch !== 'function') {
+            MaterialsProjectDB.availabilityState = false;
+            callback(false);
+            return;
+        }
+
+        fetch(this.probeUrl, { method: 'HEAD' })
+            .then(function(response) {
+                let available = response.ok;
+                MaterialsProjectDB.availabilityState = available;
+                callback(available);
+            })
+            .catch(function(error) {
+                console.log("Materials Project OpenData unavailable from browser:", error);
+                MaterialsProjectDB.availabilityState = false;
+                callback(false);
+            });
     }
 
     get_materials(callback) {
@@ -71177,7 +71770,6 @@ class MaterialsProjectDB {
         */
         let reference = this.author+", "+"<a href="+this.url+">"+this.name+"</a> ("+this.year+")";
         let name = this.name;
-        this.apikey;
 
         function dothings(materials) {
 
@@ -71197,6 +71789,8 @@ class MaterialsProjectDB {
     }
 
 }
+
+MaterialsProjectDB.availabilityState = undefined;
 
 /*! pako 2.1.0 https://github.com/nodeca/pako @license (MIT AND Zlib) */
 // (C) 1995-2013 Jean-loup Gailly and Mark Adler
@@ -78077,54 +78671,164 @@ var thz2cm1 = 33.35641;
 
 class PhononJson {
 
-    getFromURL(url,callback) {
+    normalizeEigenvectors() {
+        if (!this.vec || !this.vec.length || !this.atom_numbers || !this.atom_numbers.length) {
+            return;
+        }
+
+        for (let q=0; q<this.vec.length; q++) {
+            let eivecq = this.vec[q];
+            for (let n=0; n<eivecq.length; n++) {
+                let eivecqn = eivecq[n];
+                let modeNormSq = 0;
+                for (let i=0; i<eivecqn.length; i++) {
+                    modeNormSq += eivecqn[i][0][0] * eivecqn[i][0][0] + eivecqn[i][0][1] * eivecqn[i][0][1];
+                    modeNormSq += eivecqn[i][1][0] * eivecqn[i][1][0] + eivecqn[i][1][1] * eivecqn[i][1][1];
+                    modeNormSq += eivecqn[i][2][0] * eivecqn[i][2][0] + eivecqn[i][2][1] * eivecqn[i][2][1];
+                }
+
+                if (!(modeNormSq > 0)) {
+                    continue;
+                }
+
+                let norm = 1.0 / Math.sqrt(modeNormSq);
+                for (let i=0; i<eivecqn.length; i++) {
+                    eivecqn[i][0][0] *= norm;
+                    eivecqn[i][1][0] *= norm;
+                    eivecqn[i][2][0] *= norm;
+                    eivecqn[i][0][1] *= norm;
+                    eivecqn[i][1][1] *= norm;
+                    eivecqn[i][2][1] *= norm;
+                }
+            }
+        }
+    }
+
+    static showCompressedLoadError(message) {
+        if (PhononJson.lastCompressedLoadError === message) {
+            return;
+        }
+        PhononJson.lastCompressedLoadError = message;
+        alert(message);
+    }
+
+    getFromURL(url,callback,hooks={}) {
         /*
         load a file from url
         */
 
         if (url.endsWith('.gz')) {
-            this.getFromCompressedURL(url,callback);
+            this.getFromCompressedURL(url,callback,hooks);
             return;
         }
 
         function onLoadEndHandler(text) {
             this.getFromJson(text,callback);
         }
-        $.getJSON(url,onLoadEndHandler.bind(this));
-
-    }
-
-    getFromCompressedURL(url,callback) {
-        if (typeof fetch !== 'function') {
-            alert("This browser cannot load compressed phonon JSON files.");
+        hooks.onStart && hooks.onStart();
+        let request;
+        try {
+            request = $.getJSON(url,onLoadEndHandler.bind(this));
+        } catch (error) {
+            hooks.onError && hooks.onError({
+                kind: 'request',
+                message: error && error.message ? error.message : 'Unable to load phonon data.'
+            });
+            hooks.onFinish && hooks.onFinish();
             return;
         }
 
-        fetch(url)
-            .then(function(response) {
-                if (!response.ok) {
-                    throw new Error("HTTP "+response.status);
-                }
-                return response.arrayBuffer();
-            })
-            .then(function(buffer) {
-                let textPromise;
-                if (typeof DecompressionStream === 'function') {
-                    let stream = new Blob([buffer]).stream().pipeThrough(new DecompressionStream('gzip'));
-                    textPromise = new Response(stream).text();
-                } else {
-                    let uint8 = new Uint8Array(buffer);
-                    textPromise = Promise.resolve(pako.ungzip(uint8, { to: 'string' }));
-                }
-                return textPromise;
-            })
-            .then(function(text) {
-                this.getFromString(text,callback);
-            }.bind(this))
-            .catch(function(error) {
-                console.log(error);
-                alert("Unable to load compressed phonon data.");
+        if (request && typeof request.fail === 'function') {
+            request.fail(function(jqxhr, textStatus) {
+                hooks.onError && hooks.onError({
+                    kind: 'request',
+                    message: textStatus || 'Unable to load phonon data.'
+                });
             });
+        }
+
+        if (request && typeof request.always === 'function') {
+            request.always(function() {
+                hooks.onFinish && hooks.onFinish();
+            });
+        } else {
+            hooks.onFinish && hooks.onFinish();
+        }
+
+    }
+
+    getFromCompressedURL(url,callback,hooks={}) {
+        if (typeof XMLHttpRequest === 'undefined') {
+            hooks.onError && hooks.onError({
+                kind: 'browser',
+                message: "This browser cannot load compressed phonon JSON files."
+            });
+            return;
+        }
+
+        let xhr = new XMLHttpRequest();
+        hooks.onStart && hooks.onStart();
+        xhr.open('GET', url, true);
+        xhr.responseType = 'arraybuffer';
+
+        xhr.onprogress = function(event) {
+            hooks.onProgress && hooks.onProgress({
+                loaded: event.loaded,
+                total: event.lengthComputable ? event.total : null
+            });
+        };
+
+        xhr.onload = function() {
+            if (xhr.status !== 200) {
+                hooks.onError && hooks.onError({
+                    kind: 'http',
+                    status: xhr.status,
+                    message: "Unable to load compressed phonon data: HTTP " + xhr.status
+                });
+                hooks.onFinish && hooks.onFinish();
+                return;
+            }
+
+            Promise.resolve(xhr.response)
+                .then(function(buffer) {
+                    let textPromise;
+                    if (typeof DecompressionStream === 'function') {
+                        let stream = new Blob([buffer]).stream().pipeThrough(new DecompressionStream('gzip'));
+                        textPromise = new Response(stream).text();
+                    } else {
+                        let uint8 = new Uint8Array(buffer);
+                        textPromise = Promise.resolve(pako.ungzip(uint8, { to: 'string' }));
+                    }
+                    return textPromise;
+                })
+                .then(function(text) {
+                    this.getFromString(text,callback);
+                    hooks.onFinish && hooks.onFinish();
+                }.bind(this))
+                .catch(function(error) {
+                    console.log(error);
+                    hooks.onError && hooks.onError({
+                        kind: 'parse',
+                        message: error && error.message ? error.message : 'Unable to parse compressed phonon data.'
+                    });
+                    hooks.onFinish && hooks.onFinish();
+                });
+        }.bind(this);
+
+        xhr.onerror = function() {
+            let isMaterialsProject = url.indexOf('materialsproject-parsed.s3.amazonaws.com') !== -1;
+            let likelyCors = isMaterialsProject && MaterialsProjectDB.availabilityState === false;
+            let message = likelyCors
+                ? "Unable to load Materials Project phonon data. The remote OpenData bucket is blocking cross-origin browser requests (CORS)."
+                : "Unable to load compressed phonon data because the download failed in the browser.";
+            hooks.onError && hooks.onError({
+                kind: likelyCors ? 'cors' : 'network',
+                message: message
+            });
+            hooks.onFinish && hooks.onFinish();
+        };
+
+        xhr.send(null);
     }
 
     getFromFile(file,callback) {
@@ -78152,35 +78856,7 @@ class PhononJson {
         this.getFromJson(json,callback);
     }
 
-    getFromREST(url,apikey,callback) {
-
-        let xhr = new XMLHttpRequest();
-        console.log(url);
-        let urld = decodeURIComponent(url);
-        console.log(urld);
-        let params = new URLSearchParams(urld.split("?")[1]);
-        let field;
-        if (params.has("_fields")) {
-          field = params.get("_fields").split(",")[0];
-        }
-        console.log(field);
-        if (field) {
-          xhr.open('GET', urld, true);
-          if (apikey) { xhr.setRequestHeader('x-api-key', apikey); }          xhr.onload = function () {
-            let json = JSON.parse(xhr.responseText);
-            if (xhr.status === 200) {
-                this.getFromJson(json,callback,field);
-            } else if (xhr.status === 401) {
-                alert("Materials Project API says:",json["message"]);
-            } else {
-                alert("Unknown error occurred:",xhr.status,json);
-            }
-          }.bind(this);
-          xhr.send(null);
-        }
-    }
-
-    getFromJson(json,callback,field="ph_bs") {
+    getFromJson(json,callback) {
         if (json.hasOwnProperty('@class')) {
             this.getFromPMGJson(json,callback);
         } else if (
@@ -78190,14 +78866,6 @@ class PhononJson {
             json.hasOwnProperty('structure')
         ) {
             this.getFromOpenDataJson(json,callback);
-        } else if (
-            field &&
-            json.hasOwnProperty('data') &&
-            Array.isArray(json['data']) &&
-            json['data'].length === 1 &&
-            json['data'][0].hasOwnProperty(field)
-        ) {
-            this.getFromPMGJson(json['data'][0][field],callback);
         } else { this.getFromInternalJson(json,callback); }
     }
 
@@ -78238,6 +78906,7 @@ class PhononJson {
         //get line breaks
         this.getLineBreaks(data);
 
+        this.normalizeEigenvectors();
         callback();
     }
 
@@ -78368,8 +79037,6 @@ class PhononJson {
         let eiv = data["eigendisplacements"];
         let nbands = eig.length;
         let nqpoints = eig[0].length;
-        let scale = 200;
-
         this.vec = [];
         this.eigenvalues = [];
         for (let nq=0; nq<nqpoints; nq++) {
@@ -78387,9 +79054,9 @@ class PhononJson {
                     let z = this.parseOpenDataComplex(mode[2]);
 
                     eiv_qpoint_atoms.push([
-                        [x[0]*scale,x[1]*scale],
-                        [y[0]*scale,y[1]*scale],
-                        [z[0]*scale,z[1]*scale]
+                        [x[0],x[1]],
+                        [y[0],y[1]],
+                        [z[0],z[1]]
                     ]);
                 }
                 eiv_qpoint.push(eiv_qpoint_atoms);
@@ -78398,6 +79065,7 @@ class PhononJson {
             this.vec.push(eiv_qpoint);
         }
 
+        this.normalizeEigenvectors();
         callback();
     }
 
@@ -78509,13 +79177,6 @@ class PhononJson {
         let nbands = eig.length;
         let nqpoints = eig[0].length;
 
-        /*
-        the eigenvectors have to be scaled.
-        We should detemrine the scale with respect to the other conventions.
-        For now we use a large value that visually looks ok
-        */
-        let scale = 200;
-
         this.vec = [];
         this.eigenvalues = [];
         for (let nq=0; nq<nqpoints; nq++) {
@@ -78531,9 +79192,9 @@ class PhononJson {
                     let real = eiv["real"][n][nq][a];
                     let imag = eiv["imag"][n][nq][a];
 
-                    let x = [real[0]*scale,imag[0]*scale];
-                    let y = [real[1]*scale,imag[1]*scale];
-                    let z = [real[2]*scale,imag[2]*scale];
+                    let x = [real[0],imag[0]];
+                    let y = [real[1],imag[1]];
+                    let z = [real[2],imag[2]];
 
                     eiv_qpoint_atoms.push([x,y,z]);
                 }
@@ -78543,6 +79204,7 @@ class PhononJson {
             this.vec.push(eiv_qpoint);
         }
 
+        this.normalizeEigenvectors();
         callback();
     }
 
@@ -78835,6 +79497,8 @@ class PhononYaml {
         }
 
         this.addatomphase = true;
+        this.average_mass = average_mass;
+        this.mode_amplitude_convention = 'avg-mass-normalized';
         this.lat = lat;
         this.repetitions = getReasonableRepetitions(this.natoms);
     }
@@ -78947,19 +79611,57 @@ function exportPOSCAR() {
     document.body.removeChild(element);
 }
 
-function SubscriptNumbers(old_string) {
-    let string = "";
-    for (let a of old_string) {
-        if (!isNaN(a)) {
-            if (a!=1) {
-                string += "<sub>"+a+"</sub>";
-            }
-        }
-        else {
-            string += a;
-        }
+function clearDom(domNode) {
+    if (domNode && domNode.length) {
+        domNode.empty();
     }
-    return string;
+}
+
+function renderLatticeTable(domLattice, lattice) {
+    if (!domLattice || !domLattice.length || !lattice) {
+        return;
+    }
+
+    clearDom(domLattice);
+    for (let i = 0; i < 3; i++) {
+        const tr = document.createElement('tr');
+        for (let j = 0; j < 3; j++) {
+            const td = document.createElement('td');
+            td.appendChild(document.createTextNode(Number(lattice[i][j]).toPrecision(4)));
+            tr.append(td);
+        }
+        domLattice.append(tr);
+    }
+}
+
+function renderAtomPositionsTable(domAtompos, positionsReduced, siteLabels, siteAtomNumbers, getAtomColorHex) {
+    if (!domAtompos || !domAtompos.length || !positionsReduced || !siteLabels || !siteAtomNumbers) {
+        return;
+    }
+
+    clearDom(domAtompos);
+    for (let i = 0; i < positionsReduced.length; i++) {
+        const tr = document.createElement('tr');
+
+        const typeCell = document.createElement('td');
+        const badge = document.createElement('span');
+        badge.className = 'atom-type-badge';
+        badge.textContent = siteLabels[i];
+        if (Number.isFinite(siteAtomNumbers[i]) && typeof getAtomColorHex === 'function') {
+            applyAtomBadgeStyle(badge, siteAtomNumbers[i], getAtomColorHex);
+        }
+        typeCell.className = 'ap atom-type-cell';
+        typeCell.appendChild(badge);
+        tr.append(typeCell);
+
+        for (let j = 0; j < 3; j++) {
+            const td = document.createElement('td');
+            td.appendChild(document.createTextNode(Number(positionsReduced[i][j]).toFixed(4)));
+            tr.append(td);
+        }
+
+        domAtompos.append(tr);
+    }
 }
 
 class PhononWebpage {
@@ -78984,13 +79686,113 @@ class PhononWebpage {
         //bind click event from highcharts with action
         dispersion.setClickEvent(this);
 
-        // set null materials project API key
-        this.mpapikey = null;
         this.showModeWeightsOnPlot = false;
+        this.materialFilterQuery = '';
+        this.materialsIndex = [];
+        this.loadingState = null;
+    }
+
+    getModeMaxDisplacementNorm() {
+        if (!this.phonon || !this.phonon.vec || !this.phonon.vec[this.k] || !this.phonon.vec[this.k][this.n]) {
+            return 0;
+        }
+
+        let mode = this.phonon.vec[this.k][this.n];
+        let maxNorm = 0;
+        for (let i=0; i<mode.length; i++) {
+            let atomNormSq = 0;
+            for (let axis=0; axis<3; axis++) {
+                let component = mode[i][axis];
+                atomNormSq += component[0] * component[0] + component[1] * component[1];
+            }
+            maxNorm = Math.max(maxNorm, Math.sqrt(atomNormSq));
+        }
+        return maxNorm;
+    }
+
+    getZeroPointAmplitudeAngstrom() {
+        if (!this.phonon || this.phonon.mode_amplitude_convention !== 'avg-mass-normalized') {
+            return null;
+        }
+
+        let avgMassAmu = Number(this.phonon.average_mass);
+        let frequencyCm1 = this.phonon.eigenvalues && this.phonon.eigenvalues[this.k]
+            ? Number(this.phonon.eigenvalues[this.k][this.n])
+            : NaN;
+
+        if (!Number.isFinite(avgMassAmu) || avgMassAmu <= 0 || !Number.isFinite(frequencyCm1) || frequencyCm1 <= 0) {
+            return null;
+        }
+
+        let hbar = 1.054571817e-34;
+        let amu = 1.66053906660e-27;
+        let speedOfLight = 299792458;
+        let omega = 2.0 * Math.PI * speedOfLight * 100.0 * frequencyCm1;
+        let avgMassKg = avgMassAmu * amu;
+        let displacementMeters = Math.sqrt(hbar / (2.0 * avgMassKg * omega));
+        return displacementMeters / 1.0e-10;
+    }
+
+    getRecommendedMotionScaleAngstrom() {
+        let maxNorm = this.getModeMaxDisplacementNorm();
+        if (!(maxNorm > 0)) {
+            return 0.2;
+        }
+
+        let zeroPointAmplitude = this.getZeroPointAmplitudeAngstrom();
+        let visibleTarget = 0.14;
+        if (this.phonon && Number.isFinite(this.phonon.nndist) && this.phonon.nndist > 0) {
+            visibleTarget = Math.max(0.08, Math.min(0.22, this.phonon.nndist * 0.12));
+        }
+
+        let visibilityAmplitude = visibleTarget / maxNorm;
+        let recommended = zeroPointAmplitude !== null
+            ? Math.max(zeroPointAmplitude, visibilityAmplitude)
+            : visibilityAmplitude;
+
+        return Math.max(0.02, Math.min(5.0, recommended));
+    }
+
+    getRecommendedVectorScaleAngstrom() {
+        let maxNorm = this.getModeMaxDisplacementNorm();
+        if (!(maxNorm > 0)) {
+            return 0.9;
+        }
+
+        let visibleTarget = 0.7;
+        if (this.phonon && Number.isFinite(this.phonon.nndist) && this.phonon.nndist > 0) {
+            visibleTarget = Math.max(0.4, Math.min(1.2, this.phonon.nndist * 0.45));
+        }
+
+        return Math.max(0.15, Math.min(5.0, visibleTarget / maxNorm));
+    }
+
+    syncVisualizerModeScaleDefaults(force = false) {
+        if (!this.visualizer || typeof this.visualizer.syncModeScaleDefaults !== 'function') {
+            return;
+        }
+        this.visualizer.syncModeScaleDefaults(
+            this.getRecommendedMotionScaleAngstrom(),
+            this.getRecommendedVectorScaleAngstrom(),
+            force
+        );
     }
 
     //functions to link the DOM buttons with this class
     setMaterialsList(dom_mat)      { this.dom_mat = dom_mat; }
+    setMaterialsFilterInput(dom_input) {
+        this.dom_material_filter = dom_input;
+        this.materialFilterQuery = '';
+        this.materialsIndex = [];
+        if (!dom_input || !dom_input.length) {
+            return;
+        }
+
+        dom_input.on('input', () => {
+            this.materialFilterQuery = dom_input.val() || '';
+            this.renderMaterialsMenu();
+        });
+    }
     setReferencesList(dom_ref)     { this.dom_ref = dom_ref; }
     setAtomPositions(dom_atompos)  { this.dom_atompos = dom_atompos; }
     setLattice(dom_lattice)        { this.dom_lattice = dom_lattice; }
@@ -79051,7 +79853,9 @@ class PhononWebpage {
         dom_checkbox.prop('checked', this.showModeWeightsOnPlot);
         dom_checkbox.on('change', () => {
             this.showModeWeightsOnPlot = !!dom_checkbox.prop('checked');
-            this.refreshDispersionAppearance();
+            this.runWithProgressFeedback(() => {
+                this.refreshDispersionAppearance();
+            });
         });
     }
 
@@ -79060,24 +79864,6 @@ class PhononWebpage {
         */
         dom_input.change( this.loadCustomFile.bind(this) );
         dom_input.click( function() { this.value = '';} );
-    }
-
-    setMaterialsProjectAPIKey(dom_input, dom_button) {
-        let self = this;
-
-        // Handle button click
-        dom_button.click(function () {
-            self.mpapikey = dom_input[0].value;
-            self.updateMenu();
-        });
-
-        // Handle Enter key press
-        dom_input.keypress(function (event) {
-            if (event.keyCode === 13) { // Check if Enter key is pressed
-                self.mpapikey = dom_input[0].value;
-                //self.updateMenu();
-            }
-        });
     }
 
     loadCustomFile(event) {
@@ -79096,7 +79882,7 @@ class PhononWebpage {
 
         function set_name() {
             delete self.link;
-            self.name = self.phonon.name;
+            self.name = format_formula_html(self.phonon.name);
             self.loadCallback();
         }
 
@@ -79126,6 +79912,31 @@ class PhononWebpage {
             callback = this.loadCallback.bind(this);
         }
 
+        let targetName = ("name" in url_vars) ? url_vars.name : this.name;
+        this.startLoadingFeedback(targetName);
+
+        let wrappedCallback = function() {
+            this.finishLoadingFeedback();
+            callback();
+        }.bind(this);
+
+        let hooks = {
+            onStart: function() {
+                this.updateLoadingFeedback();
+            }.bind(this),
+            onProgress: function(progress) {
+                this.updateLoadingFeedback(progress);
+            }.bind(this),
+            onError: function(error) {
+                this.failLoadingFeedback(error);
+            }.bind(this),
+            onFinish: function() {
+                if (this.loadingState && this.loadingState.status === 'loading') {
+                    this.updateLoadingFeedback();
+                }
+            }.bind(this)
+        };
+
         if ( "name" in url_vars ) {
             this.name = url_vars.name;
         }
@@ -79135,17 +79946,82 @@ class PhononWebpage {
 
         if ("yaml" in url_vars) {
             this.phonon = new PhononYaml();
-            this.phonon.getFromURL(url_vars.yaml,callback);
+            this.phonon.getFromURL(url_vars.yaml,wrappedCallback);
         }
         else if ("json" in url_vars) {
             this.phonon = new PhononJson();
-            this.phonon.getFromURL(url_vars.json,callback);
-        }
-        else if ("rest" in url_vars) {
-            this.phonon = new PhononJson();
-            this.phonon.getFromREST(url_vars.rest,url_vars.apikey,callback);
+            this.phonon.getFromURL(url_vars.json,wrappedCallback,hooks);
         }
         else ;
+    }
+
+    startLoadingFeedback(label) {
+        this.loadingState = {
+            label: label || 'Material',
+            status: 'loading',
+            progress: null
+        };
+        this.updateLoadingFeedback();
+    }
+
+    updateLoadingFeedback(progressInfo) {
+        if (!this.loadingState) {
+            return;
+        }
+
+        if (progressInfo && progressInfo.total) {
+            this.loadingState.progress = Math.max(0, Math.min(1, progressInfo.loaded / progressInfo.total));
+        } else if (progressInfo && progressInfo.loaded && !progressInfo.total) {
+            this.loadingState.progress = null;
+        }
+
+        let progressPercent = this.loadingState.progress;
+        let barWidth = progressPercent !== null && progressPercent !== undefined
+            ? (progressPercent * 100) + '%'
+            : '35%';
+        let progress = document.getElementById('progress');
+        if (progress) {
+            progress.style.width = barWidth;
+        }
+    }
+
+    finishLoadingFeedback() {
+        this.loadingState = null;
+        let progress = document.getElementById('progress');
+        if (progress) {
+            progress.style.width = '0%';
+        }
+    }
+
+    failLoadingFeedback(error) {
+        let message = error && error.message ? error.message : 'Unable to load phonon data.';
+        this.finishLoadingFeedback();
+        PhononJson.showCompressedLoadError(message);
+    }
+
+    runWithProgressFeedback(work) {
+        let progress = document.getElementById('progress');
+        if (!progress) {
+            work();
+            return;
+        }
+
+        progress.style.width = '28%';
+        requestAnimationFrame(() => {
+            progress.style.width = '68%';
+            requestAnimationFrame(() => {
+                try {
+                    work();
+                } finally {
+                    progress.style.width = '100%';
+                    window.setTimeout(() => {
+                        if (!this.loadingState) {
+                            progress.style.width = '0%';
+                        }
+                    }, 140);
+                }
+            });
+        });
     }
 
     getUrlVars(default_vars) {
@@ -79181,7 +80057,10 @@ class PhononWebpage {
         /*
         Fuunction to be called once the file is loaded
         */
-        this.name = this.phonon.name;
+        this.name = format_formula_html(this.phonon.name);
+        if (this.visualizer) {
+            this.visualizer.modeScaleAutoInitialized = false;
+        }
         this.setRepetitions(this.phonon.repetitions);
         this.updateModeSelectionInputs();
         if (!this.enforceVisualizationLimits(true)) {
@@ -79370,6 +80249,7 @@ class PhononWebpage {
         this.updateModeSelectionInputs();
 
         this.setVibrations();
+        this.syncVisualizerModeScaleDefaults(false);
         this.visualizer.update(this);
         if (syncChart && this.dispersion && this.dispersion.selectModePoint) {
             this.dispersion.selectModePoint(this.phonon, this.k, this.n);
@@ -79409,6 +80289,7 @@ class PhononWebpage {
         this.atoms = this.getStructure(this.nx,this.ny,this.nz);
         this.vibrations = this.getVibrations(this.nx,this.ny,this.nz);
         this.phonon.nndist = this.getBondingDistance();
+        this.syncVisualizerModeScaleDefaults(!this.visualizer.modeScaleAutoInitialized);
 
         //update page
         this.updatePage();
@@ -79444,16 +80325,11 @@ class PhononWebpage {
     }
 
     getAtomColorCss(atomNumber) {
-        return '#' + Number(this.getAtomColorHex(atomNumber)).toString(16).padStart(6, '0');
+        return atomColorHexToCss(this.getAtomColorHex(atomNumber));
     }
 
     getAtomBadgeTextColor(atomNumber) {
-        let color = Number(this.getAtomColorHex(atomNumber));
-        let red = (color >> 16) & 255;
-        let green = (color >> 8) & 255;
-        let blue = color & 255;
-        let luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
-        return luminance > 0.6 ? '#111827' : '#ffffff';
+        return getAtomBadgeTextColor(this.getAtomColorHex(atomNumber));
     }
 
     refreshAppearanceUI() {
@@ -79465,9 +80341,13 @@ class PhononWebpage {
         if (!this.phonon || !this.dispersion) {
             return;
         }
-        this.dispersion.update(this.phonon, this.getDispersionOptions());
-        if (this.dispersion.selectModePoint) {
-            this.dispersion.selectModePoint(this.phonon, this.k, this.n);
+        if (typeof this.dispersion.refreshAppearance === 'function') {
+            this.dispersion.refreshAppearance(this.getDispersionOptions());
+        } else {
+            this.dispersion.update(this.phonon, this.getDispersionOptions());
+            if (this.dispersion.selectModePoint) {
+                this.dispersion.selectModePoint(this.phonon, this.k, this.n);
+            }
         }
         if (this.dispersion.reflow) {
             this.dispersion.reflow();
@@ -79508,47 +80388,18 @@ class PhononWebpage {
         */
 
         if (this.dom_lattice)  {
-            this.dom_lattice.empty();
-            for (let i=0; i<3; i++) {
-                let tr = document.createElement("TR");
-                for (let j=0; j<3; j++) {
-                    let td = document.createElement("TD");
-                    let x = document.createTextNode(this.phonon.lat[i][j].toPrecision(4));
-                    td.appendChild(x);
-                    tr.append(td);
-                }
-                this.dom_lattice.append(tr);
-            }
+            renderLatticeTable(this.dom_lattice, this.phonon.lat);
         }
 
         //atomic positions table
         if (this.dom_atompos) {
-            this.dom_atompos.empty();
-            let pos = this.phonon.atom_pos_red;
-            for (let i=0; i<pos.length; i++) {
-                let tr = document.createElement("TR");
-
-                let td = document.createElement("TD");
-                let atomNumber = this.phonon.atom_numbers ? this.phonon.atom_numbers[i] : null;
-                let badge = document.createElement("SPAN");
-                badge.className = "atom-type-badge";
-                badge.textContent = this.phonon.atom_types[i];
-                if (atomNumber !== null) {
-                    badge.style.setProperty('--atom-badge-bg', this.getAtomColorCss(atomNumber));
-                    badge.style.setProperty('--atom-badge-fg', this.getAtomBadgeTextColor(atomNumber));
-                }
-                td.className = "ap atom-type-cell";
-                td.appendChild(badge);
-                tr.append(td);
-
-                for (let j=0; j<3; j++) {
-                    let td = document.createElement("TD");
-                    let x = document.createTextNode(pos[i][j].toFixed(4));
-                    td.appendChild(x);
-                    tr.append(td);
-                }
-                this.dom_atompos.append(tr);
-            }
+            renderAtomPositionsTable(
+                this.dom_atompos,
+                this.phonon.atom_pos_red,
+                this.phonon.atom_types,
+                this.phonon.atom_numbers,
+                this.getAtomColorHex.bind(this)
+            );
         }
 
         //update title
@@ -79582,60 +80433,15 @@ class PhononWebpage {
 
         let self = this;
 
-        let dom_mat = this.dom_mat;
-        let dom_ref = this.dom_ref;
-        if (dom_mat) { dom_mat.empty(); }
-        let unique_references = {};
-        let nreferences = 1;
+        this.materialsIndex = [];
+        if (this.dom_mat) { this.dom_mat.empty(); }
+        if (this.dom_ref) { this.dom_ref.empty(); }
 
         function addMaterials(materials) {
-
-            if (dom_mat) {
-                for (let i=0; i<materials.length; i++) {
-
-                    let m = materials[i];
-
-                    //reference
-                    let ref = m["reference"];
-                    if (!unique_references.hasOwnProperty(ref)) {
-                        unique_references[ref] = nreferences;
-                        nreferences+=1;
-                    }
-
-                    //name + refenrece
-                    let name = SubscriptNumbers(m.name);
-                    let name_ref = name + " ["+unique_references[ref]+"]";
-
-                    let li = document.createElement("LI");
-                    let a = document.createElement("A");
-
-                    a.onclick = function() {
-                        let url_vars = {};
-                        url_vars[m.type] = m.url;
-                        url_vars.name = name_ref;
-                        url_vars.apikey = m.apikey;
-                        if ("link" in m) { url_vars.link = m.link; }
-                        self.loadURL(url_vars);
-                    };
-
-                    a.innerHTML = name;
-                    li.appendChild(a);
-
-                    dom_mat.append(li);
-                }
+            for (let i=0; i<materials.length; i++) {
+                self.materialsIndex.push(materials[i]);
             }
-
-            //add references
-            if (dom_ref) {
-                dom_ref.empty();
-                for (let ref in unique_references) {
-                    let i = unique_references[ref];
-                    let li = document.createElement("LI");
-                    li.innerHTML = "["+i+"] "+ref;
-                    dom_ref.append(li);
-                    i += 1;
-                }
-            }
+            self.renderMaterialsMenu();
         }
 
         //local database
@@ -79647,37 +80453,102 @@ class PhononWebpage {
         source.get_materials(addMaterials);
 
         //materials project database
-        source = new MaterialsProjectDB(self.mpapikey);
-        source.get_materials(addMaterials);
-
-        /*
-        //phonondb2015 database
-        for (let sourceclass of [PhononDB2015, LocalPhononDB2015 ]) {
-            source = new sourceclass;
-            if (source.isAvailable()) {
+        source = new MaterialsProjectDB();
+        source.checkAvailability(function(isAvailable) {
+            if (isAvailable) {
                 source.get_materials(addMaterials);
-                break;
+            } else {
+                console.log("Skipping Materials Project phonons because the OpenData bucket is unreachable from this browser.");
             }
+        });
+    }
+
+    getMaterialFilterTokens() {
+        let query = this.materialFilterQuery || '';
+        return query
+            .toLowerCase()
+            .split(/[\s,]+/)
+            .map(function(token) { return token.trim(); })
+            .filter(function(token) { return token.length > 0; });
+    }
+
+    getMaterialElements(materialName) {
+        let matches = materialName.match(/[A-Z][a-z]?/g);
+        if (!matches) {
+            return [];
+        }
+        return matches.map(function(symbol) {
+            return symbol.toLowerCase();
+        });
+    }
+
+    materialMatchesFilter(material, tokens) {
+        if (!tokens.length) {
+            return true;
         }
 
-        //phonondb2018 database
-        for (let sourceclass of [PhononDB2018, LocalPhononDB2018 ]) {
-            source = new sourceclass;
-            if (source.isAvailable()) {
-                source.get_materials(addMaterials);
-                break;
+        let materialName = material.name || '';
+        let formulaText = materialName.toLowerCase();
+        let elementTokens = this.getMaterialElements(materialName);
+
+        return tokens.every(function(token) {
+            if (/^[a-z]{1,2}$/.test(token)) {
+                return elementTokens.indexOf(token) !== -1;
             }
+            return formulaText.indexOf(token) !== -1;
+        });
+    }
+
+    renderMaterialsMenu() {
+        let dom_mat = this.dom_mat;
+        let dom_ref = this.dom_ref;
+        if (!dom_mat) {
+            return;
         }
 
-        //mp databse
-        for (let sourceclass of [MaterialsProjectDB, LocalMaterialsProjectDB ]) {
-            source = new sourceclass(self.mpapikey);
-            if (source.isAvailable()) {
-                source.get_materials(addMaterials);
-                break;
-            }
-        }*/
+        dom_mat.empty();
+        if (dom_ref) {
+            dom_ref.empty();
+        }
 
+        let tokens = this.getMaterialFilterTokens();
+        let unique_references = {};
+        let filteredMaterials = this.materialsIndex.filter((material) => this.materialMatchesFilter(material, tokens));
+        let nreferences = 1;
+
+        for (let i=0; i<filteredMaterials.length; i++) {
+            let m = filteredMaterials[i];
+            let ref = m["reference"];
+            if (!unique_references.hasOwnProperty(ref)) {
+                unique_references[ref] = nreferences;
+                nreferences += 1;
+            }
+
+            let name = format_formula_html(m.name);
+            let name_ref = name + " ["+unique_references[ref]+"]";
+
+            let li = document.createElement("LI");
+            let a = document.createElement("A");
+            a.onclick = () => {
+                let url_vars = {};
+                url_vars[m.type] = m.url;
+                url_vars.name = name_ref;
+                if ("link" in m) { url_vars.link = m.link; }
+                this.loadURL(url_vars);
+            };
+            a.innerHTML = name;
+            li.appendChild(a);
+            dom_mat.append(li);
+        }
+
+        if (dom_ref) {
+            for (let ref in unique_references) {
+                let refIndex = unique_references[ref];
+                let li = document.createElement("LI");
+                li.innerHTML = "["+refIndex+"] "+ref;
+                dom_ref.append(li);
+            }
+        }
     }
 
 }
@@ -79745,6 +80616,7 @@ const p = new PhononWebpage(v, d);
 
 //set dom objects phononwebsite
 p.setMaterialsList( $$1('#mat') );
+p.setMaterialsFilterInput( $$1('#materials_filter') );
 p.setReferencesList( $$1('#ref') );
 p.setAtomPositions( $$1('#atompos') );
 p.setLattice( $$1('#lattice') );
@@ -79753,7 +80625,6 @@ p.setModeSelectionInput( $$1('#kindex'), $$1('#nindex'), $$1('#modeselect') );
 p.setModeWeightsToggle( $$1('#mode_weights_plot') );
 p.setUpdateButton( $$1('#update') );
 p.setFileInput( $$1('#file-input') );
-p.setMaterialsProjectAPIKey( $$1('#mp_api_key_input'),$$1('#mp_api_key_button') );
 p.setExportPOSCARButton($$1('#poscar'));
 p.setExportXSFButton($$1('#xsf'));
 p.setTitle($$1('#name'));
