@@ -9,6 +9,7 @@ import { LocalMaterialsProjectDB } from './localmpdb.js';
 import { PhononJson } from './phononjson.js';
 import { PhononYaml } from './phononyaml.js';
 import { exportXSF, exportPOSCAR }  from './exportfiles.js';
+import * as atomic_data from './atomic_data.js';
 import * as mat from './mat.js';
 import * as utils from './utils.js';
 
@@ -51,6 +52,7 @@ export class PhononWebpage {
 
         // set null materials project API key
         this.mpapikey = null;
+        this.showModeWeightsOnPlot = false;
     }
 
     //functions to link the DOM buttons with this class
@@ -104,6 +106,19 @@ export class PhononWebpage {
         if (this.dom_k) { this.dom_k.keyup( keyup.bind(this) ); }
         if (this.dom_n) { this.dom_n.keyup( keyup.bind(this) ); }
         if (this.dom_mode_button) { this.dom_mode_button.click( this.selectModeFromInputs.bind(this) ); }
+    }
+
+    setModeWeightsToggle(dom_checkbox) {
+        this.dom_mode_weights_toggle = dom_checkbox;
+        if (!dom_checkbox || !dom_checkbox.length) {
+            return;
+        }
+
+        dom_checkbox.prop('checked', this.showModeWeightsOnPlot);
+        dom_checkbox.on('change', () => {
+            this.showModeWeightsOnPlot = !!dom_checkbox.prop('checked');
+            this.refreshDispersionAppearance();
+        });
     }
 
     setFileInput(dom_input) {
@@ -427,6 +442,7 @@ export class PhononWebpage {
         if (syncChart && this.dispersion && this.dispersion.selectModePoint) {
             this.dispersion.selectModePoint(this.phonon, this.k, this.n);
         }
+        this.refreshDispersionAppearance();
     }
 
     selectMode(k, nOrder, syncChart=true) {
@@ -466,16 +482,47 @@ export class PhononWebpage {
         //update page
         this.updatePage();
 
+        //update visualizer first so material changes show immediately in Three.js
+        this.visualizer.update(this);
+
         //update dispersion
         if (dispersion) {
-            this.dispersion.update(this.phonon);
+            const dispersionOptions = this.getDispersionOptions();
+            dispersionOptions.resetLegendVisibility = true;
+            this.dispersion.update(this.phonon, dispersionOptions);
             if (this.dispersion.selectModePoint) {
                 this.dispersion.selectModePoint(this.phonon, this.k, this.n);
             }
         }
+    }
 
-        //update visualizer
-        this.visualizer.update(this);
+    getDispersionOptions() {
+        return {
+            enabled: this.showModeWeightsOnPlot,
+            getAtomColorHex: (atomNumber) => this.getAtomColorHex(atomNumber),
+            getAtomLabel: (atomNumber) => atomic_data.atomic_symbol[atomNumber] || String(atomNumber),
+            resetLegendVisibility: false,
+        };
+    }
+
+    getAtomColorHex(atomNumber) {
+        if (this.visualizer && typeof this.visualizer.getAtomColorHex === 'function') {
+            return this.visualizer.getAtomColorHex(atomNumber);
+        }
+        return 0x0066ff;
+    }
+
+    refreshDispersionAppearance() {
+        if (!this.phonon || !this.dispersion) {
+            return;
+        }
+        this.dispersion.update(this.phonon, this.getDispersionOptions());
+        if (this.dispersion.selectModePoint) {
+            this.dispersion.selectModePoint(this.phonon, this.k, this.n);
+        }
+        if (this.dispersion.reflow) {
+            this.dispersion.reflow();
+        }
     }
 
     estimateDisplayedAtoms() {

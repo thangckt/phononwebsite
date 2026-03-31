@@ -78,6 +78,7 @@ export class VibCrystal {
         this.capturer = null;
         this.captureState = 'idle';
         this.vibrationComponents = [];
+        this.onAppearanceUpdated = null;
 
         //camera options
         this.cameraDistance = 100;
@@ -321,7 +322,7 @@ export class VibCrystal {
         var self = this;
         dom_combo[0].onchange = function() {
             self.display = dom_combo[0].options[dom_combo[0].selectedIndex].value;
-            self.updatelocal();
+            self.updatelocal(true);
         }
     }
 
@@ -621,7 +622,7 @@ export class VibCrystal {
                 domArrowRadiusInput.val(self.arrowRadius);
             }
 
-            self.updatelocal();
+            self.updatelocal(true);
         };
 
         if (domArrowColorInput && domArrowColorInput.length) {
@@ -688,7 +689,7 @@ export class VibCrystal {
                 if (self.dom_atom_radius_input && self.dom_atom_radius_input.length && Number.isFinite(atomNumber)) {
                     self.dom_atom_radius_input.val(self.getAtomRadiusScale(atomNumber));
                 }
-                self.updatelocal();
+                self.updatelocal(true);
             });
         }
 
@@ -709,7 +710,7 @@ export class VibCrystal {
                 }
                 self.initializeBondRulesFromAtoms(self.atoms || [], self.phonon ? self.phonon.atom_numbers : []);
                 self.refreshBondRulesUI(this.atom_numbers || []);
-                self.updatelocal();
+                self.updatelocal(true);
             });
         }
 
@@ -1364,13 +1365,20 @@ export class VibCrystal {
         this.updatelocal();
     }
 
-    updatelocal() {
+    setAppearanceUpdatedCallback(callback) {
+        this.onAppearanceUpdated = callback;
+    }
+
+    updatelocal(notifyAppearanceUpdate = false) {
         this.removeStructure();
         this.addLights();
         this.getAtypes(this.phonon.atom_numbers);
         this.addStructure(this.atoms,this.phonon.atom_numbers);
         this.addCell(this.phonon.lat);
         this.adjustCovalentRadiiSelect();
+        if (notifyAppearanceUpdate && typeof this.onAppearanceUpdated === 'function') {
+            this.onAppearanceUpdated();
+        }
         this.needsRender = true;
         this.startAnimationLoop();
     }

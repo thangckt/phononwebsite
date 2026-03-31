@@ -79,6 +79,7 @@ p.setAtomPositions( $('#atompos') );
 p.setLattice( $('#lattice') );
 p.setRepetitionsInput( $('#nx'), $('#ny'), $('#nz') );
 p.setModeSelectionInput( $('#kindex'), $('#nindex'), $('#modeselect') );
+p.setModeWeightsToggle( $('#mode_weights_plot') );
 p.setUpdateButton( $('#update') );
 p.setFileInput( $('#file-input') );
 p.setMaterialsProjectAPIKey( $('#mp_api_key_input'),$('#mp_api_key_button') );
@@ -122,6 +123,7 @@ v.setAdvancedAppearanceControls(
     $('#appearance_reset_bonds_button'),
     $('#appearance_reset_vectors_button'),
 );
+v.setAppearanceUpdatedCallback(() => p.refreshDispersionAppearance());
 
 // check if webgl is available
 if ( ! Detector.webgl ) {
