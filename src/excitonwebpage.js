@@ -78,6 +78,22 @@ export class ExcitonWebpage {
         finalHandler();
     }
 
+    setIsosurfaceOpacityInput(domInput, domValue = null) {
+        this.domOpacityInput = domInput;
+        this.domOpacityValue = domValue;
+
+        const handler = () => {
+            const value = Number(domInput.val());
+            if (this.domOpacityValue) {
+                this.domOpacityValue.text(value.toFixed(2).replace(/\.?0+$/, ''));
+            }
+            this.viewer.changeIsosurfaceOpacity(value);
+        };
+
+        domInput.on('input change', handler);
+        handler();
+    }
+
     updateIsolevelControls(range) {
         if (!this.domIsolevelInput || !this.domIsolevelInput.length || !range) {
             return;

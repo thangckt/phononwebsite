@@ -108,6 +108,23 @@ export class StructureWebpage {
         finalHandler();
     }
 
+    setIsosurfaceOpacityInput(domInput, domValue = null, domContainer = null) {
+        this.domOpacityInput = domInput;
+        this.domOpacityValue = domValue;
+        this.domOpacityContainer = domContainer;
+
+        const handler = () => {
+            const value = Number(domInput.val());
+            if (this.domOpacityValue) {
+                this.domOpacityValue.text(formatIsolevelValue(value));
+            }
+            this.viewer.changeIsosurfaceOpacity(value);
+        };
+
+        domInput.on('input change', handler);
+        handler();
+    }
+
     setRepetitionControls(domNx, domNy, domNz, domButton) {
         this.domNx = domNx;
         this.domNy = domNy;
@@ -186,6 +203,9 @@ export class StructureWebpage {
     setChargeDensityVisibility(isVisible) {
         if (this.domIsolevelContainer) {
             this.domIsolevelContainer.toggle(!!isVisible);
+        }
+        if (this.domOpacityContainer) {
+            this.domOpacityContainer.toggle(!!isVisible);
         }
     }
 

@@ -17,6 +17,7 @@ page.setLattice($('#lattice'));
 page.setAtomPositions($('#atompos'));
 page.setFileInput($('#file-input'));
 page.setIsolevelInput($('#isolevel_range'), $('#isolevel_value'), $('#isolevel_section'));
+page.setIsosurfaceOpacityInput($('#isosurface_opacity_range'), $('#isosurface_opacity_value'), $('#isosurface_opacity_section'));
 page.setRepetitionControls($('#nx'), $('#ny'), $('#nz'), $('#update_replications'));
 page.setCameraDirectionButton($('#camerax'), 'x');
 page.setCameraDirectionButton($('#cameray'), 'y');

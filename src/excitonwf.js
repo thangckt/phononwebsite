@@ -32,6 +32,7 @@ export class ExcitonWf {
         this.sizez = 1;
         this.cell = null;
         this.isolevel = 0.02;
+        this.isosurfaceOpacity = 0.18;
         this.excitonIndex = 0;
         this.isInitialized = false;
 
@@ -844,6 +845,19 @@ export class ExcitonWf {
         }
     }
 
+    forEachNamedSceneObject(name, callback) {
+        if (!this.scene || typeof callback !== 'function') {
+            return;
+        }
+
+        for (let i = 0; i < this.scene.children.length; i++) {
+            const child = this.scene.children[i];
+            if (child && child.name === name) {
+                callback(child);
+            }
+        }
+    }
+
     getMarchingCubesOptions() {
         return { insideIsAbove: true };
     }
@@ -1095,6 +1109,23 @@ export class ExcitonWf {
         this.updateIsosurfaceSync();
     }
 
+    changeIsosurfaceOpacity(opacity) {
+        const numericOpacity = Number(opacity);
+        if (!Number.isFinite(numericOpacity)) {
+            return;
+        }
+
+        this.isosurfaceOpacity = Math.max(0, Math.min(1, numericOpacity));
+        this.forEachNamedSceneObject('isosurface', (mesh) => {
+            if (mesh.material) {
+                mesh.material.opacity = this.isosurfaceOpacity;
+                mesh.material.transparent = this.isosurfaceOpacity < 1;
+                mesh.material.needsUpdate = true;
+            }
+        });
+        this.render();
+    }
+
     previewIsolevel(isolevel) {
         this.isolevel = Number(isolevel);
         this.updateIsosurfacePreview();
@@ -1145,8 +1176,8 @@ export class ExcitonWf {
             new THREE.MeshLambertMaterial({
                 color: 0xffff00,
                 side: THREE.DoubleSide,
-                transparent: true,
-                opacity: 0.18,
+                transparent: this.isosurfaceOpacity < 1,
+                opacity: this.isosurfaceOpacity,
                 depthWrite: false,
             }),
         );

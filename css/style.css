@@ -368,6 +368,17 @@ ap {
     margin: 8px 0 2px;
 }
 
+.isosurface-controls-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+}
+
+.isosurface-controls-row .input-isolevel {
+    width: 100%;
+}
+
 .structure-help-text {
     font-size: 0.92em;
     line-height: 1.35;
@@ -393,6 +404,11 @@ ap {
 
     .advanced-appearance .appearance-actions {
         justify-content: flex-start;
+    }
+
+    .isosurface-controls-row {
+        grid-template-columns: 1fr;
+        gap: 6px;
     }
 
     .container {

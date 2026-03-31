@@ -21,6 +21,7 @@ page.setMaterialsList($('#mat'));
 page.setLattice($('#lattice'));
 page.setFileInput($('#file-input'));
 page.setIsolevelInput($('#isolevel_range'), $('#isolevel_value'));
+page.setIsosurfaceOpacityInput($('#isosurface_opacity_range'), $('#isosurface_opacity_value'));
 page.setCameraDirectionButton($('#camerax'), 'x');
 page.setCameraDirectionButton($('#cameray'), 'y');
 page.setCameraDirectionButton($('#cameraz'), 'z');
