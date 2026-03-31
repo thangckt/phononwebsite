@@ -72364,6 +72364,24 @@ class PhononWebpage {
         return 0x0066ff;
     }
 
+    getAtomColorCss(atomNumber) {
+        return '#' + Number(this.getAtomColorHex(atomNumber)).toString(16).padStart(6, '0');
+    }
+
+    getAtomBadgeTextColor(atomNumber) {
+        let color = Number(this.getAtomColorHex(atomNumber));
+        let red = (color >> 16) & 255;
+        let green = (color >> 8) & 255;
+        let blue = color & 255;
+        let luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
+        return luminance > 0.6 ? '#111827' : '#ffffff';
+    }
+
+    refreshAppearanceUI() {
+        this.updatePage();
+        this.refreshDispersionAppearance();
+    }
+
     refreshDispersionAppearance() {
         if (!this.phonon || !this.dispersion) {
             return;
@@ -72432,9 +72450,16 @@ class PhononWebpage {
                 let tr = document.createElement("TR");
 
                 let td = document.createElement("TD");
-                let atom_type = document.createTextNode(this.phonon.atom_types[i]);
-                td.class = "ap";
-                td.appendChild(atom_type);
+                let atomNumber = this.phonon.atom_numbers ? this.phonon.atom_numbers[i] : null;
+                let badge = document.createElement("SPAN");
+                badge.className = "atom-type-badge";
+                badge.textContent = this.phonon.atom_types[i];
+                if (atomNumber !== null) {
+                    badge.style.setProperty('--atom-badge-bg', this.getAtomColorCss(atomNumber));
+                    badge.style.setProperty('--atom-badge-fg', this.getAtomBadgeTextColor(atomNumber));
+                }
+                td.className = "ap atom-type-cell";
+                td.appendChild(badge);
                 tr.append(td);
 
                 for (let j=0; j<3; j++) {
@@ -72695,7 +72720,7 @@ v.setAdvancedAppearanceControls(
     $$1('#appearance_reset_bonds_button'),
     $$1('#appearance_reset_vectors_button'),
 );
-v.setAppearanceUpdatedCallback(() => p.refreshDispersionAppearance());
+v.setAppearanceUpdatedCallback(() => p.refreshAppearanceUI());
 
 // check if webgl is available
 if ( ! Detector.webgl ) {
