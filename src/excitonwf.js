@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TrackballControls } from './static_libs/TrackballControls.js';
 import { atomic_symbol, covalent_radii, jmol_colors, vesta_colors } from './atomic_data.js';
+import { createAtomBadgeHtml } from './atomcolors.js';
 import { buildMarchingCubesGeometry } from './marchingcubesgeometry.js';
 import { getCombinations } from './utils.js';
 
@@ -455,7 +456,7 @@ export class ExcitonWf {
             for (let i = 0; i < uniqueAtomNumbers.length; i++) {
                 const atomNumber = uniqueAtomNumbers[i];
                 this.domAppearanceAtomList.append(
-                    `<button type="button" data-atom-number="${atomNumber}">${atomic_symbol[atomNumber]}</button>`
+                    `<button type="button" data-atom-number="${atomNumber}">${createAtomBadgeHtml(atomic_symbol[atomNumber], atomNumber, this.getAtomColorHex.bind(this))}</button>`
                 );
             }
         }
@@ -572,10 +573,15 @@ export class ExcitonWf {
         }
         for (let i = 0; i < keys.length; i++) {
             const rule = this.bondRules[keys[i]];
-            const label = `${atomic_symbol[rule.a]}-${atomic_symbol[rule.b]}`;
+            const label =
+                `<span class="atom-badge-pair">` +
+                `${createAtomBadgeHtml(atomic_symbol[rule.a], rule.a, this.getAtomColorHex.bind(this))}` +
+                `<span class="atom-badge-separator">-</span>` +
+                `${createAtomBadgeHtml(atomic_symbol[rule.b], rule.b, this.getAtomColorHex.bind(this))}` +
+                `</span>`;
             const cutoff = Number(rule.cutoff).toFixed(2);
             this.domBondRulesList.append(
-                `<div class="appearance-controls"><span>${label} (${cutoff})</span><button type="button" data-remove-key="${keys[i]}">remove</button></div>`
+                `<div class="appearance-controls"><span>${label} ${cutoff}</span><button type="button" data-remove-key="${keys[i]}">remove</button></div>`
             );
         }
     }

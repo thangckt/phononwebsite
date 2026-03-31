@@ -12,6 +12,7 @@ import { exportXSF, exportPOSCAR }  from './exportfiles.js';
 import * as atomic_data from './atomic_data.js';
 import * as mat from './mat.js';
 import * as utils from './utils.js';
+import { atomColorHexToCss, getAtomBadgeTextColor, applyAtomBadgeStyle } from './atomcolors.js';
 
 export class PhononWebpage {
 
@@ -582,16 +583,11 @@ export class PhononWebpage {
     }
 
     getAtomColorCss(atomNumber) {
-        return '#' + Number(this.getAtomColorHex(atomNumber)).toString(16).padStart(6, '0');
+        return atomColorHexToCss(this.getAtomColorHex(atomNumber));
     }
 
     getAtomBadgeTextColor(atomNumber) {
-        let color = Number(this.getAtomColorHex(atomNumber));
-        let red = (color >> 16) & 255;
-        let green = (color >> 8) & 255;
-        let blue = color & 255;
-        let luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
-        return luminance > 0.6 ? '#111827' : '#ffffff';
+        return getAtomBadgeTextColor(this.getAtomColorHex(atomNumber));
     }
 
     refreshAppearanceUI() {
@@ -672,8 +668,7 @@ export class PhononWebpage {
                 badge.className = "atom-type-badge";
                 badge.textContent = this.phonon.atom_types[i];
                 if (atomNumber !== null) {
-                    badge.style.setProperty('--atom-badge-bg', this.getAtomColorCss(atomNumber));
-                    badge.style.setProperty('--atom-badge-fg', this.getAtomBadgeTextColor(atomNumber));
+                    applyAtomBadgeStyle(badge, atomNumber, this.getAtomColorHex.bind(this));
                 }
                 td.className = "ap atom-type-cell";
                 td.appendChild(badge);

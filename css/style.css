@@ -232,18 +232,30 @@ ap {
     background: transparent;
 }
 
-#atompos .atom-type-badge {
+.atom-type-badge {
     --atom-badge-bg: #64748b;
     --atom-badge-fg: #ffffff;
     display: inline-block;
-    min-width: 2.5rem;
-    padding: 0.25rem 0.7rem;
+    min-width: 1.5rem;
+    padding: 0.18rem 0.45rem;
     border-radius: 999px;
     background: var(--atom-badge-bg);
     color: var(--atom-badge-fg);
     font-weight: 700;
     letter-spacing: 0.01em;
+    line-height: 1.1;
     text-align: center;
+}
+
+.atom-badge-pair {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+}
+
+.atom-badge-separator {
+    color: #475569;
+    font-weight: 700;
 }
 
 #mat {
@@ -285,7 +297,7 @@ ap {
 
 .advanced-appearance .appearance-row {
     display: grid;
-    grid-template-columns: 100px 1fr;
+    grid-template-columns: 72px minmax(0, 1fr);
     align-items: center;
     gap: 6px;
     margin-bottom: 4px;
@@ -309,6 +321,7 @@ ap {
 
 .advanced-appearance .appearance-row label {
     display: inline-block;
+    font-size: 0.95em;
 }
 
 .advanced-appearance .appearance-controls {

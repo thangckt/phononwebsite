@@ -4,6 +4,7 @@ import { Stats } from './static_libs/stats.min.js';
 import * as atomic_data from './atomic_data.js';
 import * as utils from './utils.js';
 import * as mat from './mat.js';
+import { createAtomBadgeHtml } from './atomcolors.js';
 
 const vec_y = new THREE.Vector3( 0, 1, 0 );
 const vec_0 = new THREE.Vector3( 0, 0, 0 );
@@ -286,11 +287,16 @@ export class VibCrystal {
 
         for (let i=0; i<keys.length; i++) {
             let rule = this.bondRules[keys[i]];
-            let label = atomic_data.atomic_symbol[rule.a] + '-' + atomic_data.atomic_symbol[rule.b];
+            let label =
+                '<span class="atom-badge-pair">' +
+                createAtomBadgeHtml(atomic_data.atomic_symbol[rule.a], rule.a, this.getAtomColorHex.bind(this)) +
+                '<span class="atom-badge-separator">-</span>' +
+                createAtomBadgeHtml(atomic_data.atomic_symbol[rule.b], rule.b, this.getAtomColorHex.bind(this)) +
+                '</span>';
             let cutoff = Number(rule.cutoff).toFixed(2);
             this.dom_bond_rules_list.append(
                 '<div class="appearance-controls">' +
-                '<span>' + label + ' (' + cutoff + ')</span>' +
+                '<span>' + label + ' ' + cutoff + '</span>' +
                 '<button type="button" data-remove-key="' + keys[i] + '">remove</button>' +
                 '</div>'
             );
@@ -451,7 +457,7 @@ export class VibCrystal {
             let atomNumber = unique_atom_numbers[i];
             this.dom_appearance_atom_list.append(
                 '<button type="button" data-atom-number="' + atomNumber + '">' +
-                atomic_data.atomic_symbol[atomNumber] +
+                createAtomBadgeHtml(atomic_data.atomic_symbol[atomNumber], atomNumber, this.getAtomColorHex.bind(this)) +
                 '</button>'
             );
         }
