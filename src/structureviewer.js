@@ -32,6 +32,7 @@ export class StructureViewer extends ExcitonWf {
         this.sizey = data.sizey || 1;
         this.sizez = data.sizez || 1;
         this.isolevel = Number.isFinite(data.isolevel) ? data.isolevel : this.isolevel;
+        this.clearIsosurfacePreviewCache();
         this.initializeBondRulesFromAtoms();
         this.refreshAppearanceControls();
         this.shouldAutoFitCamera = true;

@@ -85,16 +85,27 @@ export class StructureWebpage {
         this.domIsolevelValue = domValue;
         this.domIsolevelContainer = domContainer;
 
-        const handler = () => {
+        const updateLabel = () => {
             const value = Number(domInput.val());
             if (this.domIsolevelValue) {
                 this.domIsolevelValue.text(formatIsolevelValue(value));
             }
+            return value;
+        };
+
+        const previewHandler = () => {
+            const value = updateLabel();
+            this.viewer.previewIsolevel(value);
+        };
+
+        const finalHandler = () => {
+            const value = updateLabel();
             this.viewer.changeIsolevel(value);
         };
 
-        domInput.on('input change', handler);
-        handler();
+        domInput.on('input', previewHandler);
+        domInput.on('change', finalHandler);
+        finalHandler();
     }
 
     setRepetitionControls(domNx, domNy, domNz, domButton) {

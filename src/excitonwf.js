@@ -61,6 +61,7 @@ export class ExcitonWf {
         this.marchingCubesWorkerFailed = false;
         this.marchingCubesRequestId = 0;
         this.marchingCubesWorkerBusy = false;
+        this.isosurfacePreviewCache = null;
     }
 
     init(container) {
@@ -124,6 +125,7 @@ export class ExcitonWf {
         this.atoms = absorption.atoms;
         this.natoms = absorption.atoms.length;
         this.atom_numbers = absorption.atom_numbers;
+        this.clearIsosurfacePreviewCache();
         this.updateRecommendedIsolevel();
 
         this.geometricCenter = new THREE.Vector3(0, 0, 0);
@@ -142,8 +144,13 @@ export class ExcitonWf {
         this.excitonIndex = index;
         if (this.excitons && this.excitons[index]) {
             this.values = this.excitons[index].datagrid;
+            this.clearIsosurfacePreviewCache();
             this.updateRecommendedIsolevel();
         }
+    }
+
+    clearIsosurfacePreviewCache() {
+        this.isosurfacePreviewCache = null;
     }
 
     updateRecommendedIsolevel(force = false) {
@@ -841,6 +848,84 @@ export class ExcitonWf {
         return { insideIsAbove: true };
     }
 
+    getPreviewStride() {
+        const voxelCount = (this.sizex || 1) * (this.sizey || 1) * (this.sizez || 1);
+        const minSize = Math.min(this.sizex || 1, this.sizey || 1, this.sizez || 1);
+        if (minSize < 12) {
+            return 1;
+        }
+        if (voxelCount > 800000 && minSize >= 24) {
+            return 4;
+        }
+        if (voxelCount > 250000 && minSize >= 18) {
+            return 3;
+        }
+        if (voxelCount > 80000 && minSize >= 12) {
+            return 2;
+        }
+        return 1;
+    }
+
+    buildDownsampledField(values, sizex, sizey, sizez, stride, periodic) {
+        if (stride <= 1) {
+            return {
+                values,
+                sizex,
+                sizey,
+                sizez,
+            };
+        }
+
+        const reducedX = periodic ? Math.max(2, Math.floor(sizex / stride)) : Math.max(2, Math.floor((sizex - 1) / stride) + 1);
+        const reducedY = periodic ? Math.max(2, Math.floor(sizey / stride)) : Math.max(2, Math.floor((sizey - 1) / stride) + 1);
+        const reducedZ = periodic ? Math.max(2, Math.floor((sizez) / stride)) : Math.max(2, Math.floor((sizez - 1) / stride) + 1);
+        const reducedValues = new Float32Array(reducedX * reducedY * reducedZ);
+        let writeIndex = 0;
+
+        for (let z = 0; z < reducedZ; z++) {
+            const sourceZ = periodic ? (z * stride) % sizez : Math.min(z * stride, sizez - 1);
+            for (let y = 0; y < reducedY; y++) {
+                const sourceY = periodic ? (y * stride) % sizey : Math.min(y * stride, sizey - 1);
+                for (let x = 0; x < reducedX; x++) {
+                    const sourceX = periodic ? (x * stride) % sizex : Math.min(x * stride, sizex - 1);
+                    reducedValues[writeIndex] = values[sourceX + sizex * sourceY + sizex * sizey * sourceZ];
+                    writeIndex += 1;
+                }
+            }
+        }
+
+        return {
+            values: reducedValues,
+            sizex: reducedX,
+            sizey: reducedY,
+            sizez: reducedZ,
+        };
+    }
+
+    getInteractiveMarchingCubesInput() {
+        const stride = this.getPreviewStride();
+        if (stride <= 1) {
+            return {
+                values: this.values,
+                sizex: this.sizex,
+                sizey: this.sizey,
+                sizez: this.sizez,
+            };
+        }
+
+        const options = this.getMarchingCubesOptions();
+        const periodic = !!options.periodic;
+        const cacheKey = `${stride}:${this.sizex}:${this.sizey}:${this.sizez}:${periodic ? 'p' : 'n'}`;
+        if (!this.isosurfacePreviewCache || this.isosurfacePreviewCache.key !== cacheKey) {
+            this.isosurfacePreviewCache = {
+                key: cacheKey,
+                data: this.buildDownsampledField(this.values, this.sizex, this.sizey, this.sizez, stride, periodic),
+            };
+        }
+
+        return this.isosurfacePreviewCache.data;
+    }
+
     getMarchingCubesWorker() {
         if (this.marchingCubesWorkerFailed || typeof Worker === 'undefined') {
             return null;
@@ -976,6 +1061,31 @@ export class ExcitonWf {
         this.render();
     }
 
+    updateIsosurfacePreview() {
+        if (!this.scene || !Array.isArray(this.values) || !this.values.length) {
+            return;
+        }
+
+        this.marchingCubesRequestId += 1;
+        if (this.marchingCubesWorkerBusy) {
+            this.resetMarchingCubesWorker();
+        }
+
+        const preview = this.getInteractiveMarchingCubesInput();
+        const geometry = buildMarchingCubesGeometry(
+            preview.values,
+            preview.sizex,
+            preview.sizey,
+            preview.sizez,
+            this.gridCell,
+            this.isolevel,
+            this.getMarchingCubesOptions(),
+        );
+        this.removeNamedSceneObjects('isosurface');
+        this.addMarchingCubesGeometry(geometry);
+        this.render();
+    }
+
     updateIsosurface() {
         this.requestMarchingCubesUpdate();
     }
@@ -983,6 +1093,11 @@ export class ExcitonWf {
     changeIsolevel(isolevel) {
         this.isolevel = Number(isolevel);
         this.updateIsosurfaceSync();
+    }
+
+    previewIsolevel(isolevel) {
+        this.isolevel = Number(isolevel);
+        this.updateIsosurfacePreview();
     }
 
     setCameraDirection(direction) {

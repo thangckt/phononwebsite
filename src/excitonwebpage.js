@@ -55,16 +55,27 @@ export class ExcitonWebpage {
         this.domIsolevelInput = domInput;
         this.domIsolevelValue = domValue;
 
-        const handler = () => {
+        const updateLabel = () => {
             const value = Number(domInput.val());
             if (this.domIsolevelValue) {
                 this.domIsolevelValue.text(value.toFixed(3));
             }
+            return value;
+        };
+
+        const previewHandler = () => {
+            const value = updateLabel();
+            this.viewer.previewIsolevel(value);
+        };
+
+        const finalHandler = () => {
+            const value = updateLabel();
             this.viewer.changeIsolevel(value);
         };
 
-        domInput.on('input change', handler);
-        handler();
+        domInput.on('input', previewHandler);
+        domInput.on('change', finalHandler);
+        finalHandler();
     }
 
     updateIsolevelControls(range) {
