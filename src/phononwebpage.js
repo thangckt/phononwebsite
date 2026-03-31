@@ -40,6 +40,7 @@ export class PhononWebpage {
         this.showModeWeightsOnPlot = false;
         this.materialFilterQuery = '';
         this.materialsIndex = [];
+        this.loadingState = null;
     }
 
     //functions to link the DOM buttons with this class
@@ -192,6 +193,31 @@ export class PhononWebpage {
             callback = this.loadCallback.bind(this);
         }
 
+        let targetName = ("name" in url_vars) ? url_vars.name : this.name;
+        this.startLoadingFeedback(targetName);
+
+        let wrappedCallback = function() {
+            this.finishLoadingFeedback();
+            callback();
+        }.bind(this);
+
+        let hooks = {
+            onStart: function() {
+                this.updateLoadingFeedback();
+            }.bind(this),
+            onProgress: function(progress) {
+                this.updateLoadingFeedback(progress);
+            }.bind(this),
+            onError: function(error) {
+                this.failLoadingFeedback(error);
+            }.bind(this),
+            onFinish: function() {
+                if (this.loadingState && this.loadingState.status === 'loading') {
+                    this.updateLoadingFeedback();
+                }
+            }.bind(this)
+        };
+
         if ( "name" in url_vars ) {
             this.name = url_vars.name;
         }
@@ -201,19 +227,63 @@ export class PhononWebpage {
 
         if ("yaml" in url_vars) {
             this.phonon = new PhononYaml();
-            this.phonon.getFromURL(url_vars.yaml,callback);
+            this.phonon.getFromURL(url_vars.yaml,wrappedCallback);
         }
         else if ("json" in url_vars) {
             this.phonon = new PhononJson();
-            this.phonon.getFromURL(url_vars.json,callback);
+            this.phonon.getFromURL(url_vars.json,wrappedCallback,hooks);
         }
         else if ("rest" in url_vars) {
             this.phonon = new PhononJson();
-            this.phonon.getFromREST(url_vars.rest,url_vars.apikey,callback);
+            this.phonon.getFromREST(url_vars.rest,url_vars.apikey,wrappedCallback);
         }
         else {
             //alert("Ivalid url");
         }
+    }
+
+    startLoadingFeedback(label) {
+        this.loadingState = {
+            label: label || 'Material',
+            status: 'loading',
+            progress: null
+        };
+        this.updateLoadingFeedback();
+    }
+
+    updateLoadingFeedback(progressInfo) {
+        if (!this.loadingState) {
+            return;
+        }
+
+        if (progressInfo && progressInfo.total) {
+            this.loadingState.progress = Math.max(0, Math.min(1, progressInfo.loaded / progressInfo.total));
+        } else if (progressInfo && progressInfo.loaded && !progressInfo.total) {
+            this.loadingState.progress = null;
+        }
+
+        let progressPercent = this.loadingState.progress;
+        let barWidth = progressPercent !== null && progressPercent !== undefined
+            ? (progressPercent * 100) + '%'
+            : '35%';
+        let progress = document.getElementById('progress');
+        if (progress) {
+            progress.style.width = barWidth;
+        }
+    }
+
+    finishLoadingFeedback() {
+        this.loadingState = null;
+        let progress = document.getElementById('progress');
+        if (progress) {
+            progress.style.width = '0%';
+        }
+    }
+
+    failLoadingFeedback(error) {
+        let message = error && error.message ? error.message : 'Unable to load phonon data.';
+        this.finishLoadingFeedback();
+        PhononJson.showCompressedLoadError(message);
     }
 
     getUrlVars(default_vars) {

@@ -2,6 +2,7 @@ import * as atomic_data from './atomic_data.js';
 import * as utils from './utils.js';
 import * as mat from './mat.js';
 import pako from 'pako';
+import { MaterialsProjectDB } from './mpdb.js';
 
 var thz2cm1 = 33.35641;
 var ev2cm1 = 8065.73;
@@ -16,13 +17,13 @@ export class PhononJson {
         alert(message);
     }
 
-    getFromURL(url,callback) {
+    getFromURL(url,callback,hooks={}) {
         /*
         load a file from url
         */
 
         if (url.endsWith('.gz')) {
-            this.getFromCompressedURL(url,callback);
+            this.getFromCompressedURL(url,callback,hooks);
             return;
         }
 
@@ -30,47 +31,92 @@ export class PhononJson {
             this.getFromJson(text,callback);
         };
 
-        $.getJSON(url,onLoadEndHandler.bind(this));
+        hooks.onStart && hooks.onStart();
+        $.getJSON(url,onLoadEndHandler.bind(this))
+            .fail(function(jqxhr, textStatus) {
+                hooks.onError && hooks.onError({
+                    kind: 'request',
+                    message: textStatus || 'Unable to load phonon data.'
+                });
+            })
+            .always(function() {
+                hooks.onFinish && hooks.onFinish();
+            });
 
     }
 
-    getFromCompressedURL(url,callback) {
-        if (typeof fetch !== 'function') {
-            alert("This browser cannot load compressed phonon JSON files.");
+    getFromCompressedURL(url,callback,hooks={}) {
+        if (typeof XMLHttpRequest === 'undefined') {
+            hooks.onError && hooks.onError({
+                kind: 'browser',
+                message: "This browser cannot load compressed phonon JSON files."
+            });
             return;
         }
 
-        fetch(url)
-            .then(function(response) {
-                if (!response.ok) {
-                    throw new Error("HTTP "+response.status);
-                }
-                return response.arrayBuffer();
-            })
-            .then(function(buffer) {
-                let textPromise;
-                if (typeof DecompressionStream === 'function') {
-                    let stream = new Blob([buffer]).stream().pipeThrough(new DecompressionStream('gzip'));
-                    textPromise = new Response(stream).text();
-                } else {
-                    let uint8 = new Uint8Array(buffer);
-                    textPromise = Promise.resolve(pako.ungzip(uint8, { to: 'string' }));
-                }
-                return textPromise;
-            })
-            .then(function(text) {
-                this.getFromString(text,callback);
-            }.bind(this))
-            .catch(function(error) {
-                console.log(error);
-                let message = "Unable to load compressed phonon data.";
-                if (error && error.name === 'TypeError') {
-                    message = "Unable to load Materials Project phonon data. The remote OpenData bucket is blocking cross-origin browser requests (CORS).";
-                } else if (error && error.message) {
-                    message = "Unable to load compressed phonon data: " + error.message;
-                }
-                PhononJson.showCompressedLoadError(message);
+        let xhr = new XMLHttpRequest();
+        hooks.onStart && hooks.onStart();
+        xhr.open('GET', url, true);
+        xhr.responseType = 'arraybuffer';
+
+        xhr.onprogress = function(event) {
+            hooks.onProgress && hooks.onProgress({
+                loaded: event.loaded,
+                total: event.lengthComputable ? event.total : null
             });
+        };
+
+        xhr.onload = function() {
+            if (xhr.status !== 200) {
+                hooks.onError && hooks.onError({
+                    kind: 'http',
+                    status: xhr.status,
+                    message: "Unable to load compressed phonon data: HTTP " + xhr.status
+                });
+                hooks.onFinish && hooks.onFinish();
+                return;
+            }
+
+            Promise.resolve(xhr.response)
+                .then(function(buffer) {
+                    let textPromise;
+                    if (typeof DecompressionStream === 'function') {
+                        let stream = new Blob([buffer]).stream().pipeThrough(new DecompressionStream('gzip'));
+                        textPromise = new Response(stream).text();
+                    } else {
+                        let uint8 = new Uint8Array(buffer);
+                        textPromise = Promise.resolve(pako.ungzip(uint8, { to: 'string' }));
+                    }
+                    return textPromise;
+                })
+                .then(function(text) {
+                    this.getFromString(text,callback);
+                    hooks.onFinish && hooks.onFinish();
+                }.bind(this))
+                .catch(function(error) {
+                    console.log(error);
+                    hooks.onError && hooks.onError({
+                        kind: 'parse',
+                        message: error && error.message ? error.message : 'Unable to parse compressed phonon data.'
+                    });
+                    hooks.onFinish && hooks.onFinish();
+                });
+        }.bind(this);
+
+        xhr.onerror = function() {
+            let isMaterialsProject = url.indexOf('materialsproject-parsed.s3.amazonaws.com') !== -1;
+            let likelyCors = isMaterialsProject && MaterialsProjectDB.availabilityState === false;
+            let message = likelyCors
+                ? "Unable to load Materials Project phonon data. The remote OpenData bucket is blocking cross-origin browser requests (CORS)."
+                : "Unable to load compressed phonon data because the download failed in the browser.";
+            hooks.onError && hooks.onError({
+                kind: likelyCors ? 'cors' : 'network',
+                message: message
+            });
+            hooks.onFinish && hooks.onFinish();
+        };
+
+        xhr.send(null);
     }
 
     getFromFile(file,callback) {
