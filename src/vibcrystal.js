@@ -1010,7 +1010,7 @@ export class VibCrystal {
         */
         if (this.cell) {
           let material = new THREE.LineBasicMaterial({ color: 0x000000 });
-          let geometry = new THREE.Geometry();
+          let points = [];
 
           let o = this.geometricCenter;
           let zero = new THREE.Vector3(0,0,0);
@@ -1021,34 +1021,35 @@ export class VibCrystal {
 
           //lower part
           c.copy(zero);
-          c.sub(o); geometry.vertices.push(c.clone());
-          c.add(x); geometry.vertices.push(c.clone());
-          c.add(y); geometry.vertices.push(c.clone());
-          c.sub(x); geometry.vertices.push(c.clone());
-          c.sub(y); geometry.vertices.push(c.clone());
+          c.sub(o); points.push(c.clone());
+          c.add(x); points.push(c.clone());
+          c.add(y); points.push(c.clone());
+          c.sub(x); points.push(c.clone());
+          c.sub(y); points.push(c.clone());
 
           //upper part
           c.copy(zero); c.add(z);
-          c.sub(o); geometry.vertices.push(c.clone());
-          c.add(x); geometry.vertices.push(c.clone());
-          c.add(y); geometry.vertices.push(c.clone());
-          c.sub(x); geometry.vertices.push(c.clone());
-          c.sub(y); geometry.vertices.push(c.clone());
+          c.sub(o); points.push(c.clone());
+          c.add(x); points.push(c.clone());
+          c.add(y); points.push(c.clone());
+          c.sub(x); points.push(c.clone());
+          c.sub(y); points.push(c.clone());
 
           //vertical lines
           c.copy(zero);
-          c.sub(o); geometry.vertices.push(c.clone());
-          c.add(z); geometry.vertices.push(c.clone());
+          c.sub(o); points.push(c.clone());
+          c.add(z); points.push(c.clone());
 
-          c.add(x); geometry.vertices.push(c.clone());
-          c.sub(z); geometry.vertices.push(c.clone());
+          c.add(x); points.push(c.clone());
+          c.sub(z); points.push(c.clone());
 
-          c.add(y); geometry.vertices.push(c.clone());
-          c.add(z); geometry.vertices.push(c.clone());
+          c.add(y); points.push(c.clone());
+          c.add(z); points.push(c.clone());
 
-          c.sub(x); geometry.vertices.push(c.clone());
-          c.sub(z); geometry.vertices.push(c.clone());
+          c.sub(x); points.push(c.clone());
+          c.sub(z); points.push(c.clone());
 
+          let geometry = new THREE.BufferGeometry().setFromPoints(points);
           let line = new THREE.Line(geometry, material);
           this.scene.add(line);
         }
