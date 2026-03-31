@@ -256,10 +256,31 @@ export class PhononHighcharts {
             }
 
             let atomNumber = item.options.atomNumber;
-            item.legendItem.css({
-                textDecoration: this.isAtomNumberVisible(atomNumber) ? 'none' : 'line-through',
-                opacity: this.isAtomNumberVisible(atomNumber) ? 1 : 0.65
-            });
+            let visible = this.isAtomNumberVisible(atomNumber);
+            let textDecoration = visible ? 'none' : 'line-through';
+            let opacity = visible ? 1 : 0.65;
+            let legendItem = item.legendItem;
+
+            if (legendItem && typeof legendItem.css === 'function') {
+                legendItem.css({
+                    textDecoration: textDecoration,
+                    opacity: opacity
+                });
+            } else if (legendItem && typeof legendItem.attr === 'function') {
+                legendItem.attr({
+                    opacity: opacity
+                });
+                if (legendItem.element && legendItem.element.style) {
+                    legendItem.element.style.textDecoration = textDecoration;
+                }
+            } else if (legendItem && legendItem.style) {
+                legendItem.style.textDecoration = textDecoration;
+                legendItem.style.opacity = String(opacity);
+            }
+
+            if (item.legendGroup && typeof item.legendGroup.attr === 'function') {
+                item.legendGroup.attr({ opacity: opacity });
+            }
         }
     }
 
