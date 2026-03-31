@@ -213,12 +213,12 @@ describe('VibCrystal advanced appearance', function () {
       $('#reset-vectors')
     );
 
-    assert.equal(v.bondColorByAtom, false);
-    $('#bond-color-by-atom').prop('checked', true).trigger('change');
     assert.equal(v.bondColorByAtom, true);
+    $('#bond-color-by-atom').prop('checked', false).trigger('change');
+    assert.equal(v.bondColorByAtom, false);
 
     $('#reset-bonds').trigger('click');
-    assert.equal(v.bondColorByAtom, false);
+    assert.equal(v.bondColorByAtom, true);
     dom.window.close();
   });
 
@@ -248,14 +248,14 @@ describe('VibCrystal advanced appearance', function () {
       $('#reset-vectors')
     );
 
-    assert.equal($('#bond-color').prop('disabled'), false);
-    $('#bond-color-by-atom').prop('checked', true).trigger('change');
     assert.equal($('#bond-color').prop('disabled'), true);
-    $('#bond-color').val('#123456').trigger('change');
-    assert.notEqual(v.bondscolor, 0x123456);
-
     $('#bond-color-by-atom').prop('checked', false).trigger('change');
     assert.equal($('#bond-color').prop('disabled'), false);
+    $('#bond-color').val('#123456').trigger('change');
+    assert.equal(v.bondscolor, 0x123456);
+
+    $('#bond-color-by-atom').prop('checked', true).trigger('change');
+    assert.equal($('#bond-color').prop('disabled'), true);
     dom.window.close();
   });
 

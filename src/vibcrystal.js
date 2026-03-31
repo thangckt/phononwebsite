@@ -1744,19 +1744,35 @@ export class VibCrystal {
 
     pause() {
         if (this.animationFrameId !== null) {
-            cancelAnimationFrame(this.animationFrameId);
+            if (typeof cancelAnimationFrame === 'function') {
+                cancelAnimationFrame(this.animationFrameId);
+            } else {
+                clearTimeout(this.animationFrameId);
+            }
             this.animationFrameId = null;
         }
     }
 
     startAnimationLoop() {
+        if (!this.controls || !this.camera || !this.scene || !this.renderer) {
+            this.render();
+            return;
+        }
         if (this.animationFrameId === null) {
             this.lastFrameTime = null;
-            this.animationFrameId = requestAnimationFrame( this.animate.bind(this) );
+            if (typeof requestAnimationFrame === 'function') {
+                this.animationFrameId = requestAnimationFrame( this.animate.bind(this) );
+            } else {
+                this.animationFrameId = setTimeout(() => this.animate(Date.now()), 16);
+            }
         }
     }
 
     animate(timestamp) {
+        if (!this.controls || !this.camera || !this.scene || !this.renderer) {
+            this.animationFrameId = null;
+            return;
+        }
         if (this.lastFrameTime === null) {
             this.lastFrameTime = timestamp;
         }
@@ -1772,10 +1788,18 @@ export class VibCrystal {
         if (!this.paused || this.needsRender) {
             this.render();
         }
-        this.animationFrameId = requestAnimationFrame( this.animate.bind(this) );
+        if (typeof requestAnimationFrame === 'function') {
+            this.animationFrameId = requestAnimationFrame( this.animate.bind(this) );
+        } else {
+            this.animationFrameId = setTimeout(() => this.animate(Date.now()), 16);
+        }
     }
 
     render() {
+        if (!this.renderer || !this.scene || !this.camera) {
+            this.needsRender = false;
+            return;
+        }
         let phaseAngle = this.time * 2.0 * mat.pi;
         let phaseRe = this.amplitude * Math.cos(phaseAngle);
         let phaseIm = this.amplitude * Math.sin(phaseAngle);
@@ -1865,7 +1889,9 @@ export class VibCrystal {
             this.capturer.capture( this.canvas );
         }
 
-        this.stats.update();
+        if (this.stats) {
+            this.stats.update();
+        }
         this.needsRender = false;
     }
 }

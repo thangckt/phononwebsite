@@ -65,16 +65,34 @@ export class PhononJson {
         };
 
         hooks.onStart && hooks.onStart();
-        $.getJSON(url,onLoadEndHandler.bind(this))
-            .fail(function(jqxhr, textStatus) {
+        let request;
+        try {
+            request = $.getJSON(url,onLoadEndHandler.bind(this));
+        } catch (error) {
+            hooks.onError && hooks.onError({
+                kind: 'request',
+                message: error && error.message ? error.message : 'Unable to load phonon data.'
+            });
+            hooks.onFinish && hooks.onFinish();
+            return;
+        }
+
+        if (request && typeof request.fail === 'function') {
+            request.fail(function(jqxhr, textStatus) {
                 hooks.onError && hooks.onError({
                     kind: 'request',
                     message: textStatus || 'Unable to load phonon data.'
                 });
-            })
-            .always(function() {
+            });
+        }
+
+        if (request && typeof request.always === 'function') {
+            request.always(function() {
                 hooks.onFinish && hooks.onFinish();
             });
+        } else {
+            hooks.onFinish && hooks.onFinish();
+        }
 
     }
 
