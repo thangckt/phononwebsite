@@ -531,6 +531,14 @@ export class VibCrystal {
         return Math.abs(Number(a) - Number(b)) <= tolerance;
     }
 
+    formatControlNumber(value, decimals = 3) {
+        value = Number(value);
+        if (!Number.isFinite(value)) {
+            return '';
+        }
+        return value.toFixed(decimals).replace(/\.?0+$/, '');
+    }
+
     setArrowScaleValue(value) {
         value = Number(value);
         if (!Number.isFinite(value)) {
@@ -554,7 +562,7 @@ export class VibCrystal {
 
         this.amplitude = value;
         if (this.dom_amplitude_box && this.dom_amplitude_box.length) {
-            this.dom_amplitude_box.val(value);
+            this.dom_amplitude_box.val(this.formatControlNumber(value, 3));
         }
         if (this.dom_amplitude_range && this.dom_amplitude_range.length) {
             if (value > Number(this.dom_amplitude_range.attr('max'))) {
