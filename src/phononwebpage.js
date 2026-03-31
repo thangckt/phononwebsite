@@ -1,11 +1,6 @@
 import { LocalDB } from './localdb.js';
 import { ContribDB } from './contribdb.js';
-import { PhononDB2015 } from './phonondb2015.js';
-import { PhononDB2018 } from './phonondb2018.js';
-import { LocalPhononDB2015 } from './localphonondb2015.js';
-import { LocalPhononDB2018 } from './localphonondb2018.js';
 import { MaterialsProjectDB } from './mpdb.js';
-import { LocalMaterialsProjectDB } from './localmpdb.js';
 import { PhononJson } from './phononjson.js';
 import { PhononYaml } from './phononyaml.js';
 import { exportXSF, exportPOSCAR }  from './exportfiles.js';
@@ -299,10 +294,6 @@ export class PhononWebpage {
         else if ("json" in url_vars) {
             this.phonon = new PhononJson();
             this.phonon.getFromURL(url_vars.json,wrappedCallback,hooks);
-        }
-        else if ("rest" in url_vars) {
-            this.phonon = new PhononJson();
-            this.phonon.getFromREST(url_vars.rest,null,wrappedCallback);
         }
         else {
             //alert("Ivalid url");
@@ -818,35 +809,6 @@ export class PhononWebpage {
                 console.log("Skipping Materials Project phonons because the OpenData bucket is unreachable from this browser.");
             }
         });
-
-        /*
-        //phonondb2015 database
-        for (let sourceclass of [PhononDB2015, LocalPhononDB2015 ]) {
-            source = new sourceclass;
-            if (source.isAvailable()) {
-                source.get_materials(addMaterials);
-                break;
-            }
-        }
-
-        //phonondb2018 database
-        for (let sourceclass of [PhononDB2018, LocalPhononDB2018 ]) {
-            source = new sourceclass;
-            if (source.isAvailable()) {
-                source.get_materials(addMaterials);
-                break;
-            }
-        }
-
-        //mp databse
-        for (let sourceclass of [MaterialsProjectDB, LocalMaterialsProjectDB ]) {
-            source = new sourceclass();
-            if (source.isAvailable()) {
-                source.get_materials(addMaterials);
-                break;
-            }
-        }*/
-
     }
 
     getMaterialFilterTokens() {

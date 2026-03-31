@@ -178,36 +178,7 @@ export class PhononJson {
         this.getFromJson(json,callback);
     }
 
-    getFromREST(url,apikey,callback) {
-
-        let xhr = new XMLHttpRequest();
-        console.log(url);
-        let urld = decodeURIComponent(url);
-        console.log(urld);
-        let params = new URLSearchParams(urld.split("?")[1]);
-        let field;
-        if (params.has("_fields")) {
-          field = params.get("_fields").split(",")[0];
-        }
-        console.log(field);
-        if (field) {
-          xhr.open('GET', urld, true);
-          if (apikey) { xhr.setRequestHeader('x-api-key', apikey) };
-          xhr.onload = function () {
-            let json = JSON.parse(xhr.responseText);
-            if (xhr.status === 200) {
-                this.getFromJson(json,callback,field);
-            } else if (xhr.status === 401) {
-                alert("Materials Project API says:",json["message"]);
-            } else {
-                alert("Unknown error occurred:",xhr.status,json);
-            }
-          }.bind(this)
-          xhr.send(null);
-        }
-    }
-
-    getFromJson(json,callback,field="ph_bs") {
+    getFromJson(json,callback) {
         if (json.hasOwnProperty('@class')) {
             this.getFromPMGJson(json,callback);
         } else if (
@@ -217,14 +188,6 @@ export class PhononJson {
             json.hasOwnProperty('structure')
         ) {
             this.getFromOpenDataJson(json,callback);
-        } else if (
-            field &&
-            json.hasOwnProperty('data') &&
-            Array.isArray(json['data']) &&
-            json['data'].length === 1 &&
-            json['data'][0].hasOwnProperty(field)
-        ) {
-            this.getFromPMGJson(json['data'][0][field],callback);
         } else { this.getFromInternalJson(json,callback); }
     }
 
