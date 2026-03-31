@@ -49,6 +49,23 @@ describeBrowser('Browser smoke (optional)', function () {
 
     assert.equal(pageErrors.length, 0, `Browser page errors:\n${pageErrors.join('\n')}`);
   });
+
+  it('loads exciton.html with no page errors', async function () {
+    const browser = await playwright.chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    const pageErrors = [];
+
+    page.on('pageerror', (error) => {
+      pageErrors.push(error.message || String(error));
+    });
+
+    await page.goto(`${baseUrl}/exciton.html`, { waitUntil: 'networkidle' });
+    await page.waitForSelector('#highcharts');
+
+    await browser.close();
+
+    assert.equal(pageErrors.length, 0, `Browser page errors:\n${pageErrors.join('\n')}`);
+  });
 });
 
 if (!runBrowserSmoke) {

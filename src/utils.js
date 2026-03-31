@@ -88,8 +88,8 @@ export function getReasonableRepetitions(natoms,lat) {
 }
 
 export function subscript_numbers(old_string) {
-    string = "";
-    for (a of old_string) {
+    let string = "";
+    for (const a of old_string) {
         if (!isNaN(a)) {
             string += "<sub>"+a+"</sub>";
         }

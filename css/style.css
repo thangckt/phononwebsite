@@ -135,6 +135,12 @@ h3 {
    	position: absolute;
 }
 
+#excitonwf {
+    height: 100%;
+    width: 100%;
+    position: absolute;
+}
+
 #highcharts {
     height: 100%;
     width: 100%;
