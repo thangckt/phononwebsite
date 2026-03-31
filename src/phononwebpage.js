@@ -38,10 +38,25 @@ export class PhononWebpage {
         // set null materials project API key
         this.mpapikey = null;
         this.showModeWeightsOnPlot = false;
+        this.materialFilterQuery = '';
+        this.materialsIndex = [];
     }
 
     //functions to link the DOM buttons with this class
     setMaterialsList(dom_mat)      { this.dom_mat = dom_mat; }
+    setMaterialsFilterInput(dom_input) {
+        this.dom_material_filter = dom_input;
+        this.materialFilterQuery = '';
+        this.materialsIndex = [];
+        if (!dom_input || !dom_input.length) {
+            return;
+        }
+
+        dom_input.on('input', () => {
+            this.materialFilterQuery = dom_input.val() || '';
+            this.renderMaterialsMenu();
+        });
+    }
     setReferencesList(dom_ref)     { this.dom_ref = dom_ref; }
     setAtomPositions(dom_atompos)  { this.dom_atompos = dom_atompos; }
     setLattice(dom_lattice)        { this.dom_lattice = dom_lattice; }
@@ -635,60 +650,15 @@ export class PhononWebpage {
 
         let self = this;
 
-        let dom_mat = this.dom_mat;
-        let dom_ref = this.dom_ref;
-        if (dom_mat) { dom_mat.empty(); }
-        let unique_references = {};
-        let nreferences = 1;
+        this.materialsIndex = [];
+        if (this.dom_mat) { this.dom_mat.empty(); }
+        if (this.dom_ref) { this.dom_ref.empty(); }
 
         function addMaterials(materials) {
-
-            if (dom_mat) {
-                for (let i=0; i<materials.length; i++) {
-
-                    let m = materials[i];
-
-                    //reference
-                    let ref = m["reference"];
-                    if (!unique_references.hasOwnProperty(ref)) {
-                        unique_references[ref] = nreferences;
-                        nreferences+=1;
-                    }
-
-                    //name + refenrece
-                    let name = utils.subscript_numbers(m.name);
-                    let name_ref = name + " ["+unique_references[ref]+"]";
-
-                    let li = document.createElement("LI");
-                    let a = document.createElement("A");
-
-                    a.onclick = function() {
-                        let url_vars = {};
-                        url_vars[m.type] = m.url;
-                        url_vars.name = name_ref;
-                        url_vars.apikey = m.apikey;
-                        if ("link" in m) { url_vars.link = m.link }
-                        self.loadURL(url_vars);
-                    };
-
-                    a.innerHTML = name;
-                    li.appendChild(a);
-
-                    dom_mat.append(li);
-                }
+            for (let i=0; i<materials.length; i++) {
+                self.materialsIndex.push(materials[i]);
             }
-
-            //add references
-            if (dom_ref) {
-                dom_ref.empty();
-                for (let ref in unique_references) {
-                    let i = unique_references[ref];
-                    let li = document.createElement("LI");
-                    li.innerHTML = "["+i+"] "+ref;
-                    dom_ref.append(li);
-                    i += 1;
-                }
-            }
+            self.renderMaterialsMenu();
         }
 
         //local database
@@ -737,6 +707,95 @@ export class PhononWebpage {
             }
         }*/
 
+    }
+
+    getMaterialFilterTokens() {
+        let query = this.materialFilterQuery || '';
+        return query
+            .toLowerCase()
+            .split(/[\s,]+/)
+            .map(function(token) { return token.trim(); })
+            .filter(function(token) { return token.length > 0; });
+    }
+
+    getMaterialElements(materialName) {
+        let matches = materialName.match(/[A-Z][a-z]?/g);
+        if (!matches) {
+            return [];
+        }
+        return matches.map(function(symbol) {
+            return symbol.toLowerCase();
+        });
+    }
+
+    materialMatchesFilter(material, tokens) {
+        if (!tokens.length) {
+            return true;
+        }
+
+        let materialName = material.name || '';
+        let formulaText = materialName.toLowerCase();
+        let elementTokens = this.getMaterialElements(materialName);
+
+        return tokens.every(function(token) {
+            if (/^[a-z]{1,2}$/.test(token)) {
+                return elementTokens.indexOf(token) !== -1;
+            }
+            return formulaText.indexOf(token) !== -1;
+        });
+    }
+
+    renderMaterialsMenu() {
+        let dom_mat = this.dom_mat;
+        let dom_ref = this.dom_ref;
+        if (!dom_mat) {
+            return;
+        }
+
+        dom_mat.empty();
+        if (dom_ref) {
+            dom_ref.empty();
+        }
+
+        let tokens = this.getMaterialFilterTokens();
+        let unique_references = {};
+        let filteredMaterials = this.materialsIndex.filter((material) => this.materialMatchesFilter(material, tokens));
+        let nreferences = 1;
+
+        for (let i=0; i<filteredMaterials.length; i++) {
+            let m = filteredMaterials[i];
+            let ref = m["reference"];
+            if (!unique_references.hasOwnProperty(ref)) {
+                unique_references[ref] = nreferences;
+                nreferences += 1;
+            }
+
+            let name = utils.subscript_numbers(m.name);
+            let name_ref = name + " ["+unique_references[ref]+"]";
+
+            let li = document.createElement("LI");
+            let a = document.createElement("A");
+            a.onclick = () => {
+                let url_vars = {};
+                url_vars[m.type] = m.url;
+                url_vars.name = name_ref;
+                url_vars.apikey = m.apikey;
+                if ("link" in m) { url_vars.link = m.link }
+                this.loadURL(url_vars);
+            };
+            a.innerHTML = name;
+            li.appendChild(a);
+            dom_mat.append(li);
+        }
+
+        if (dom_ref) {
+            for (let ref in unique_references) {
+                let refIndex = unique_references[ref];
+                let li = document.createElement("LI");
+                li.innerHTML = "["+refIndex+"] "+ref;
+                dom_ref.append(li);
+            }
+        }
     }
 
 }

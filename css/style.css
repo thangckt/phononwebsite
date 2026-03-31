@@ -115,6 +115,22 @@ h3 {
     flex: 1;
 }
 
+#materials_filter {
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0 0 0.45rem;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid #b6c2cf;
+    border-radius: 0.4rem;
+    font: inherit;
+}
+
+#materials_filter:focus {
+    outline: none;
+    border-color: deepskyblue;
+    box-shadow: 0 0 0 2px rgba(0, 191, 255, 0.15);
+}
+
 #material-list.exciton-material-panel {
     flex: 0 0 80px;
 }

@@ -74,6 +74,7 @@ const p = new PhononWebpage(v, d);
 
 //set dom objects phononwebsite
 p.setMaterialsList( $('#mat') );
+p.setMaterialsFilterInput( $('#materials_filter') );
 p.setReferencesList( $('#ref') );
 p.setAtomPositions( $('#atompos') );
 p.setLattice( $('#lattice') );
