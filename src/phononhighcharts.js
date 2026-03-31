@@ -313,7 +313,6 @@ export class PhononHighcharts {
             return;
         }
 
-        let weightCache = this.ensureAtomTypeWeights(this.phonon);
         let visibleTypeIndices = this.getVisibleAtomTypeIndices();
         let singleVisibleType = visibleTypeIndices.length === 1 ? visibleTypeIndices[0] : null;
 
@@ -323,9 +322,8 @@ export class PhononHighcharts {
                 continue;
             }
 
-            let bandIndex = series.options.bandIndex;
-            let segmentStartK = series.options.segmentStartK;
-            if (!Number.isFinite(bandIndex) || !Number.isFinite(segmentStartK)) {
+            let avgWeights = series.options.avgWeights;
+            if (!avgWeights) {
                 continue;
             }
 
@@ -334,9 +332,6 @@ export class PhononHighcharts {
             let lineWidth = this.weightLineWidthMin + this.weightLineWidthScale;
 
             if (visible) {
-                let weights0 = weightCache.weights[segmentStartK][bandIndex];
-                let weights1 = weightCache.weights[segmentStartK + 1][bandIndex];
-                let avgWeights = weights0.map((value, index) => (value + weights1[index]) / 2);
                 color = this.getWeightedColorForIndices(visibleTypeIndices, avgWeights);
 
                 if (singleVisibleType !== null) {
@@ -345,14 +340,27 @@ export class PhononHighcharts {
                 }
             }
 
-            series.update({
-                visible: visible,
-                color: color,
-                lineWidth: lineWidth
-            }, false);
-        }
+            series.visible = visible;
+            series.options.visible = visible;
+            series.color = color;
+            series.options.color = color;
+            series.options.lineWidth = lineWidth;
 
-        this.chart.redraw(false);
+            if (series.group) {
+                if (visible) {
+                    series.group.show();
+                } else {
+                    series.group.hide();
+                }
+            }
+
+            if (series.graph) {
+                series.graph.attr({
+                    stroke: color,
+                    'stroke-width': lineWidth
+                });
+            }
+        }
     }
 
     refreshWeightedSeriesColors() {
