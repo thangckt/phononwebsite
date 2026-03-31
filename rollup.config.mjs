@@ -39,5 +39,16 @@ export default [
             }
         ],
         plugins,
+    },
+    {
+        input: 'src/marchingcubesworker.js',
+        output: [
+            {
+                format: 'es',
+                file: 'build/marchingcubesworker.js',
+                sourcemap: true,
+            }
+        ],
+        plugins,
     }
 ];

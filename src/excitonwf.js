@@ -57,6 +57,10 @@ export class ExcitonWf {
         this.defaultAtomRadiusScale = 1.0;
         this.appearanceSelectedAtomNumber = null;
         this.bondRules = {};
+        this.marchingCubesWorker = null;
+        this.marchingCubesWorkerFailed = false;
+        this.marchingCubesRequestId = 0;
+        this.marchingCubesWorkerBusy = false;
     }
 
     init(container) {
@@ -833,19 +837,152 @@ export class ExcitonWf {
         }
     }
 
-    updateIsosurface() {
-        if (!this.scene || !Array.isArray(this.values) || !this.values.length) {
+    getMarchingCubesOptions() {
+        return { insideIsAbove: true };
+    }
+
+    getMarchingCubesWorker() {
+        if (this.marchingCubesWorkerFailed || typeof Worker === 'undefined') {
+            return null;
+        }
+        if (this.marchingCubesWorker) {
+            return this.marchingCubesWorker;
+        }
+
+        try {
+            this.marchingCubesWorker = new Worker(
+                new URL('./marchingcubesworker.js', import.meta.url),
+                { type: 'module' },
+            );
+            this.marchingCubesWorker.onmessage = (event) => {
+                this.marchingCubesWorkerBusy = false;
+                const { requestId, positions, normals } = event.data;
+                this.applyMarchingCubesBuffers(
+                    requestId,
+                    new Float32Array(positions),
+                    new Float32Array(normals),
+                );
+            };
+            this.marchingCubesWorker.onerror = () => {
+                this.marchingCubesWorkerBusy = false;
+                this.marchingCubesWorkerFailed = true;
+                if (this.marchingCubesWorker) {
+                    this.marchingCubesWorker.terminate();
+                    this.marchingCubesWorker = null;
+                }
+            };
+        } catch (error) {
+            this.marchingCubesWorkerFailed = true;
+            this.marchingCubesWorker = null;
+        }
+
+        return this.marchingCubesWorker;
+    }
+
+    resetMarchingCubesWorker() {
+        this.marchingCubesWorkerBusy = false;
+        if (this.marchingCubesWorker) {
+            this.marchingCubesWorker.terminate();
+            this.marchingCubesWorker = null;
+        }
+    }
+
+    createMarchingCubesGeometry(positions, normals) {
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+        return geometry;
+    }
+
+    applyMarchingCubesBuffers(requestId, positions, normals) {
+        if (requestId !== this.marchingCubesRequestId || !this.scene) {
             return;
         }
 
         this.removeNamedSceneObjects('isosurface');
-        this.addMarchingCubes();
+        const geometry = this.createMarchingCubesGeometry(positions, normals);
+        this.addMarchingCubesGeometry(geometry);
         this.render();
+    }
+
+    requestMarchingCubesUpdate() {
+        if (!Array.isArray(this.values) || !this.values.length || !this.scene) {
+            return;
+        }
+
+        const requestId = ++this.marchingCubesRequestId;
+        const payload = {
+            requestId,
+            values: Float32Array.from(this.values),
+            sizex: this.sizex,
+            sizey: this.sizey,
+            sizez: this.sizez,
+            gridCell: this.gridCell,
+            isolevel: this.isolevel,
+            options: this.getMarchingCubesOptions(),
+        };
+
+        const worker = this.getMarchingCubesWorker();
+        if (worker) {
+            if (this.marchingCubesWorkerBusy) {
+                this.resetMarchingCubesWorker();
+            }
+            const activeWorker = this.getMarchingCubesWorker();
+            if (activeWorker) {
+                this.marchingCubesWorkerBusy = true;
+                activeWorker.postMessage(
+                    payload,
+                    [payload.values.buffer],
+                );
+                return;
+            }
+        }
+
+        const geometry = buildMarchingCubesGeometry(
+            this.values,
+            this.sizex,
+            this.sizey,
+            this.sizez,
+            this.gridCell,
+            this.isolevel,
+            this.getMarchingCubesOptions(),
+        );
+        this.removeNamedSceneObjects('isosurface');
+        this.addMarchingCubesGeometry(geometry);
+        this.render();
+    }
+
+    updateIsosurfaceSync() {
+        if (!this.scene || !Array.isArray(this.values) || !this.values.length) {
+            return;
+        }
+
+        this.marchingCubesRequestId += 1;
+        if (this.marchingCubesWorkerBusy) {
+            this.resetMarchingCubesWorker();
+        }
+
+        const geometry = buildMarchingCubesGeometry(
+            this.values,
+            this.sizex,
+            this.sizey,
+            this.sizez,
+            this.gridCell,
+            this.isolevel,
+            this.getMarchingCubesOptions(),
+        );
+        this.removeNamedSceneObjects('isosurface');
+        this.addMarchingCubesGeometry(geometry);
+        this.render();
+    }
+
+    updateIsosurface() {
+        this.requestMarchingCubesUpdate();
     }
 
     changeIsolevel(isolevel) {
         this.isolevel = Number(isolevel);
-        this.updateIsosurface();
+        this.updateIsosurfaceSync();
     }
 
     setCameraDirection(direction) {
@@ -873,6 +1010,7 @@ export class ExcitonWf {
         }
 
         this.values = this.excitons[this.excitonIndex].datagrid;
+        this.marchingCubesRequestId += 1;
         this.removeStructure();
 
         this.addLights();
@@ -883,16 +1021,10 @@ export class ExcitonWf {
     }
 
     addMarchingCubes() {
-        const geometry = buildMarchingCubesGeometry(
-            this.values,
-            this.sizex,
-            this.sizey,
-            this.sizez,
-            this.gridCell,
-            this.isolevel,
-            { insideIsAbove: true },
-        );
+        this.requestMarchingCubesUpdate();
+    }
 
+    addMarchingCubesGeometry(geometry) {
         const mesh = new THREE.Mesh(
             geometry,
             new THREE.MeshLambertMaterial({
@@ -903,7 +1035,6 @@ export class ExcitonWf {
                 depthWrite: false,
             }),
         );
-
         mesh.name = 'isosurface';
         mesh.position.sub(this.geometricCenter);
         this.scene.add(mesh);

@@ -3,7 +3,6 @@ import * as THREE from 'three';
 import { ExcitonWf } from './excitonwf.js';
 import { covalent_radii } from './atomic_data.js';
 import { getCombinations } from './utils.js';
-import { buildMarchingCubesGeometry } from './marchingcubesgeometry.js';
 
 export class StructureViewer extends ExcitonWf {
 
@@ -307,24 +306,22 @@ export class StructureViewer extends ExcitonWf {
         this.scene.add(new THREE.Line(geometry, material));
     }
 
+    getMarchingCubesOptions() {
+        return {
+            periodic: true,
+            insideIsAbove: true,
+        };
+    }
+
     addMarchingCubes() {
         if (!this.hasChargeDensity()) {
             return;
         }
 
-        const geometry = buildMarchingCubesGeometry(
-            this.values,
-            this.sizex,
-            this.sizey,
-            this.sizez,
-            this.gridCell,
-            this.isolevel,
-            {
-                periodic: true,
-                insideIsAbove: true,
-            },
-        );
+        this.requestMarchingCubesUpdate();
+    }
 
+    addMarchingCubesGeometry(geometry) {
         const material = new THREE.MeshLambertMaterial({
             color: 0xffff00,
             side: THREE.DoubleSide,
@@ -337,7 +334,7 @@ export class StructureViewer extends ExcitonWf {
             for (let iy = 0; iy < this.ny; iy++) {
                 for (let iz = 0; iz < this.nz; iz++) {
                     const mesh = new THREE.Mesh(geometry, material);
-                    mesh.name = 'isosurface';
+                        mesh.name = 'isosurface';
                     mesh.position.set(
                         ix * this.baseLattice[0][0] + iy * this.baseLattice[1][0] + iz * this.baseLattice[2][0] - this.geometricCenter.x,
                         ix * this.baseLattice[0][1] + iy * this.baseLattice[1][1] + iz * this.baseLattice[2][1] - this.geometricCenter.y,
