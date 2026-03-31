@@ -442,7 +442,6 @@ export class PhononWebpage {
         if (syncChart && this.dispersion && this.dispersion.selectModePoint) {
             this.dispersion.selectModePoint(this.phonon, this.k, this.n);
         }
-        this.refreshDispersionAppearance();
     }
 
     selectMode(k, nOrder, syncChart=true) {

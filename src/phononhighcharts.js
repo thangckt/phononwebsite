@@ -125,11 +125,24 @@ export class PhononHighcharts {
         this.getAtomLabel = typeof options.getAtomLabel === 'function' ? options.getAtomLabel : null;
     }
 
-    resetLegendVisibility() {
-        this.legendVisibility = {};
+    syncLegendVisibility(reset = false) {
+        let nextVisibility = {};
         for (let i = 0; i < this.atomTypeLegend.length; i++) {
-            this.legendVisibility[this.atomTypeLegend[i].atomNumber] = true;
+            let atomNumber = this.atomTypeLegend[i].atomNumber;
+            nextVisibility[atomNumber] = reset
+                ? true
+                : this.legendVisibility[atomNumber] !== false;
         }
+        this.legendVisibility = nextVisibility;
+    }
+
+    isAtomNumberVisible(atomNumber) {
+        return this.legendVisibility[atomNumber] !== false;
+    }
+
+    refreshLegendAndWeights() {
+        this.updateWeightedSeriesStyles();
+        this.applyLegendStyles();
     }
 
     ensureAtomTypeWeights(phonon) {
@@ -209,9 +222,12 @@ export class PhononHighcharts {
             return false;
         }
 
-        this.legendVisibility[atomNumber] = this.legendVisibility[atomNumber] === false;
-        this.updateWeightedSeriesStyles();
-        this.applyLegendStyles();
+        if (!(atomNumber in this.legendVisibility)) {
+            return false;
+        }
+
+        this.legendVisibility[atomNumber] = !this.isAtomNumberVisible(atomNumber);
+        this.refreshLegendAndWeights();
         return false;
     }
 
@@ -228,8 +244,8 @@ export class PhononHighcharts {
 
             let atomNumber = item.options.atomNumber;
             item.legendItem.css({
-                textDecoration: this.legendVisibility[atomNumber] === false ? 'line-through' : 'none',
-                opacity: this.legendVisibility[atomNumber] === false ? 0.65 : 1
+                textDecoration: this.isAtomNumberVisible(atomNumber) ? 'none' : 'line-through',
+                opacity: this.isAtomNumberVisible(atomNumber) ? 1 : 0.65
             });
         }
     }
@@ -238,8 +254,7 @@ export class PhononHighcharts {
         let visible = [];
         for (let i = 0; i < this.atomTypeLegend.length; i++) {
             let atomNumber = this.atomTypeLegend[i].atomNumber;
-            let isVisible = this.legendVisibility[atomNumber] !== false;
-            if (isVisible) {
+            if (this.isAtomNumberVisible(atomNumber)) {
                 visible.push(i);
             }
         }
@@ -335,9 +350,7 @@ export class PhononHighcharts {
         this.phonon = phonon;
         this.setModeWeightsOptions(options);
         this.atomTypeLegend = this.getAtomTypeLegend(phonon);
-        if (options.resetLegendVisibility) {
-            this.resetLegendVisibility();
-        }
+        this.syncLegendVisibility(!!options.resetLegendVisibility);
 
         //set the minimum of the plot with the smallest phonon frequency
         let minVal = 0;
@@ -379,7 +392,7 @@ export class PhononHighcharts {
             this.chart = null;
         }
         this.chart = globalThis.Highcharts.chart(this.container[0], this.HighchartsOptions);
-        this.applyLegendStyles();
+        this.refreshLegendAndWeights();
     }
 
     getGraph(phonon) {
@@ -469,9 +482,6 @@ export class PhononHighcharts {
         if (this.showModeWeights) {
             for (let i = 0; i < this.atomTypeLegend.length; i++) {
                 let atomType = this.atomTypeLegend[i];
-                if (!(atomType.atomNumber in this.legendVisibility)) {
-                    this.legendVisibility[atomType.atomNumber] = true;
-                }
                 this.highcharts.push({
                     id: 'legend-' + atomType.atomNumber,
                     name: atomType.label,
