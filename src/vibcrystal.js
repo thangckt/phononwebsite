@@ -146,6 +146,7 @@ export class VibCrystal {
         this.arrowobjects = [];
         this.atomobjects = [];
         this.atommeshes = [];
+        this.atommeshTypeIndices = [];
         this.atomInstanceRefs = [];
         this.bondobjects = [];
         this.bondmesh = null;
@@ -584,6 +585,14 @@ export class VibCrystal {
 
         const applyAppearanceSettings = function() {
             let atomNumber = Number(self.getSelectedAppearanceAtomNumber());
+            let previousDisplay = self.display;
+            let previousBondColorByAtom = self.bondColorByAtom;
+            let previousBondRadius = self.bondRadius;
+            let previousArrowRadius = self.arrowRadius;
+            let previousArrowColor = self.arrowcolor;
+            let previousBondColor = self.bondscolor;
+            let previousAtomColor = Number.isFinite(atomNumber) ? self.getAtomColorHex(atomNumber) : null;
+            let previousAtomRadius = Number.isFinite(atomNumber) ? self.getAtomRadiusScale(atomNumber) : null;
             if (Number.isFinite(atomNumber)) {
                 if (domAtomColorInput && domAtomColorInput.length) {
                     let rawAtomColor = domAtomColorInput.val();
@@ -628,7 +637,21 @@ export class VibCrystal {
                 domArrowRadiusInput.val(self.arrowRadius);
             }
 
-            self.updatelocal(true);
+            let displayChanged = self.display !== previousDisplay;
+            let bondColorModeChanged = self.bondColorByAtom !== previousBondColorByAtom;
+            let bondRadiusChanged = self.bondRadius !== previousBondRadius;
+            let arrowRadiusChanged = self.arrowRadius !== previousArrowRadius;
+            let atomRadiusChanged = Number.isFinite(atomNumber) && self.getAtomRadiusScale(atomNumber) !== previousAtomRadius;
+
+            let atomColorChanged = Number.isFinite(atomNumber) && self.getAtomColorHex(atomNumber) !== previousAtomColor;
+            let bondColorChanged = self.bondscolor !== previousBondColor;
+            let arrowColorChanged = self.arrowcolor !== previousArrowColor;
+
+            if (displayChanged || bondColorModeChanged || bondRadiusChanged || arrowRadiusChanged || atomRadiusChanged) {
+                self.updatelocal(true);
+            } else if (atomColorChanged || bondColorChanged || arrowColorChanged) {
+                self.refreshColorsInPlace(true);
+            }
         };
 
         if (domArrowColorInput && domArrowColorInput.length) {
@@ -1011,6 +1034,91 @@ export class VibCrystal {
         }
     }
 
+    refreshAtomMeshColors() {
+        if (!this.atommeshes || !this.atom_numbers) {
+            return;
+        }
+
+        for (let i=0; i<this.atommeshes.length; i++) {
+            let mesh = this.atommeshes[i];
+            let typeIndex = this.atommeshTypeIndices[i];
+            if (!mesh || !mesh.material || !Number.isFinite(typeIndex)) {
+                continue;
+            }
+
+            let atomNumber = this.atom_numbers[typeIndex];
+            if (!Number.isFinite(atomNumber)) {
+                continue;
+            }
+
+            mesh.material.color.copy(this.getAtomColor(atomNumber));
+            mesh.material.needsUpdate = true;
+        }
+    }
+
+    refreshBondMeshColors() {
+        if (!this.bondmeshes || !this.bondmeshes.length) {
+            return;
+        }
+
+        if (this.bondColorByAtom && this.bondmeshes.length >= 2) {
+            let meshA = this.bondmeshes[0];
+            let meshB = this.bondmeshes[1];
+
+            for (let i=0; i<this.bonds.length; i++) {
+                let bond = this.bonds[i];
+                if (meshA.setColorAt) {
+                    meshA.setColorAt(i, this.getAtomColor(bond.a_atom_number));
+                }
+                if (meshB.setColorAt) {
+                    meshB.setColorAt(i, this.getAtomColor(bond.b_atom_number));
+                }
+            }
+
+            if (meshA.instanceColor) { meshA.instanceColor.needsUpdate = true; }
+            if (meshB.instanceColor) { meshB.instanceColor.needsUpdate = true; }
+            if (meshA.material) { meshA.material.needsUpdate = true; }
+            if (meshB.material) { meshB.material.needsUpdate = true; }
+            return;
+        }
+
+        for (let i=0; i<this.bondmeshes.length; i++) {
+            let mesh = this.bondmeshes[i];
+            if (!mesh || !mesh.material) {
+                continue;
+            }
+            mesh.material.color.setHex(this.bondscolor);
+            mesh.material.needsUpdate = true;
+        }
+    }
+
+    refreshArrowColors() {
+        if (!this.arrowobjects || !this.arrowobjects.length) {
+            return;
+        }
+
+        for (let i=0; i<this.arrowobjects.length; i++) {
+            let arrow = this.arrowobjects[i];
+            if (!arrow || !arrow.material) {
+                continue;
+            }
+            arrow.material.color.setHex(this.arrowcolor);
+            arrow.material.needsUpdate = true;
+        }
+    }
+
+    refreshColorsInPlace(notifyAppearanceUpdate = false) {
+        this.refreshAtomMeshColors();
+        this.refreshBondMeshColors();
+        this.refreshArrowColors();
+        this.adjustCovalentRadiiSelect();
+        if (notifyAppearanceUpdate && typeof this.onAppearanceUpdated === 'function') {
+            this.onAppearanceUpdated();
+        }
+        this.needsRender = true;
+        this.startAnimationLoop();
+    }
+
     addCell(lat) {
         /*
         Represent the unit cell
@@ -1069,6 +1177,7 @@ export class VibCrystal {
         */
         this.atomobjects  = [];
         this.atommeshes = [];
+        this.atommeshTypeIndices = [];
         this.atomInstanceRefs = [];
         this.bondobjects  = [];
         this.bondmesh = null;
@@ -1121,6 +1230,7 @@ export class VibCrystal {
             instancedMesh.frustumCulled = false;
             this.scene.add(instancedMesh);
             this.atommeshes.push(instancedMesh);
+            this.atommeshTypeIndices.push(typeIndex);
             meshesByType.set(typeIndex, instancedMesh);
             nextInstanceByType.set(typeIndex, 0);
         });

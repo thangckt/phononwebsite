@@ -599,9 +599,13 @@ export class PhononWebpage {
         if (!this.phonon || !this.dispersion) {
             return;
         }
-        this.dispersion.update(this.phonon, this.getDispersionOptions());
-        if (this.dispersion.selectModePoint) {
-            this.dispersion.selectModePoint(this.phonon, this.k, this.n);
+        if (typeof this.dispersion.refreshAppearance === 'function') {
+            this.dispersion.refreshAppearance(this.getDispersionOptions());
+        } else {
+            this.dispersion.update(this.phonon, this.getDispersionOptions());
+            if (this.dispersion.selectModePoint) {
+                this.dispersion.selectModePoint(this.phonon, this.k, this.n);
+            }
         }
         if (this.dispersion.reflow) {
             this.dispersion.reflow();

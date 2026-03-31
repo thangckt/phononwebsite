@@ -13,6 +13,9 @@ export class PhononHighcharts {
         this.weightLineWidthScale = 8.0;
         this.legendVisibility = {};
         this.currentOptions = {};
+        this.selectedPoint = null;
+        this.selectedBandIndex = null;
+        this.selectedX = null;
 
         let phonon = this.phonon;
 
@@ -97,25 +100,35 @@ export class PhononHighcharts {
         let targetX = phonon.distances[k];
         if (!Number.isFinite(targetX)) { return; }
 
-        for (let i=0; i<this.chart.series.length; i++) {
-            let series = this.chart.series[i];
-            for (let j=0; j<series.points.length; j++) {
-                let point = series.points[j];
-                point.select(false, false);
-            }
+        if (this.selectedPoint &&
+            this.selectedBandIndex === n &&
+            this.selectedX === targetX) {
+            return;
+        }
+
+        if (this.selectedPoint) {
+            this.selectedPoint.select(false, false);
+            this.selectedPoint = null;
         }
 
         for (let i=0; i<this.chart.series.length; i++) {
             let series = this.chart.series[i];
+            if (series.options.isLegendSeries || series.options.isWeightSeries) { continue; }
             if (String(series.name) !== String(n)) { continue; }
             for (let j=0; j<series.points.length; j++) {
                 let point = series.points[j];
                 if (Math.abs(point.x - targetX) < 1e-12) {
                     point.select(true, false);
+                    this.selectedPoint = point;
+                    this.selectedBandIndex = n;
+                    this.selectedX = targetX;
                     return;
                 }
             }
         }
+
+        this.selectedBandIndex = null;
+        this.selectedX = null;
     }
 
     setModeWeightsOptions(options = {}) {
@@ -342,6 +355,86 @@ export class PhononHighcharts {
         this.chart.redraw(false);
     }
 
+    refreshWeightedSeriesColors() {
+        if (!this.chart || !this.phonon || !this.showModeWeights) {
+            return;
+        }
+
+        let visibleTypeIndices = this.getVisibleAtomTypeIndices();
+        let singleVisibleType = visibleTypeIndices.length === 1 ? visibleTypeIndices[0] : null;
+
+        for (let i = 0; i < this.chart.series.length; i++) {
+            let series = this.chart.series[i];
+            if (!series.options.isWeightSeries) {
+                continue;
+            }
+
+            let avgWeights = series.options.avgWeights;
+            if (!avgWeights) {
+                continue;
+            }
+
+            let color = this.getWeightedColorForIndices(visibleTypeIndices, avgWeights);
+            if (singleVisibleType !== null) {
+                color = '#' + Number(this.getAtomColorHex(this.atomTypeLegend[singleVisibleType].atomNumber)).toString(16).padStart(6, '0');
+            }
+
+            series.color = color;
+            series.options.color = color;
+            if (series.graph) {
+                series.graph.attr({ stroke: color });
+            }
+        }
+    }
+
+    refreshAppearance(options = {}) {
+        if (!this.chart || !this.phonon) {
+            return;
+        }
+
+        let previousShowModeWeights = this.showModeWeights;
+        this.setModeWeightsOptions(options);
+
+        if (previousShowModeWeights !== this.showModeWeights) {
+            this.update(this.phonon, options);
+            return;
+        }
+
+        if (!this.showModeWeights) {
+            return;
+        }
+
+        this.atomTypeLegend = this.getAtomTypeLegend(this.phonon);
+
+        for (let i = 0; i < this.chart.series.length; i++) {
+            let series = this.chart.series[i];
+            if (!series.options.isLegendSeries) {
+                continue;
+            }
+
+            let atomNumber = series.options.atomNumber;
+            let legendEntry = null;
+            for (let j = 0; j < this.atomTypeLegend.length; j++) {
+                if (this.atomTypeLegend[j].atomNumber === atomNumber) {
+                    legendEntry = this.atomTypeLegend[j];
+                    break;
+                }
+            }
+            if (!legendEntry) {
+                continue;
+            }
+
+            series.update({
+                name: legendEntry.label,
+                color: legendEntry.color
+            }, false);
+        }
+
+        this.refreshWeightedSeriesColors();
+        this.applyLegendStyles();
+        this.chart.redraw(false);
+    }
+
     update(phonon, options = {}) {
         /*
         update phonon dispersion plot
@@ -462,6 +555,7 @@ export class PhononHighcharts {
                             isWeightSeries: true,
                             bandIndex: n,
                             segmentStartK: k,
+                            avgWeights: avgWeights,
                             color: color,
                             lineWidth: lineWidth,
                             zIndex: 3,
