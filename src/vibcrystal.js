@@ -117,9 +117,11 @@ export class VibCrystal {
 
         //amplitude
         this.amplitude = 0.2;
+        this.defaultAmplitude = this.amplitude;
         this.minAmplitude = 0.0;
-        this.maxAmplitude = 1.0;
+        this.maxAmplitude = 5.0;
         this.stepAmplitude = 0.01;
+        this.modeScaleAutoInitialized = false;
 
         //speed
         this.speed = 0.7;
@@ -381,18 +383,20 @@ export class VibCrystal {
         dom_range.attr('max',self.maxArrowScale);
         dom_range.attr('step',self.stepArrowScale);
         dom_range.change( function () {
-            self.arrowScale = this.value;
+            self.arrowScale = parseFloat(this.value);
         });
     }
 
    setAmplitudeInput(dom_number,dom_range) {
         let self = this;
+        this.dom_amplitude_box = dom_number;
+        this.dom_amplitude_range = dom_range;
 
         dom_number.val(self.amplitude);
         dom_number.keyup( function () {
             if (this.value < dom_range.min) { dom_range.attr('min', this.value); }
             if (this.value > dom_range.max) { dom_range.attr('max', this.value); }
-            self.amplitude = this.value;
+            self.amplitude = parseFloat(this.value);
             dom_range.val(this.value)
         });
 
@@ -401,9 +405,75 @@ export class VibCrystal {
         dom_range.attr('max',self.maxAmplitude);
         dom_range.attr('step',self.stepAmplitude);
         dom_range.change( function () {
-            self.amplitude = this.value;
+            self.amplitude = parseFloat(this.value);
             dom_number.val(this.value);
         });
+    }
+
+    isApproximatelyEqual(a, b, tolerance = 1e-6) {
+        return Math.abs(Number(a) - Number(b)) <= tolerance;
+    }
+
+    setArrowScaleValue(value) {
+        value = Number(value);
+        if (!Number.isFinite(value)) {
+            return;
+        }
+
+        this.arrowScale = value;
+        if (this.dom_vectors_amplitude_range && this.dom_vectors_amplitude_range.length) {
+            if (value > Number(this.dom_vectors_amplitude_range.attr('max'))) {
+                this.dom_vectors_amplitude_range.attr('max', value);
+            }
+            this.dom_vectors_amplitude_range.val(value);
+        }
+    }
+
+    setAmplitudeValue(value) {
+        value = Number(value);
+        if (!Number.isFinite(value)) {
+            return;
+        }
+
+        this.amplitude = value;
+        if (this.dom_amplitude_box && this.dom_amplitude_box.length) {
+            this.dom_amplitude_box.val(value);
+        }
+        if (this.dom_amplitude_range && this.dom_amplitude_range.length) {
+            if (value > Number(this.dom_amplitude_range.attr('max'))) {
+                this.dom_amplitude_range.attr('max', value);
+            }
+            this.dom_amplitude_range.val(value);
+        }
+    }
+
+    syncModeScaleDefaults(amplitudeValue, arrowScaleValue = amplitudeValue, force = false) {
+        amplitudeValue = Number(amplitudeValue);
+        arrowScaleValue = Number(arrowScaleValue);
+        if (!Number.isFinite(amplitudeValue) || amplitudeValue < 0) {
+            return;
+        }
+        if (!Number.isFinite(arrowScaleValue) || arrowScaleValue < 0) {
+            return;
+        }
+
+        let previousDefaultAmplitude = Number(this.defaultAmplitude);
+        let previousDefaultArrowScale = Number(this.defaultArrowScale);
+        let shouldUpdateAmplitude = force || !this.modeScaleAutoInitialized ||
+            this.isApproximatelyEqual(this.amplitude, previousDefaultAmplitude);
+        let shouldUpdateArrowScale = force || !this.modeScaleAutoInitialized ||
+            this.isApproximatelyEqual(this.arrowScale, previousDefaultArrowScale);
+
+        this.defaultAmplitude = amplitudeValue;
+        this.defaultArrowScale = arrowScaleValue;
+        this.modeScaleAutoInitialized = true;
+
+        if (shouldUpdateAmplitude) {
+            this.setAmplitudeValue(amplitudeValue);
+        }
+        if (shouldUpdateArrowScale) {
+            this.setArrowScaleValue(arrowScaleValue);
+        }
     }
 
     setSpeedInput(dom_range) {

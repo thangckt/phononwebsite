@@ -44,6 +44,92 @@ export class PhononWebpage {
         this.loadingState = null;
     }
 
+    getModeMaxDisplacementNorm() {
+        if (!this.phonon || !this.phonon.vec || !this.phonon.vec[this.k] || !this.phonon.vec[this.k][this.n]) {
+            return 0;
+        }
+
+        let mode = this.phonon.vec[this.k][this.n];
+        let maxNorm = 0;
+        for (let i=0; i<mode.length; i++) {
+            let atomNormSq = 0;
+            for (let axis=0; axis<3; axis++) {
+                let component = mode[i][axis];
+                atomNormSq += component[0] * component[0] + component[1] * component[1];
+            }
+            maxNorm = Math.max(maxNorm, Math.sqrt(atomNormSq));
+        }
+        return maxNorm;
+    }
+
+    getZeroPointAmplitudeAngstrom() {
+        if (!this.phonon || this.phonon.mode_amplitude_convention !== 'avg-mass-normalized') {
+            return null;
+        }
+
+        let avgMassAmu = Number(this.phonon.average_mass);
+        let frequencyCm1 = this.phonon.eigenvalues && this.phonon.eigenvalues[this.k]
+            ? Number(this.phonon.eigenvalues[this.k][this.n])
+            : NaN;
+
+        if (!Number.isFinite(avgMassAmu) || avgMassAmu <= 0 || !Number.isFinite(frequencyCm1) || frequencyCm1 <= 0) {
+            return null;
+        }
+
+        let hbar = 1.054571817e-34;
+        let amu = 1.66053906660e-27;
+        let speedOfLight = 299792458;
+        let omega = 2.0 * Math.PI * speedOfLight * 100.0 * frequencyCm1;
+        let avgMassKg = avgMassAmu * amu;
+        let displacementMeters = Math.sqrt(hbar / (2.0 * avgMassKg * omega));
+        return displacementMeters / 1.0e-10;
+    }
+
+    getRecommendedMotionScaleAngstrom() {
+        let maxNorm = this.getModeMaxDisplacementNorm();
+        if (!(maxNorm > 0)) {
+            return 0.2;
+        }
+
+        let zeroPointAmplitude = this.getZeroPointAmplitudeAngstrom();
+        let visibleTarget = 0.14;
+        if (this.phonon && Number.isFinite(this.phonon.nndist) && this.phonon.nndist > 0) {
+            visibleTarget = Math.max(0.08, Math.min(0.22, this.phonon.nndist * 0.12));
+        }
+
+        let visibilityAmplitude = visibleTarget / maxNorm;
+        let recommended = zeroPointAmplitude !== null
+            ? Math.max(zeroPointAmplitude, visibilityAmplitude)
+            : visibilityAmplitude;
+
+        return Math.max(0.02, Math.min(5.0, recommended));
+    }
+
+    getRecommendedVectorScaleAngstrom() {
+        let maxNorm = this.getModeMaxDisplacementNorm();
+        if (!(maxNorm > 0)) {
+            return 0.9;
+        }
+
+        let visibleTarget = 0.7;
+        if (this.phonon && Number.isFinite(this.phonon.nndist) && this.phonon.nndist > 0) {
+            visibleTarget = Math.max(0.4, Math.min(1.2, this.phonon.nndist * 0.45));
+        }
+
+        return Math.max(0.15, Math.min(5.0, visibleTarget / maxNorm));
+    }
+
+    syncVisualizerModeScaleDefaults(force = false) {
+        if (!this.visualizer || typeof this.visualizer.syncModeScaleDefaults !== 'function') {
+            return;
+        }
+        this.visualizer.syncModeScaleDefaults(
+            this.getRecommendedMotionScaleAngstrom(),
+            this.getRecommendedVectorScaleAngstrom(),
+            force
+        );
+    }
+
     //functions to link the DOM buttons with this class
     setMaterialsList(dom_mat)      { this.dom_mat = dom_mat; }
     setMaterialsFilterInput(dom_input) {
@@ -321,6 +407,9 @@ export class PhononWebpage {
         Fuunction to be called once the file is loaded
         */
         this.name = utils.subscript_numbers(this.phonon.name);
+        if (this.visualizer) {
+            this.visualizer.modeScaleAutoInitialized = false;
+        }
         this.setRepetitions(this.phonon.repetitions);
         this.updateModeSelectionInputs();
         if (!this.enforceVisualizationLimits(true)) {
@@ -509,6 +598,7 @@ export class PhononWebpage {
         this.updateModeSelectionInputs();
 
         this.setVibrations();
+        this.syncVisualizerModeScaleDefaults(false);
         this.visualizer.update(this);
         if (syncChart && this.dispersion && this.dispersion.selectModePoint) {
             this.dispersion.selectModePoint(this.phonon, this.k, this.n);
@@ -548,6 +638,7 @@ export class PhononWebpage {
         this.atoms = this.getStructure(this.nx,this.ny,this.nz);
         this.vibrations = this.getVibrations(this.nx,this.ny,this.nz);
         this.phonon.nndist = this.getBondingDistance();
+        this.syncVisualizerModeScaleDefaults(!this.visualizer.modeScaleAutoInitialized);
 
         //update page
         this.updatePage();

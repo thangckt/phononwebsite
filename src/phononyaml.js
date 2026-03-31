@@ -288,6 +288,8 @@ export class PhononYaml {
         }
 
         this.addatomphase = true;
+        this.average_mass = average_mass;
+        this.mode_amplitude_convention = 'avg-mass-normalized';
         this.lat = lat;
         this.repetitions = utils.getReasonableRepetitions(this.natoms,lat);
     }

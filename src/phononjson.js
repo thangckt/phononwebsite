@@ -9,6 +9,39 @@ var ev2cm1 = 8065.73;
 
 export class PhononJson {
 
+    normalizeEigenvectors() {
+        if (!this.vec || !this.vec.length || !this.atom_numbers || !this.atom_numbers.length) {
+            return;
+        }
+
+        for (let q=0; q<this.vec.length; q++) {
+            let eivecq = this.vec[q];
+            for (let n=0; n<eivecq.length; n++) {
+                let eivecqn = eivecq[n];
+                let modeNormSq = 0;
+                for (let i=0; i<eivecqn.length; i++) {
+                    modeNormSq += eivecqn[i][0][0] * eivecqn[i][0][0] + eivecqn[i][0][1] * eivecqn[i][0][1];
+                    modeNormSq += eivecqn[i][1][0] * eivecqn[i][1][0] + eivecqn[i][1][1] * eivecqn[i][1][1];
+                    modeNormSq += eivecqn[i][2][0] * eivecqn[i][2][0] + eivecqn[i][2][1] * eivecqn[i][2][1];
+                }
+
+                if (!(modeNormSq > 0)) {
+                    continue;
+                }
+
+                let norm = 1.0 / Math.sqrt(modeNormSq);
+                for (let i=0; i<eivecqn.length; i++) {
+                    eivecqn[i][0][0] *= norm;
+                    eivecqn[i][1][0] *= norm;
+                    eivecqn[i][2][0] *= norm;
+                    eivecqn[i][0][1] *= norm;
+                    eivecqn[i][1][1] *= norm;
+                    eivecqn[i][2][1] *= norm;
+                }
+            }
+        }
+    }
+
     static showCompressedLoadError(message) {
         if (PhononJson.lastCompressedLoadError === message) {
             return;
@@ -232,6 +265,7 @@ export class PhononJson {
         //get line breaks
         this.getLineBreaks(data);
 
+        this.normalizeEigenvectors();
         callback();
     }
 
@@ -362,8 +396,6 @@ export class PhononJson {
         let eiv = data["eigendisplacements"];
         let nbands = eig.length;
         let nqpoints = eig[0].length;
-        let scale = 200;
-
         this.vec = [];
         this.eigenvalues = [];
         for (let nq=0; nq<nqpoints; nq++) {
@@ -381,9 +413,9 @@ export class PhononJson {
                     let z = this.parseOpenDataComplex(mode[2]);
 
                     eiv_qpoint_atoms.push([
-                        [x[0]*scale,x[1]*scale],
-                        [y[0]*scale,y[1]*scale],
-                        [z[0]*scale,z[1]*scale]
+                        [x[0],x[1]],
+                        [y[0],y[1]],
+                        [z[0],z[1]]
                     ]);
                 }
                 eiv_qpoint.push(eiv_qpoint_atoms);
@@ -392,6 +424,7 @@ export class PhononJson {
             this.vec.push(eiv_qpoint);
         }
 
+        this.normalizeEigenvectors();
         callback();
     }
 
@@ -503,13 +536,6 @@ export class PhononJson {
         let nbands = eig.length;
         let nqpoints = eig[0].length;
 
-        /*
-        the eigenvectors have to be scaled.
-        We should detemrine the scale with respect to the other conventions.
-        For now we use a large value that visually looks ok
-        */
-        let scale = 200;
-
         this.vec = [];
         this.eigenvalues = [];
         for (let nq=0; nq<nqpoints; nq++) {
@@ -525,9 +551,9 @@ export class PhononJson {
                     let real = eiv["real"][n][nq][a];
                     let imag = eiv["imag"][n][nq][a];
 
-                    let x = [real[0]*scale,imag[0]*scale];
-                    let y = [real[1]*scale,imag[1]*scale];
-                    let z = [real[2]*scale,imag[2]*scale];
+                    let x = [real[0],imag[0]];
+                    let y = [real[1],imag[1]];
+                    let z = [real[2],imag[2]];
 
                     eiv_qpoint_atoms.push([x,y,z]);
                 }
@@ -537,6 +563,7 @@ export class PhononJson {
             this.vec.push(eiv_qpoint);
         }
 
+        this.normalizeEigenvectors();
         callback();
     }
 
