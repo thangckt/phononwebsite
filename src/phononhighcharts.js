@@ -517,6 +517,65 @@ export class PhononHighcharts {
         this.refreshLegendAndWeights();
     }
 
+    isGammaLabel(label) {
+        if (typeof label !== 'string') {
+            return false;
+        }
+        let normalized = label.replace(/\$/g, '').replace(/\s+/g, '').toUpperCase();
+        return normalized === 'G' || normalized === 'GAMMA' || normalized === '\\GAMMA' || normalized === 'Γ';
+    }
+
+    hasGammaDiscontinuity(phonon, previousIndex, nextIndex) {
+        if (!phonon || !phonon.kpoints || !phonon.distances) {
+            return false;
+        }
+
+        let prevQ = phonon.kpoints[previousIndex];
+        let nextQ = phonon.kpoints[nextIndex];
+        if (!prevQ || !nextQ) {
+            return false;
+        }
+
+        let sameQpoint = true;
+        for (let axis = 0; axis < 3; axis++) {
+            if (Math.abs(Number(prevQ[axis]) - Number(nextQ[axis])) > 1e-8) {
+                sameQpoint = false;
+                break;
+            }
+        }
+        if (!sameQpoint) {
+            return false;
+        }
+
+        let sameDistance = Math.abs(Number(phonon.distances[previousIndex]) - Number(phonon.distances[nextIndex])) < 1e-10;
+        if (!sameDistance) {
+            return false;
+        }
+
+        let label = phonon.highsym_qpts ? phonon.highsym_qpts[phonon.distances[nextIndex]] : null;
+        return this.isGammaLabel(label);
+    }
+
+    getPlotSegments(phonon, startk, endk) {
+        let segments = [];
+        let segmentStart = startk;
+
+        for (let k = startk + 1; k < endk; k++) {
+            if (this.hasGammaDiscontinuity(phonon, k - 1, k)) {
+                if (k - segmentStart > 0) {
+                    segments.push([segmentStart, k]);
+                }
+                segmentStart = k;
+            }
+        }
+
+        if (endk - segmentStart > 0) {
+            segments.push([segmentStart, endk]);
+        }
+
+        return segments;
+    }
+
     getGraph(phonon) {
         /*
         From a phonon object containing:
@@ -542,61 +601,64 @@ export class PhononHighcharts {
             for (let i=0; i<line_breaks.length; i++) {
                 let startk = line_breaks[i][0];
                 let endk = line_breaks[i][1];
+                let plotSegments = this.getPlotSegments(phonon, startk, endk);
 
-                let eig = [];
+                for (let segmentIndex = 0; segmentIndex < plotSegments.length; segmentIndex++) {
+                    let segmentStart = plotSegments[segmentIndex][0];
+                    let segmentEnd = plotSegments[segmentIndex][1];
+                    let eig = [];
 
-                //iterate over the q-points
-                for (let k=startk; k<endk; k++) {
-                    eig.push([dists[k],eival[k][n]]);
-                }
+                    for (let k=segmentStart; k<segmentEnd; k++) {
+                        eig.push([dists[k],eival[k][n]]);
+                    }
 
-                //add data
-                this.highcharts.push({
-                    name:  n+"",
-                    bandIndex: n,
-                    color: baseColor,
-                    lineWidth: this.showModeWeights ? 0.8 : 2,
-                    zIndex: 5,
-                    showInLegend: false,
-                    marker: { radius: 1, symbol: "circle"},
-                    data: eig
-                   });
+                    this.highcharts.push({
+                        name:  n+"",
+                        bandIndex: n,
+                        color: baseColor,
+                        lineWidth: this.showModeWeights ? 0.8 : 2,
+                        zIndex: 5,
+                        showInLegend: false,
+                        marker: { radius: 1, symbol: "circle"},
+                        data: eig
+                    });
 
-                if (this.showModeWeights) {
-                    for (let k=startk; k<endk - 1; k++) {
-                        if (!visibleTypeIndices.length) {
-                            continue;
+                    if (this.showModeWeights) {
+                        for (let k=segmentStart; k<segmentEnd - 1; k++) {
+                            if (!visibleTypeIndices.length) {
+                                continue;
+                            }
+
+                            let weights0 = weightCache.weights[k][n];
+                            let weights1 = weightCache.weights[k + 1][n];
+                            let avgWeights = weights0.map((value, index) => (value + weights1[index]) / 2);
+                            let lineWidth = this.weightLineWidthMin + this.weightLineWidthScale;
+                            let color = this.getWeightedColorForIndices(visibleTypeIndices, avgWeights);
+
+                            if (singleVisibleType !== null) {
+                                lineWidth = this.weightLineWidthMin + avgWeights[singleVisibleType] * this.weightLineWidthScale;
+                                color = '#' + Number(this.getAtomColorHex(this.atomTypeLegend[singleVisibleType].atomNumber)).toString(16).padStart(6, '0');
+                            }
+
+                            this.highcharts.push({
+                                name: 'weights',
+                                isWeightSeries: true,
+                                bandIndex: n,
+                                segmentStartK: k,
+                                avgWeights: avgWeights,
+                                color: color,
+                                lineWidth: lineWidth,
+                                zIndex: 3,
+                                enableMouseTracking: false,
+                                showInLegend: false,
+                                states: { inactive: { opacity: 1 } },
+                                marker: { enabled: false },
+                                data: [
+                                    [dists[k], eival[k][n]],
+                                    [dists[k + 1], eival[k + 1][n]]
+                                ]
+                            });
                         }
-
-                        let weights0 = weightCache.weights[k][n];
-                        let weights1 = weightCache.weights[k + 1][n];
-                        let avgWeights = weights0.map((value, index) => (value + weights1[index]) / 2);
-                        let lineWidth = this.weightLineWidthMin + this.weightLineWidthScale;
-                        let color = this.getWeightedColorForIndices(visibleTypeIndices, avgWeights);
-
-                        if (singleVisibleType !== null) {
-                            lineWidth = this.weightLineWidthMin + avgWeights[singleVisibleType] * this.weightLineWidthScale;
-                            color = '#' + Number(this.getAtomColorHex(this.atomTypeLegend[singleVisibleType].atomNumber)).toString(16).padStart(6, '0');
-                        }
-
-                        this.highcharts.push({
-                            name: 'weights',
-                            isWeightSeries: true,
-                            bandIndex: n,
-                            segmentStartK: k,
-                            avgWeights: avgWeights,
-                            color: color,
-                            lineWidth: lineWidth,
-                            zIndex: 3,
-                            enableMouseTracking: false,
-                            showInLegend: false,
-                            states: { inactive: { opacity: 1 } },
-                            marker: { enabled: false },
-                            data: [
-                                [dists[k], eival[k][n]],
-                                [dists[k + 1], eival[k + 1][n]]
-                            ]
-                        });
                     }
                 }
             }
