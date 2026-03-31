@@ -716,12 +716,7 @@ export class PhononWebpage {
 
         //materials project database
         source = new MaterialsProjectDB(self.mpapikey);
-        //get materials but only if the api key is valid
-        let callback = function() {
-                     //TODO change something in the interface to know that the API key is valid
-                     source.get_materials(addMaterials);
-                   }.bind(this)
-        source.isAPIKeyValid(self.mpapikey,callback);
+        source.get_materials(addMaterials);
 
         /*
         //phonondb2015 database

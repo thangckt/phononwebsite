@@ -6,9 +6,9 @@ export class MaterialsProjectDB {
 
     constructor(apikey) {
         this.name = "mpdb";
-        this.year = 2017;
+        this.year = 2025;
         this.author = "G. Petretto et al.";
-        this.url = "";
+        this.url = "https://materialsproject-parsed.s3.amazonaws.com/index.html#ph-bandstructures/dfpt/";
         this.apikey = apikey;
     }
 
@@ -53,12 +53,11 @@ export class MaterialsProjectDB {
             for (let i=0; i<materials.length; i++) {
                 let m = materials[i];
                 m.source = name;
-                m.type = "rest";
+                m.type = "json";
                 m.reference = reference;
-                m.url = "https://api.materialsproject.org/materials/phonon/?material_ids=mp-"+m.id+"&_fields=ph_bs";
+                m.url = "https://materialsproject-parsed.s3.amazonaws.com/ph-bandstructures/dfpt/mp-"+m.id+".json.gz";
                 m.name = m.name;
                 m.link = "https://materialsproject.org/materials/mp-"+m.id;
-                m.apikey = apikey;
             }
             callback(materials);
         }

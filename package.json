@@ -13,6 +13,7 @@
     "highcharts": "12.2.0",
     "jquery": "3.7.1",
     "js-yaml": "4.1.0",
+    "pako": "^2.1.0",
     "three": "0.124.0",
     "whammy": "0.0.1"
   },
@@ -56,8 +57,7 @@
   "bugs": {
     "url": "https://github.com/henriquemiranda/phononwebsite/issues"
   },
-  "homepage": "https://github.com/henriquemiranda/phononwebsite#readme"
-  ,
+  "homepage": "https://github.com/henriquemiranda/phononwebsite#readme",
   "overrides": {
     "serialize-javascript": "7.0.5"
   }
