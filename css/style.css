@@ -115,6 +115,10 @@ h3 {
     flex: 1;
 }
 
+#material-list.exciton-material-panel {
+    flex: 0 0 80px;
+}
+
 #options-list {
     padding: 0px 5px 0px 5px;
     overflow: auto;
@@ -133,6 +137,12 @@ h3 {
     height: 100%;
     width: 100%;
    	position: absolute;
+}
+
+#excitonwf {
+    height: 100%;
+    width: 100%;
+    position: absolute;
 }
 
 #highcharts {
@@ -204,8 +214,13 @@ ap {
     padding-left: 0;
 }
 
+#mat.exciton-material-list {
+    height: 48px;
+}
+
 #mat li a {
     text-decoration: none;
+    color: #000;
     margin-bottom: 0.2em;
     display: block;
     transition: font-size 0.3s ease, background-color 0.3s ease;

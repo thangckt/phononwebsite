@@ -39,6 +39,7 @@
 	<ul class="navigation">
 		<li><a href="index.html">Home</a></font></li>
 		<li><a href="phonon.html">Phonons</a></font></li>
+		<li><a href="exciton.html">Excitons</a></font></li>
 	</ul>
 </header>
 
@@ -46,6 +47,7 @@
 <h1 id="phonon-website">Phonon website</h1>
 <h4 id="visualize-phonon-vibrational-modes">Visualize phonon vibrational modes</h4>
 <p>This project aims to provide a simple way to visualize the lattice vibrations of different materials. The temperature of a material is related to the agitation of its atoms. The atoms can move in any of the three cartesian directions. Combining the different possible ways the atoms can vibrate we obtain the eigenvectors. Each mode has associated a frequency of vibration that is related with the forces between the atoms.</p>
+<p>The website now also includes a dedicated <a href="exciton.html">Excitons</a> page, where you can inspect excitonic wavefunctions and connect absorption peaks to their corresponding real-space density.</p>
 <h1 id="how-to-use">How to use?</h1>
 <p>In the phonon section you can click on any point in the phonon dispersion and see an animation of how the atoms vibrate according to that particular mode. By default you can visualize the phonon dispersion of a few selected materials we calculated plus the ones calculated by A. Togo for <a href="http://phonondb.mtl.kyoto-u.ac.jp/">phonodb</a>. If you want to see your own calculations, we currently support phonon calculations from <code>Abinit</code>, <code>Quantum Espresso</code> and <code>phononpy</code>.</p>
 <h2 id="phonopy">phonopy</h2>
@@ -94,7 +96,7 @@ name = name of the material</code></pre>
 <p>Here are some examples of what can be added to the website link:</p>
 <ul>
 <li><a href="http://henriquemiranda.github.io/phononwebsite/phonon.html?yaml=http://henriquemiranda.github.io/phononwebsite/tests/phonopy/band.yaml">?yaml=http://henriquemiranda.github.io/phononwebsite/tests/phonopy/band.yaml</a></li>
-<li><a href="http://henriquemiranda.github.io/phononwebsite/phonon.html?json=http://henriquemiranda.github.io/phononwebsite/localdb/graphene/data.json">?json=http://henriquemiranda.github.io/phononwebsite/localdb/graphene/data.json</a></li>
+<li><a href="http://henriquemiranda.github.io/phononwebsite/phonon.html?json=http://henriquemiranda.github.io/phononwebsite/data/localdb/graphene/data.json">?json=http://henriquemiranda.github.io/phononwebsite/data/localdb/graphene/data.json</a></li>
 </ul>
 <p>You are free to use all the images generated with this website in your publications and presentations as long as you cite this work (a link to the website is enough). For the license terms of the data from <a href="http://phonondb.mtl.kyoto-u.ac.jp/">phonodb</a> please refer to their website.</p>
 <p>In polar materials the LO-TO splitting is missing in the phonodb.</p>

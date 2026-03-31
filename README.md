@@ -98,7 +98,7 @@ The available tags are:
 Here are some examples of what can be added to the website link:
 
   - [?yaml=http://henriquemiranda.github.io/phononwebsite/test/fixtures/phonopy/band.yaml](http://henriquemiranda.github.io/phononwebsite/phonon.html?yaml=http://henriquemiranda.github.io/phononwebsite/test/fixtures/phonopy/band.yaml)
-  - [?json=http://henriquemiranda.github.io/phononwebsite/localdb/graphene/data.json](http://henriquemiranda.github.io/phononwebsite/phonon.html?json=http://henriquemiranda.github.io/phononwebsite/localdb/graphene/data.json)
+  - [?json=http://henriquemiranda.github.io/phononwebsite/data/localdb/graphene/data.json](http://henriquemiranda.github.io/phononwebsite/phonon.html?json=http://henriquemiranda.github.io/phononwebsite/data/localdb/graphene/data.json)
 
 You are free to use all the images generated with this website in your publications and presentations as long as you cite this work (a link to the website is enough). For the license terms of the data from [phonodb](http://phonondb.mtl.kyoto-u.ac.jp/) please refer to their website.
 
@@ -107,18 +107,63 @@ In polar materials the LO-TO splitting is missing in the phonodb.
 Modify the website
 ===================
 
+Repository layout
+-----------------
+
+Main directories and what they are for:
+
+- `src/`: JavaScript source code (rendering, UI wiring, parsers, utilities).
+- `src/static_libs/`: vendored browser-side helper libs used by source modules.
+- `css/`: stylesheets for website pages.
+- `python/`: Python package (`phononweb`) and Python tests.
+- `test/`: JavaScript tests and shared test fixtures.
+- `build/`: generated output for deployment (`npm run build:site`).
+- `data/localdb/`, `data/contribdb/`, `data/mpdb/`: data sources consumed by the website.
+- `.github/workflows/`: CI/deploy workflows.
+
+Naming and placement conventions:
+
+- Add new browser app code under `src/`.
+- Keep legacy/static vendored browser libs in `src/static_libs/` (ES module friendly) or `libs/` when required by external runtime tools.
+- Add new JS tests as `*.test.cjs` in `test/`.
+- Put reusable test sample data under `test/fixtures/`.
+- Put Python tests under `python/phononweb/tests/`.
+- Do not commit generated artifacts except expected deploy output under `build/` when explicitly needed by workflow.
+
 **Change the colors**
 
 The default colors of the atoms are the same ones used in [jmol](http://jmol.sourceforge.net/).
 Currently we don't provide a web interface to change them.
 If you still would like to change the colors, you can checkout locally the git repository from [Github](https://github.com/henriquemiranda/phononwebsite/).
-The colors of the atoms can be changed in `atomic_data.js` file inside the `js/` folder.
+The colors of the atoms can be changed in `src/atomic_data.js`.
 The colors of the bonds and arrows can be changed in `vibcrystal.js` in the variables `this.arrowcolor` and `this.bondscolor` respectively.
 
 **Compile and run locally**
 
-To bundle the code i.e. join all the javascript files in the src folder into a single javascript module run `rollup -c`.
-You can run a http server locally (Mac or Linux) with `python -m http.server` (python 3) and visit the page on your web browser in the address: [http://localhost:8000](http://localhost:8000).
+Install dependencies:
+
+    npm install
+
+Build JS bundle and minified artifact:
+
+    npm run build-uglify
+
+Build deployable website into `build/`:
+
+    npm run build:site
+
+Run JavaScript tests:
+
+    npm test
+
+Run Python tests:
+
+    npm run test:py
+
+Run a local HTTP server (from repo root) and open:
+<http://localhost:8000/phonon.html>
+
+    python3 -m http.server
 
 File Format
 =================
@@ -187,6 +232,9 @@ University of Luxembourg (2013-2017): <http://wwwen.uni.lu/>
 Contribute
 ==========
 The project is under development!
+
+For repository organization and contribution conventions, see:
+`doc/CONTRIBUTING.md`
 
 You can leave your suggestions and feature requests here:  
 <https://github.com/henriquemiranda/phononwebsite/issues>
