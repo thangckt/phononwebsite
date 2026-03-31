@@ -250,7 +250,7 @@ export class PhononWebpage {
 
         function set_name() {
             delete self.link;
-            self.name = utils.subscript_numbers(self.phonon.name);
+            self.name = utils.format_formula_html(self.phonon.name);
             self.loadCallback();
         }
 
@@ -406,7 +406,7 @@ export class PhononWebpage {
         /*
         Fuunction to be called once the file is loaded
         */
-        this.name = utils.subscript_numbers(this.phonon.name);
+        this.name = utils.format_formula_html(this.phonon.name);
         if (this.visualizer) {
             this.visualizer.modeScaleAutoInitialized = false;
         }
@@ -930,7 +930,7 @@ export class PhononWebpage {
                 nreferences += 1;
             }
 
-            let name = utils.subscript_numbers(m.name);
+            let name = utils.format_formula_html(m.name);
             let name_ref = name + " ["+unique_references[ref]+"]";
 
             let li = document.createElement("LI");

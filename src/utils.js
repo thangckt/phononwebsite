@@ -68,7 +68,10 @@ export function get_formula(atom_types) {
     //make the name from the counter
     let name = "";
     for (let element in counts) {
-        name += element+counts[element];
+        name += element;
+        if (counts[element] !== 1) {
+            name += counts[element];
+        }
     }
     return name;
 }
@@ -98,4 +101,25 @@ export function subscript_numbers(old_string) {
         }
     }
     return string;
+}
+
+export function normalize_formula_string(value) {
+    if (typeof value !== 'string' || !value) {
+        return value;
+    }
+
+    if (!/^(?:[A-Z][a-z]?\d*)+$/.test(value)) {
+        return value;
+    }
+
+    return value.replace(/([A-Z][a-z]?)(\d*)/g, function(match, element, count) {
+        if (!count || count === '1') {
+            return element;
+        }
+        return element + count;
+    });
+}
+
+export function format_formula_html(value) {
+    return subscript_numbers(normalize_formula_string(value));
 }

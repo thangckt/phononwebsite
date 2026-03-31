@@ -1,6 +1,6 @@
 import $ from 'jquery';
 
-import { subscript_numbers } from './utils.js';
+import { format_formula_html } from './utils.js';
 
 export class ExcitonWebpage {
 
@@ -83,7 +83,7 @@ export class ExcitonWebpage {
                 return;
             }
             const link = $('<a href="#"></a>');
-            link.html(subscript_numbers(material.name));
+            link.html(format_formula_html(material.name));
             link.on('click', (event) => {
                 event.preventDefault();
                 this.loadMaterial(key);
@@ -142,7 +142,7 @@ export class ExcitonWebpage {
 
     setTitleText(title) {
         if (this.domTitle) {
-            this.domTitle.html(subscript_numbers(title));
+            this.domTitle.html(format_formula_html(title));
         }
     }
 }
