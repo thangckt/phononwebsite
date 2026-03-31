@@ -1,19 +1,19 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>TSS Physics - Visualization of excitons</title>
+    <title>TSS Physics - Structure visualizer</title>
     <meta name="author" content="Henrique Miranda, Raoul Weber">
     <meta name="copyright" content="2015 Theoretical Solid-State Physics Group of University of Luxembourg">
     <meta http-equiv="content-language" content="text/html; charset=utf-8; en">
-    <meta name="title" content="Theoretical Solid-State Physics: Exciton visualizations">
-    <meta name="description" content="Interactive website for the visualization of excitons.">
-    <meta name="keywords" content="University of Luxembourg, theoretical solid-state physics, excitons, optical absorption, wavefunctions">
+    <meta name="title" content="Theoretical Solid-State Physics: Structure visualizer">
+    <meta name="description" content="Interactive website for visualizing crystal structures from POSCAR and CHGCAR files.">
+    <meta name="keywords" content="University of Luxembourg, theoretical solid-state physics, structure visualization, POSCAR, CHGCAR, charge density">
     <meta charset="utf-8">
 
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="stylesheet" type="text/css" href="css/style.css">
-    <script src="exciton.min.js" type="module"></script>
+    <script src="structure.min.js" type="module"></script>
 </head>
 
 <body>
@@ -24,19 +24,15 @@
             <li><a href="exciton.html">Excitons</a></li>
             <li><a href="structure.html">Structures</a></li>
         </ul>
-        <div class="material-name"><h1 id="name">Exciton</h1></div>
-        <div class="flex-container">
+        <div class="material-name"><h1 id="name">Structure</h1></div>
+        <div class="flex-container structure-layout">
             <div class="flex-menu">
                 <div id="menu">
-                    <div id="material-list" class="exciton-material-panel">
-                        <h3>Materials:</h3>
-                        <ul id="mat" class="exciton-material-list"></ul>
-                    </div>
-
                     <div id="options-list">
                         <div>
-                            <h3>Custom file:</h3>
-                            <input type="file" id="file-input" name="customfile" accept=".json">
+                            <h3>File:</h3>
+                            <input type="file" id="file-input" name="structurefile">
+                            <p class="structure-help-text">Load a <code>POSCAR</code>/<code>CONTCAR</code> for atomic structure, or a <code>CHGCAR</code> to add a charge-density isosurface.</p>
                         </div>
 
                         <div>
@@ -46,9 +42,27 @@
                         </div>
 
                         <div>
+                            <h3>Atomic positions (reduced):</h3>
+                            <div>
+                                <table id="atompos">
+                                </table>
+                            </div>
+                        </div>
+
+                        <div id="isolevel_section">
                             <h3>Isosurface level:</h3>
                             <input id="isolevel_range" class="input-isolevel" type="range" min="0.001" max="1.0" step="0.001" value="0.02">
                             <div id="isolevel_value">0.020</div>
+                        </div>
+
+                        <div>
+                            <h3>Replications:</h3>
+                            <div class="appearance-controls">
+                                <input id="nx" type="number" min="1" step="1" value="1">
+                                <input id="ny" type="number" min="1" step="1" value="1">
+                                <input id="nz" type="number" min="1" step="1" value="1">
+                                <button id="update_replications" type="button">update</button>
+                            </div>
                         </div>
 
                         <div>
@@ -56,6 +70,11 @@
                             <button id="camerax" type="button">x</button>
                             <button id="cameray" type="button">y</button>
                             <button id="cameraz" type="button">z</button>
+                        </div>
+
+                        <div class="structure-toggle-row">
+                            <label><input id="drawcell" type="checkbox" checked> cell</label>
+                            <label><input id="drawshading" type="checkbox" checked> shading</label>
                         </div>
 
                         <div class="advanced-appearance">
@@ -114,16 +133,10 @@
                                 </div>
                             </div>
                         </div>
-
-                        <div>
-                            <h3>How to use:</h3>
-                            <p>Click anywhere on the absorption spectrum to select the closest bright exciton. The 3D viewer updates the corresponding wavefunction isosurface in real space.</p>
-                        </div>
                     </div>
                 </div>
             </div>
-            <div class="flex-vibcrystal"><div id="excitonwf"></div></div>
-            <div class="flex-highcharts"><div id="highcharts"></div></div>
+            <div class="flex-vibcrystal structure-viewer-panel"><div id="structureviewer"></div></div>
         </div>
     </div>
 </body>

@@ -2,7 +2,7 @@ export const pi = 3.14159265359
 
 export function matrix_inverse(a)
 {
-    det = matrix_determinant(a);
+    var det = matrix_determinant(a);
     var c = [[0,0,0],[0,0,0],[0,0,0]];
 
     c[0][0] = (a[1][1] * a[2][2] - a[1][2] * a[2][1]) / det;

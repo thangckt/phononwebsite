@@ -1,29 +1,28 @@
 import $ from 'jquery';
 import * as THREE from 'three';
-import Highcharts from 'highcharts';
 import Detector from '../libs/Detector.js';
 
-import { AbsorptionSpectra, ExcitonWf, ExcitonWebpage } from './excitonwebsite.js';
+import { StructureViewer, StructureWebpage } from './structurewebsite.js';
 
 globalThis.THREE = THREE;
 globalThis.$ = $;
 globalThis.jQuery = $;
-globalThis.Highcharts = Highcharts;
 
-const viewer = new ExcitonWf();
-viewer.init($('#excitonwf'));
+const viewer = new StructureViewer();
+viewer.init($('#structureviewer'));
 
-const spectra = new AbsorptionSpectra($('#highcharts'));
-const page = new ExcitonWebpage(viewer, spectra);
-
+const page = new StructureWebpage(viewer);
 page.setTitle($('#name'));
-page.setMaterialsList($('#mat'));
 page.setLattice($('#lattice'));
+page.setAtomPositions($('#atompos'));
 page.setFileInput($('#file-input'));
-page.setIsolevelInput($('#isolevel_range'), $('#isolevel_value'));
+page.setIsolevelInput($('#isolevel_range'), $('#isolevel_value'), $('#isolevel_section'));
+page.setRepetitionControls($('#nx'), $('#ny'), $('#nz'), $('#update_replications'));
 page.setCameraDirectionButton($('#camerax'), 'x');
 page.setCameraDirectionButton($('#cameray'), 'y');
 page.setCameraDirectionButton($('#cameraz'), 'z');
+viewer.setCellCheckbox($('#drawcell'));
+viewer.setShadingCheckbox($('#drawshading'));
 viewer.setDisplayCombo($('#displaystyle'));
 viewer.setAppearanceControls(
     $('#appearance_atom_list'),

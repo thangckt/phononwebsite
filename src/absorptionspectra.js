@@ -131,6 +131,9 @@ export class AbsorptionSpectra {
         };
 
         this.chart = globalThis.Highcharts.chart(this.container[0], options);
+        if (this.chart && typeof this.chart.reflow === 'function') {
+            this.chart.reflow();
+        }
         this.highlightSelectedExciton();
     }
 

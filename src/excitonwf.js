@@ -84,6 +84,15 @@ export class ExcitonWf {
         this.renderer.setPixelRatio(window.devicePixelRatio || 1);
         this.renderer.setSize(this.dimensions.width, this.dimensions.height, false);
         containerElement.appendChild(this.renderer.domElement);
+        this.canvas = this.renderer.domElement;
+        this.canvas.style.display = 'block';
+
+        if (!containerElement.clientHeight) {
+            containerElement.style.height = `${this.dimensions.height}px`;
+        }
+        if (containerElement.parentElement && !containerElement.parentElement.clientHeight) {
+            containerElement.parentElement.style.height = `${this.dimensions.height}px`;
+        }
 
         this.controls = new TrackballControls(this.camera, this.renderer.domElement);
         this.controls.rotateSpeed = 1.0;
@@ -95,6 +104,7 @@ export class ExcitonWf {
         window.addEventListener('resize', this.onWindowResize.bind(this), false);
 
         this.isInitialized = true;
+        this.onWindowResize();
         this.animate();
     }
 
@@ -110,6 +120,7 @@ export class ExcitonWf {
         this.atoms = absorption.atoms;
         this.natoms = absorption.atoms.length;
         this.atom_numbers = absorption.atom_numbers;
+        this.updateRecommendedIsolevel();
 
         this.geometricCenter = new THREE.Vector3(0, 0, 0);
         for (let i = 0; i < this.atoms.length; i++) {
@@ -127,12 +138,64 @@ export class ExcitonWf {
         this.excitonIndex = index;
         if (this.excitons && this.excitons[index]) {
             this.values = this.excitons[index].datagrid;
+            this.updateRecommendedIsolevel();
+        }
+    }
+
+    updateRecommendedIsolevel(force = false) {
+        if (!Array.isArray(this.values) || !this.values.length) {
+            return;
+        }
+
+        const positiveValues = this.values.filter((value) => Number.isFinite(value) && value > 0).sort((a, b) => a - b);
+        if (!positiveValues.length) {
+            return;
+        }
+
+        const quantile = (fraction) => {
+            const position = Math.max(0, Math.min(1, fraction)) * (positiveValues.length - 1);
+            const lower = Math.floor(position);
+            const upper = Math.ceil(position);
+            const weight = position - lower;
+            if (lower === upper) {
+                return positiveValues[lower];
+            }
+            return positiveValues[lower] * (1 - weight) + positiveValues[upper] * weight;
+        };
+
+        const recommended = Math.min(Math.max(quantile(0.99), positiveValues[positiveValues.length - 1] * 0.02), 0.9);
+        if (force || !Number.isFinite(this.isolevel) || this.isolevel <= 0 || this.isolevel === 0.02) {
+            this.isolevel = recommended;
+        }
+
+        if (this.onIsolevelRangeChanged) {
+            this.onIsolevelRangeChanged({
+                min: 0,
+                max: Math.max(quantile(0.999), positiveValues[positiveValues.length - 1] * 0.1),
+                step: Math.max(1e-4, positiveValues[positiveValues.length - 1] / 500),
+                value: this.isolevel,
+            });
         }
     }
 
     getContainerDimensions() {
-        const width = this.container.width();
-        const height = this.container.height();
+        let width = this.container.width();
+        let height = this.container.height();
+
+        if (!width || !height) {
+            const rect = this.container.get(0).getBoundingClientRect();
+            width = rect.width;
+            height = rect.height;
+        }
+        if ((!width || !height) && this.container.get(0).parentElement) {
+            const rect = this.container.get(0).parentElement.getBoundingClientRect();
+            width = rect.width;
+            height = rect.height;
+        }
+        if (!width || !height) {
+            width = Math.max(window.innerWidth * 0.5, 300);
+            height = Math.max(window.innerHeight * 0.5, 300);
+        }
 
         return {
             width,
@@ -674,9 +737,14 @@ export class ExcitonWf {
                         this.bondVertical,
                         true,
                     );
-                    const material = this.display === 'vesta'
-                        ? new THREE.MeshPhongMaterial({ color: colorHex, reflectivity: 1, shininess: 50 })
-                        : new THREE.MeshLambertMaterial({ color: colorHex });
+                    let material;
+                    if (!this.shading) {
+                        material = new THREE.MeshBasicMaterial({ color: colorHex });
+                    } else if (this.display === 'vesta') {
+                        material = new THREE.MeshPhongMaterial({ color: colorHex, reflectivity: 1, shininess: 50 });
+                    } else {
+                        material = new THREE.MeshLambertMaterial({ color: colorHex });
+                    }
                     const object = new THREE.Mesh(geometry, material);
                     object.setRotationFromQuaternion(bond.quaternion);
                     object.position.copy(midpoint);
@@ -766,6 +834,7 @@ export class ExcitonWf {
         this.addMarchingCubes();
         this.getAtomMaterials();
         this.addStructure();
+        this.render();
     }
 
     addMarchingCubes() {
@@ -776,6 +845,7 @@ export class ExcitonWf {
             this.sizez,
             this.gridCell,
             this.isolevel,
+            { insideIsAbove: true },
         );
 
         const mesh = new THREE.Mesh(
@@ -800,6 +870,9 @@ export class ExcitonWf {
         }
 
         this.dimensions = this.getContainerDimensions();
+        if (!this.dimensions.width || !this.dimensions.height) {
+            return;
+        }
         this.camera.aspect = this.dimensions.ratio;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(this.dimensions.width, this.dimensions.height, false);

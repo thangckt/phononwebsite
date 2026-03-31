@@ -1,6 +1,7 @@
 import $ from 'jquery';
 
 import { format_formula_html } from './utils.js';
+import { renderLatticeTable } from './structureinfo.js';
 
 export class ExcitonWebpage {
 
@@ -29,6 +30,7 @@ export class ExcitonWebpage {
         this.spectra.setSelectionHandler((index) => {
             this.selectExciton(index);
         });
+        this.viewer.onIsolevelRangeChanged = this.updateIsolevelControls.bind(this);
     }
 
     setTitle(domTitle) {
@@ -37,6 +39,10 @@ export class ExcitonWebpage {
 
     setMaterialsList(domList) {
         this.domMaterials = domList;
+    }
+
+    setLattice(domLattice) {
+        this.domLattice = domLattice;
     }
 
     setFileInput(domInput) {
@@ -59,6 +65,20 @@ export class ExcitonWebpage {
 
         domInput.on('input change', handler);
         handler();
+    }
+
+    updateIsolevelControls(range) {
+        if (!this.domIsolevelInput || !this.domIsolevelInput.length || !range) {
+            return;
+        }
+
+        this.domIsolevelInput.attr('min', range.min);
+        this.domIsolevelInput.attr('max', range.max);
+        this.domIsolevelInput.attr('step', range.step);
+        this.domIsolevelInput.val(range.value);
+        if (this.domIsolevelValue) {
+            this.domIsolevelValue.text(Number(range.value).toPrecision(4).replace(/\.?0+$/, ''));
+        }
     }
 
     setCameraDirectionButton(domButton, direction) {
@@ -109,8 +129,7 @@ export class ExcitonWebpage {
         this.setTitleText(material.name);
 
         return this.spectra.getDataFilename(material.file).then(() => {
-            this.viewer.setData(this.spectra);
-            this.viewer.updateStructure();
+            this.syncViewerFromSpectra();
         });
     }
 
@@ -129,8 +148,7 @@ export class ExcitonWebpage {
             this.setTitleText(file.name.replace(/\.json$/i, ''));
             this.spectra.getDataObject(data);
             this.spectra.render();
-            this.viewer.setData(this.spectra);
-            this.viewer.updateStructure();
+            this.syncViewerFromSpectra();
         };
     }
 
@@ -144,5 +162,24 @@ export class ExcitonWebpage {
         if (this.domTitle) {
             this.domTitle.html(format_formula_html(title));
         }
+    }
+
+    updateStructureInfo() {
+        if (!this.spectra) {
+            return;
+        }
+
+        const lattice = this.spectra.gridCell || this.spectra.cell;
+        renderLatticeTable(this.domLattice, lattice);
+    }
+
+    syncViewerFromSpectra() {
+        if (!this.viewer || !this.spectra) {
+            return;
+        }
+
+        this.viewer.setData(this.spectra);
+        this.updateStructureInfo();
+        this.viewer.updateStructure();
     }
 }

@@ -28,5 +28,16 @@ export default [
             }
         ],
         plugins,
+    },
+    {
+        input: 'src/structuremain.js',
+        output: [
+            {
+                format: 'es',
+                file: 'build/structure.js',
+                sourcemap: true,
+            }
+        ],
+        plugins,
     }
 ];

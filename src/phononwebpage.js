@@ -7,7 +7,8 @@ import { exportXSF, exportPOSCAR }  from './exportfiles.js';
 import * as atomic_data from './atomic_data.js';
 import * as mat from './mat.js';
 import * as utils from './utils.js';
-import { atomColorHexToCss, getAtomBadgeTextColor, applyAtomBadgeStyle } from './atomcolors.js';
+import { atomColorHexToCss, getAtomBadgeTextColor } from './atomcolors.js';
+import { renderLatticeTable, renderAtomPositionsTable } from './structureinfo.js';
 
 export class PhononWebpage {
 
@@ -735,46 +736,18 @@ export class PhononWebpage {
         */
 
         if (this.dom_lattice)  {
-            this.dom_lattice.empty();
-            for (let i=0; i<3; i++) {
-                let tr = document.createElement("TR");
-                for (let j=0; j<3; j++) {
-                    let td = document.createElement("TD");
-                    let x = document.createTextNode(this.phonon.lat[i][j].toPrecision(4));
-                    td.appendChild(x);
-                    tr.append(td);
-                }
-                this.dom_lattice.append(tr);
-            }
+            renderLatticeTable(this.dom_lattice, this.phonon.lat);
         }
 
         //atomic positions table
         if (this.dom_atompos) {
-            this.dom_atompos.empty();
-            let pos = this.phonon.atom_pos_red;
-            for (let i=0; i<pos.length; i++) {
-                let tr = document.createElement("TR");
-
-                let td = document.createElement("TD");
-                let atomNumber = this.phonon.atom_numbers ? this.phonon.atom_numbers[i] : null;
-                let badge = document.createElement("SPAN");
-                badge.className = "atom-type-badge";
-                badge.textContent = this.phonon.atom_types[i];
-                if (atomNumber !== null) {
-                    applyAtomBadgeStyle(badge, atomNumber, this.getAtomColorHex.bind(this));
-                }
-                td.className = "ap atom-type-cell";
-                td.appendChild(badge);
-                tr.append(td);
-
-                for (let j=0; j<3; j++) {
-                    let td = document.createElement("TD");
-                    let x = document.createTextNode(pos[i][j].toFixed(4));
-                    td.appendChild(x);
-                    tr.append(td);
-                }
-                this.dom_atompos.append(tr);
-            }
+            renderAtomPositionsTable(
+                this.dom_atompos,
+                this.phonon.atom_pos_red,
+                this.phonon.atom_types,
+                this.phonon.atom_numbers,
+                this.getAtomColorHex.bind(this)
+            );
         }
 
         //update title
