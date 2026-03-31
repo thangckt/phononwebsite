@@ -49,7 +49,7 @@ export class ExcitonWf {
 
         this.bondscolor = 0xffffff;
         this.defaultBondsColor = this.bondscolor;
-        this.bondColorByAtom = false;
+        this.bondColorByAtom = true;
         this.defaultBondColorByAtom = this.bondColorByAtom;
         this.defaultBondRadius = this.bondRadius;
         this.atomColorOverrides = {};
@@ -794,13 +794,58 @@ export class ExcitonWf {
         }
 
         for (let i = this.scene.children.length - 1; i >= 0; i--) {
+            this.disposeSceneObject(this.scene.children[i]);
             this.scene.remove(this.scene.children[i]);
         }
     }
 
+    disposeSceneObject(object) {
+        if (!object) {
+            return;
+        }
+        if (object.geometry) {
+            object.geometry.dispose();
+        }
+        if (object.material) {
+            if (Array.isArray(object.material)) {
+                for (let i = 0; i < object.material.length; i++) {
+                    if (object.material[i] && object.material[i].dispose) {
+                        object.material[i].dispose();
+                    }
+                }
+            } else if (object.material.dispose) {
+                object.material.dispose();
+            }
+        }
+    }
+
+    removeNamedSceneObjects(name) {
+        if (!this.scene) {
+            return;
+        }
+
+        for (let i = this.scene.children.length - 1; i >= 0; i--) {
+            const child = this.scene.children[i];
+            if (child && child.name === name) {
+                this.disposeSceneObject(child);
+                this.scene.remove(child);
+            }
+        }
+    }
+
+    updateIsosurface() {
+        if (!this.scene || !Array.isArray(this.values) || !this.values.length) {
+            return;
+        }
+
+        this.removeNamedSceneObjects('isosurface');
+        this.addMarchingCubes();
+        this.render();
+    }
+
     changeIsolevel(isolevel) {
         this.isolevel = Number(isolevel);
-        this.updateStructure();
+        this.updateIsosurface();
     }
 
     setCameraDirection(direction) {
