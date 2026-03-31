@@ -231,10 +231,69 @@ export class VibCrystal {
         return a + '-' + b;
     }
 
+    getCovalentRadius(atomNumber) {
+        if (this.modified_covalent_radii && Number.isFinite(this.modified_covalent_radii[atomNumber])) {
+            return this.modified_covalent_radii[atomNumber];
+        }
+        return atomic_data.covalent_radii[atomNumber] || 0;
+    }
+
+    getCovalentBondLength(atomNumberA, atomNumberB) {
+        return this.getCovalentRadius(atomNumberA) + this.getCovalentRadius(atomNumberB);
+    }
+
+    getBondSearchLimit(atomNumberA, atomNumberB) {
+        let chemical = this.getChemicalBondLimit(atomNumberA, atomNumberB);
+        return chemical + Math.max(0.5, chemical * 0.2);
+    }
+
+    getChemicalBondLimit(atomNumberA, atomNumberB) {
+        let covalent = this.getCovalentBondLength(atomNumberA, atomNumberB);
+        // IsayevNN-style chemistry gate: keep a modest radius-based slack, but do not
+        // let long second-shell distances in crystals sneak in too easily.
+        return Math.max(0.4, covalent + 0.45);
+    }
+
     getDefaultBondCutoff(atomNumberA, atomNumberB) {
-        let covalent = atomic_data.covalent_radii[atomNumberA] + atomic_data.covalent_radii[atomNumberB];
-        let nnd = this.phonon && Number.isFinite(this.phonon.nndist) ? this.phonon.nndist + 0.05 : 0;
-        return Math.max(covalent, nnd);
+        return this.getChemicalBondLimit(atomNumberA, atomNumberB);
+    }
+
+    getEffectiveCoordinationCandidates(siteNeighbors) {
+        if (!siteNeighbors || !siteNeighbors.length) {
+            return [];
+        }
+
+        let sorted = siteNeighbors
+            .filter((neighbor) => Number.isFinite(neighbor.distance) && neighbor.distance >= 0.4)
+            .sort((a, b) => a.distance - b.distance);
+        if (!sorted.length) {
+            return [];
+        }
+
+        let shortest = sorted[0].distance;
+        let accepted = [];
+
+        for (let i = 0; i < sorted.length; i++) {
+            let neighbor = sorted[i];
+            if (neighbor.distance > shortest + Math.max(1.0, shortest * 0.6)) {
+                break;
+            }
+
+            let relative = neighbor.distance / shortest;
+            let weight = Math.exp(1.0 - Math.pow(relative, 6));
+            if (weight < 0.35) {
+                continue;
+            }
+
+            accepted.push({
+                index: neighbor.index,
+                atom_number: neighbor.atom_number,
+                distance: neighbor.distance,
+                weight: weight
+            });
+        }
+
+        return accepted;
     }
 
     setBondRule(atomNumberA, atomNumberB, cutoff) {
@@ -260,18 +319,76 @@ export class VibCrystal {
         let tmpAtoms = [];
         for (let i=0; i<atoms.length; i++) {
             tmpAtoms.push({
+                index: i,
                 atom_number: atom_numbers[atoms[i][0]],
                 position: new THREE.Vector3(atoms[i][1], atoms[i][2], atoms[i][3])
             });
         }
+
+        let pairDistances = {};
+        let siteNeighbors = tmpAtoms.map(() => []);
         let combinations = utils.getCombinations(tmpAtoms);
         for (let i=0; i<combinations.length; i++) {
             let a = combinations[i][0];
             let b = combinations[i][1];
             let length = a.position.distanceTo(b.position);
-            let cutoff = this.getDefaultBondCutoff(a.atom_number, b.atom_number);
-            if (length < cutoff) {
-                this.setBondRule(a.atom_number, b.atom_number, cutoff);
+            let searchLimit = this.getBondSearchLimit(a.atom_number, b.atom_number);
+            if (length <= searchLimit && length >= 0.4) {
+                siteNeighbors[a.index].push({
+                    index: b.index,
+                    atom_number: b.atom_number,
+                    distance: length
+                });
+                siteNeighbors[b.index].push({
+                    index: a.index,
+                    atom_number: a.atom_number,
+                    distance: length
+                });
+            }
+        }
+
+        let acceptedNeighbors = siteNeighbors.map((neighbors) => this.getEffectiveCoordinationCandidates(neighbors));
+        let acceptedNeighborMaps = acceptedNeighbors.map((neighbors) => {
+            let lookup = {};
+            for (let i=0; i<neighbors.length; i++) {
+                lookup[neighbors[i].index] = neighbors[i];
+            }
+            return lookup;
+        });
+
+        for (let i=0; i<combinations.length; i++) {
+            let a = combinations[i][0];
+            let b = combinations[i][1];
+            let length = a.position.distanceTo(b.position);
+            let chemicalLimit = this.getChemicalBondLimit(a.atom_number, b.atom_number);
+            let acceptedByA = acceptedNeighborMaps[a.index][b.index];
+            let acceptedByB = acceptedNeighborMaps[b.index][a.index];
+
+            if (!acceptedByA || !acceptedByB || length > chemicalLimit) {
+                continue;
+            }
+
+            let key = this.getBondRuleKey(a.atom_number, b.atom_number);
+            if (!pairDistances[key]) {
+                pairDistances[key] = {
+                    a: Math.min(a.atom_number, b.atom_number),
+                    b: Math.max(a.atom_number, b.atom_number),
+                    distances: []
+                };
+            }
+            pairDistances[key].distances.push(length);
+        }
+
+        let keys = Object.keys(pairDistances);
+        for (let i=0; i<keys.length; i++) {
+            let pair = pairDistances[keys[i]];
+            if (!pair.distances.length) {
+                continue;
+            }
+            let cutoff = Math.max.apply(null, pair.distances) + 0.04;
+            cutoff = Math.min(cutoff, this.getChemicalBondLimit(pair.a, pair.b));
+            if (Number.isFinite(cutoff) && cutoff >= 0.4) {
+                this.setBondRule(pair.a, pair.b, cutoff);
             }
         }
     }
