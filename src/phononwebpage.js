@@ -13,21 +13,6 @@ import * as atomic_data from './atomic_data.js';
 import * as mat from './mat.js';
 import * as utils from './utils.js';
 
-function SubscriptNumbers(old_string) {
-    let string = "";
-    for (let a of old_string) {
-        if (!isNaN(a)) {
-            if (a!=1) {
-                string += "<sub>"+a+"</sub>";
-            }
-        }
-        else {
-            string += a;
-        }
-    }
-    return string;
-}
-
 export class PhononWebpage {
 
     constructor(visualizer, dispersion) {
@@ -162,7 +147,7 @@ export class PhononWebpage {
 
         function set_name() {
             delete self.link;
-            self.name = self.phonon.name;
+            self.name = utils.subscript_numbers(self.phonon.name);
             self.loadCallback();
         }
 
@@ -249,7 +234,7 @@ export class PhononWebpage {
         /*
         Fuunction to be called once the file is loaded
         */
-        this.name = this.phonon.name;
+        this.name = utils.subscript_numbers(this.phonon.name);
         this.setRepetitions(this.phonon.repetitions);
         this.updateModeSelectionInputs();
         if (!this.enforceVisualizationLimits(true)) {
@@ -671,7 +656,7 @@ export class PhononWebpage {
                     }
 
                     //name + refenrece
-                    let name = SubscriptNumbers(m.name);
+                    let name = utils.subscript_numbers(m.name);
                     let name_ref = name + " ["+unique_references[ref]+"]";
 
                     let li = document.createElement("LI");
