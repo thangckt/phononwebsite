@@ -1195,8 +1195,6 @@ export class VibCrystal {
         //obtain combinations two by two of all the atoms
         let combinations = utils.getCombinations( this.atomobjects );
         let a, b, length;
-        let bondColors = [];
-
         //collect bonds first
         for (let i=0; i<combinations.length; i++) {
             a = combinations[i][0];
@@ -1216,16 +1214,6 @@ export class VibCrystal {
                     b_atom_number: b.atom_number,
                     baseLength: length
                 });
-                if (this.display == 'vesta') {
-                    let aColor = this.getAtomColor(a.atom_number);
-                    let bColor = this.getAtomColor(b.atom_number);
-                    let cr = (aColor.r + bColor.r) / 2;
-                    let cg = (aColor.g + bColor.g) / 2;
-                    let cb = (aColor.b + bColor.b) / 2;
-                    bondColors.push([cr, cg, cb]);
-                } else {
-                    bondColors.push(null);
-                }
             }
         }
 
@@ -1301,7 +1289,7 @@ export class VibCrystal {
             } else {
                 this.bondmesh = new THREE.InstancedMesh(
                     bondGeometry,
-                    createBondMaterial(this.display == 'vesta'),
+                    createBondMaterial(false),
                     this.bonds.length
                 );
                 this.bondmesh.name = "bonds";
@@ -1316,19 +1304,9 @@ export class VibCrystal {
                     this.instanceDummy.scale.set(1, bond.baseLength, 1);
                     this.instanceDummy.updateMatrix();
                     this.bondmesh.setMatrixAt(i, this.instanceDummy.matrix);
-
-                    if (this.display == 'vesta' && this.bondmesh.setColorAt && bondColors[i]) {
-                        this.bondmesh.setColorAt(
-                            i,
-                            new THREE.Color(bondColors[i][0], bondColors[i][1], bondColors[i][2])
-                        );
-                    }
                 }
 
                 this.bondmesh.instanceMatrix.needsUpdate = true;
-                if (this.display == 'vesta' && this.bondmesh.instanceColor) {
-                    this.bondmesh.instanceColor.needsUpdate = true;
-                }
                 this.bondmeshes.push(this.bondmesh);
                 this.scene.add(this.bondmesh);
             }
