@@ -716,7 +716,13 @@ export class PhononWebpage {
 
         //materials project database
         source = new MaterialsProjectDB(self.mpapikey);
-        source.get_materials(addMaterials);
+        source.checkAvailability(function(isAvailable) {
+            if (isAvailable) {
+                source.get_materials(addMaterials);
+            } else {
+                console.log("Skipping Materials Project phonons because the OpenData bucket is unreachable from this browser.");
+            }
+        });
 
         /*
         //phonondb2015 database

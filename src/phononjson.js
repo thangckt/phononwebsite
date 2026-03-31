@@ -8,6 +8,14 @@ var ev2cm1 = 8065.73;
 
 export class PhononJson {
 
+    static showCompressedLoadError(message) {
+        if (PhononJson.lastCompressedLoadError === message) {
+            return;
+        }
+        PhononJson.lastCompressedLoadError = message;
+        alert(message);
+    }
+
     getFromURL(url,callback) {
         /*
         load a file from url
@@ -55,7 +63,13 @@ export class PhononJson {
             }.bind(this))
             .catch(function(error) {
                 console.log(error);
-                alert("Unable to load compressed phonon data.");
+                let message = "Unable to load compressed phonon data.";
+                if (error && error.name === 'TypeError') {
+                    message = "Unable to load Materials Project phonon data. The remote OpenData bucket is blocking cross-origin browser requests (CORS).";
+                } else if (error && error.message) {
+                    message = "Unable to load compressed phonon data: " + error.message;
+                }
+                PhononJson.showCompressedLoadError(message);
             });
     }
 

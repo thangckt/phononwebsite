@@ -9,6 +9,7 @@ export class MaterialsProjectDB {
         this.year = 2025;
         this.author = "G. Petretto et al.";
         this.url = "https://materialsproject-parsed.s3.amazonaws.com/index.html#ph-bandstructures/dfpt/";
+        this.probeUrl = "https://materialsproject-parsed.s3.amazonaws.com/ph-bandstructures/dfpt/mp-1000.json.gz";
         this.apikey = apikey;
     }
 
@@ -37,6 +38,31 @@ export class MaterialsProjectDB {
 
     isAvailable() {
         return false;
+    }
+
+    checkAvailability(callback) {
+        if (MaterialsProjectDB.availabilityState !== undefined) {
+            callback(MaterialsProjectDB.availabilityState);
+            return;
+        }
+
+        if (typeof fetch !== 'function') {
+            MaterialsProjectDB.availabilityState = false;
+            callback(false);
+            return;
+        }
+
+        fetch(this.probeUrl, { method: 'HEAD' })
+            .then(function(response) {
+                let available = response.ok;
+                MaterialsProjectDB.availabilityState = available;
+                callback(available);
+            })
+            .catch(function(error) {
+                console.log("Materials Project OpenData unavailable from browser:", error);
+                MaterialsProjectDB.availabilityState = false;
+                callback(false);
+            });
     }
 
     get_materials(callback) {
