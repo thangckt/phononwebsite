@@ -135,7 +135,7 @@ export class VibCrystal {
         this.bondscolor = 0xffffff;
         this.defaultArrowColor = this.arrowcolor;
         this.defaultBondsColor = this.bondscolor;
-        this.bondColorByAtom = false;
+        this.bondColorByAtom = true;
         this.defaultBondColorByAtom = this.bondColorByAtom;
         this.atomRadiusScale = 1.0;
         this.defaultAtomRadiusScale = this.atomRadiusScale;
