@@ -36,8 +36,6 @@ export class PhononWebpage {
         //bind click event from highcharts with action
         dispersion.setClickEvent(this);
 
-        // set null materials project API key
-        this.mpapikey = null;
         this.showModeWeightsOnPlot = false;
         this.materialFilterQuery = '';
         this.materialsIndex = [];
@@ -216,24 +214,6 @@ export class PhononWebpage {
         dom_input.click( function() { this.value = '';} );
     }
 
-    setMaterialsProjectAPIKey(dom_input, dom_button) {
-        let self = this;
-
-        // Handle button click
-        dom_button.click(function () {
-            self.mpapikey = dom_input[0].value;
-            self.updateMenu();
-        });
-
-        // Handle Enter key press
-        dom_input.keypress(function (event) {
-            if (event.keyCode === 13) { // Check if Enter key is pressed
-                self.mpapikey = dom_input[0].value;
-                //self.updateMenu();
-            }
-        });
-    }
-
     loadCustomFile(event) {
         /*
         find the type of file and call the corresponding function to read it
@@ -322,7 +302,7 @@ export class PhononWebpage {
         }
         else if ("rest" in url_vars) {
             this.phonon = new PhononJson();
-            this.phonon.getFromREST(url_vars.rest,url_vars.apikey,wrappedCallback);
+            this.phonon.getFromREST(url_vars.rest,null,wrappedCallback);
         }
         else {
             //alert("Ivalid url");
@@ -830,7 +810,7 @@ export class PhononWebpage {
         source.get_materials(addMaterials);
 
         //materials project database
-        source = new MaterialsProjectDB(self.mpapikey);
+        source = new MaterialsProjectDB();
         source.checkAvailability(function(isAvailable) {
             if (isAvailable) {
                 source.get_materials(addMaterials);
@@ -860,7 +840,7 @@ export class PhononWebpage {
 
         //mp databse
         for (let sourceclass of [MaterialsProjectDB, LocalMaterialsProjectDB ]) {
-            source = new sourceclass(self.mpapikey);
+            source = new sourceclass();
             if (source.isAvailable()) {
                 source.get_materials(addMaterials);
                 break;
@@ -939,7 +919,6 @@ export class PhononWebpage {
                 let url_vars = {};
                 url_vars[m.type] = m.url;
                 url_vars.name = name_ref;
-                url_vars.apikey = m.apikey;
                 if ("link" in m) { url_vars.link = m.link }
                 this.loadURL(url_vars);
             };

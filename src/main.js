@@ -83,7 +83,6 @@ p.setModeSelectionInput( $('#kindex'), $('#nindex'), $('#modeselect') );
 p.setModeWeightsToggle( $('#mode_weights_plot') );
 p.setUpdateButton( $('#update') );
 p.setFileInput( $('#file-input') );
-p.setMaterialsProjectAPIKey( $('#mp_api_key_input'),$('#mp_api_key_button') );
 p.setExportPOSCARButton($('#poscar'));
 p.setExportXSFButton($('#xsf'));
 p.setTitle($('#name'));
