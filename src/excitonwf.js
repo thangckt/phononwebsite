@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { TrackballControls } from './static_libs/TrackballControls.js';
-import { edgeTable, triTable } from './static_libs/MarchingCubesData.js';
 import { atomic_symbol, covalent_radii, jmol_colors, vesta_colors } from './atomic_data.js';
+import { buildMarchingCubesGeometry } from './marchingcubesgeometry.js';
 import { getCombinations } from './utils.js';
 
 const vecY = new THREE.Vector3(0, 1, 0);
@@ -25,7 +25,6 @@ export class ExcitonWf {
         this.camera = null;
         this.renderer = null;
         this.controls = null;
-        this.points = [];
         this.values = null;
         this.sizex = 1;
         this.sizey = 1;
@@ -757,23 +756,6 @@ export class ExcitonWf {
         this.values = this.excitons[this.excitonIndex].datagrid;
         this.removeStructure();
 
-        this.points = [];
-        for (let k = 0; k < this.sizez; k++) {
-            for (let j = 0; j < this.sizey; j++) {
-                for (let i = 0; i < this.sizex; i++) {
-                    const x = i / (this.sizex - 1);
-                    const y = j / (this.sizey - 1);
-                    const z = k / (this.sizez - 1);
-
-                    this.points.push(new THREE.Vector3(
-                        x * this.gridCell[0][0] + y * this.gridCell[1][0] + z * this.gridCell[2][0],
-                        x * this.gridCell[0][1] + y * this.gridCell[1][1] + z * this.gridCell[2][1],
-                        x * this.gridCell[0][2] + y * this.gridCell[1][2] + z * this.gridCell[2][2],
-                    ));
-                }
-            }
-        }
-
         this.addLights();
         this.addMarchingCubes();
         this.getAtomMaterials();
@@ -781,124 +763,14 @@ export class ExcitonWf {
     }
 
     addMarchingCubes() {
-        const size2 = this.sizex * this.sizey;
-        const vlist = new Array(12);
-        const geometry = new THREE.Geometry();
-        let vertexIndex = 0;
-
-        for (let z = 0; z < this.sizez - 1; z++) {
-            for (let y = 0; y < this.sizey - 1; y++) {
-                for (let x = 0; x < this.sizex - 1; x++) {
-                    const p = x + this.sizex * y + size2 * z;
-                    const px = p + 1;
-                    const py = p + this.sizex;
-                    const pxy = py + 1;
-                    const pz = p + size2;
-                    const pxz = px + size2;
-                    const pyz = py + size2;
-                    const pxyz = pxy + size2;
-
-                    const value0 = this.values[p];
-                    const value1 = this.values[px];
-                    const value2 = this.values[py];
-                    const value3 = this.values[pxy];
-                    const value4 = this.values[pz];
-                    const value5 = this.values[pxz];
-                    const value6 = this.values[pyz];
-                    const value7 = this.values[pxyz];
-
-                    let cubeindex = 0;
-                    if (value0 < this.isolevel) cubeindex |= 1;
-                    if (value1 < this.isolevel) cubeindex |= 2;
-                    if (value2 < this.isolevel) cubeindex |= 8;
-                    if (value3 < this.isolevel) cubeindex |= 4;
-                    if (value4 < this.isolevel) cubeindex |= 16;
-                    if (value5 < this.isolevel) cubeindex |= 32;
-                    if (value6 < this.isolevel) cubeindex |= 128;
-                    if (value7 < this.isolevel) cubeindex |= 64;
-
-                    const bits = edgeTable[cubeindex];
-                    if (bits === 0) {
-                        continue;
-                    }
-
-                    let mu = 0.5;
-                    if (bits & 1) {
-                        mu = (this.isolevel - value0) / (value1 - value0);
-                        vlist[0] = this.points[p].clone().lerp(this.points[px], mu);
-                    }
-                    if (bits & 2) {
-                        mu = (this.isolevel - value1) / (value3 - value1);
-                        vlist[1] = this.points[px].clone().lerp(this.points[pxy], mu);
-                    }
-                    if (bits & 4) {
-                        mu = (this.isolevel - value2) / (value3 - value2);
-                        vlist[2] = this.points[py].clone().lerp(this.points[pxy], mu);
-                    }
-                    if (bits & 8) {
-                        mu = (this.isolevel - value0) / (value2 - value0);
-                        vlist[3] = this.points[p].clone().lerp(this.points[py], mu);
-                    }
-                    if (bits & 16) {
-                        mu = (this.isolevel - value4) / (value5 - value4);
-                        vlist[4] = this.points[pz].clone().lerp(this.points[pxz], mu);
-                    }
-                    if (bits & 32) {
-                        mu = (this.isolevel - value5) / (value7 - value5);
-                        vlist[5] = this.points[pxz].clone().lerp(this.points[pxyz], mu);
-                    }
-                    if (bits & 64) {
-                        mu = (this.isolevel - value6) / (value7 - value6);
-                        vlist[6] = this.points[pyz].clone().lerp(this.points[pxyz], mu);
-                    }
-                    if (bits & 128) {
-                        mu = (this.isolevel - value4) / (value6 - value4);
-                        vlist[7] = this.points[pz].clone().lerp(this.points[pyz], mu);
-                    }
-                    if (bits & 256) {
-                        mu = (this.isolevel - value0) / (value4 - value0);
-                        vlist[8] = this.points[p].clone().lerp(this.points[pz], mu);
-                    }
-                    if (bits & 512) {
-                        mu = (this.isolevel - value1) / (value5 - value1);
-                        vlist[9] = this.points[px].clone().lerp(this.points[pxz], mu);
-                    }
-                    if (bits & 1024) {
-                        mu = (this.isolevel - value3) / (value7 - value3);
-                        vlist[10] = this.points[pxy].clone().lerp(this.points[pxyz], mu);
-                    }
-                    if (bits & 2048) {
-                        mu = (this.isolevel - value2) / (value6 - value2);
-                        vlist[11] = this.points[py].clone().lerp(this.points[pyz], mu);
-                    }
-
-                    let i = 0;
-                    cubeindex <<= 4;
-
-                    while (triTable[cubeindex + i] !== -1) {
-                        const index1 = triTable[cubeindex + i];
-                        const index2 = triTable[cubeindex + i + 1];
-                        const index3 = triTable[cubeindex + i + 2];
-
-                        geometry.vertices.push(vlist[index1].clone());
-                        geometry.vertices.push(vlist[index2].clone());
-                        geometry.vertices.push(vlist[index3].clone());
-                        geometry.faces.push(new THREE.Face3(vertexIndex, vertexIndex + 1, vertexIndex + 2));
-                        geometry.faceVertexUvs[0].push([
-                            new THREE.Vector2(0, 0),
-                            new THREE.Vector2(0, 1),
-                            new THREE.Vector2(1, 1),
-                        ]);
-
-                        vertexIndex += 3;
-                        i += 3;
-                    }
-                }
-            }
-        }
-
-        geometry.computeFaceNormals();
-        geometry.computeVertexNormals();
+        const geometry = buildMarchingCubesGeometry(
+            this.values,
+            this.sizex,
+            this.sizey,
+            this.sizez,
+            this.gridCell,
+            this.isolevel,
+        );
 
         const mesh = new THREE.Mesh(
             geometry,
