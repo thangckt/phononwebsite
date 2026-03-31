@@ -198,7 +198,9 @@ export class PhononWebpage {
         dom_checkbox.prop('checked', this.showModeWeightsOnPlot);
         dom_checkbox.on('change', () => {
             this.showModeWeightsOnPlot = !!dom_checkbox.prop('checked');
-            this.refreshDispersionAppearance();
+            this.runWithProgressFeedback(() => {
+                this.refreshDispersionAppearance();
+            });
         });
     }
 
@@ -342,6 +344,31 @@ export class PhononWebpage {
         let message = error && error.message ? error.message : 'Unable to load phonon data.';
         this.finishLoadingFeedback();
         PhononJson.showCompressedLoadError(message);
+    }
+
+    runWithProgressFeedback(work) {
+        let progress = document.getElementById('progress');
+        if (!progress) {
+            work();
+            return;
+        }
+
+        progress.style.width = '28%';
+        requestAnimationFrame(() => {
+            progress.style.width = '68%';
+            requestAnimationFrame(() => {
+                try {
+                    work();
+                } finally {
+                    progress.style.width = '100%';
+                    window.setTimeout(() => {
+                        if (!this.loadingState) {
+                            progress.style.width = '0%';
+                        }
+                    }, 140);
+                }
+            });
+        });
     }
 
     getUrlVars(default_vars) {

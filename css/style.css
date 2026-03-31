@@ -102,6 +102,8 @@ h3 {
     z-index: 100; 
     height: 10px; 
     background-color: #b70000;
+    width: 0;
+    transition: width 140ms ease;
 }
 
 #stats {
