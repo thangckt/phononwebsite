@@ -43,7 +43,7 @@ class PhonopyPhonon():
         #get force_sets
         force_sets = file_IO.parse_FORCE_SETS(filename=force_sets_filename)
 
-        phonon = Phonopy(atoms,supercell_matrix)
+        phonon = Phonopy(atoms,supercell_matrix, primitive_matrix='auto')
         if hasattr(phonon, "set_displacement_dataset"):
             phonon.set_displacement_dataset(force_sets)
         else:

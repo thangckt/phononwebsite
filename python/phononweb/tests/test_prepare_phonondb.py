@@ -36,7 +36,7 @@ def test_prepare_archive_writes_compressed_internal_json(tmp_path):
 
     assert output_path.exists()
     assert output_path.suffixes[-2:] == ['.json', '.gz']
-    assert payload['formula'] == 'Si8'
+    assert payload['formula'] == 'Si2'
     assert payload['repetitions'] == [3, 3, 3]
     assert len(payload['line_breaks']) > 0
     assert len(payload['qpoints']) == len(payload['distances'])
@@ -46,6 +46,6 @@ def test_prepare_archive_writes_compressed_internal_json(tmp_path):
     with gzip.open(output_path, 'rt', encoding='utf-8') as handle:
         written = json.load(handle)
 
-    assert written['formula'] == 'Si8'
+    assert written['formula'] == 'Si2'
     assert written['name'] == 'mp-149'
     assert written['atom_pos_car'][1] != written['atom_pos_red'][1]

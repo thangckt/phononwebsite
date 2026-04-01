@@ -237,21 +237,21 @@ def atomic_numbers_inverse_sort_key(atomic_number):
 
 
 def get_structure_metadata(phonopy_phonon):
-    unitcell = (
-        phonopy_phonon.phonon.get_unitcell()
-        if hasattr(phonopy_phonon.phonon, "get_unitcell")
-        else phonopy_phonon.phonon.unitcell
+    primitive = (
+        phonopy_phonon.phonon.get_primitive()
+        if hasattr(phonopy_phonon.phonon, "get_primitive")
+        else phonopy_phonon.phonon.primitive
     )
-    lattice = unitcell.get_cell() if hasattr(unitcell, "get_cell") else unitcell.cell
+    lattice = primitive.get_cell() if hasattr(primitive, "get_cell") else primitive.cell
     atom_pos_red = (
-        unitcell.get_scaled_positions()
-        if hasattr(unitcell, "get_scaled_positions")
-        else unitcell.scaled_positions
+        primitive.get_scaled_positions()
+        if hasattr(primitive, "get_scaled_positions")
+        else primitive.scaled_positions
     )
     atom_numbers_list = (
-        unitcell.get_atomic_numbers()
-        if hasattr(unitcell, "get_atomic_numbers")
-        else unitcell.numbers
+        primitive.get_atomic_numbers()
+        if hasattr(primitive, "get_atomic_numbers")
+        else primitive.numbers
     )
     atom_types = [atomic_number_to_symbol(int(number)) for number in atom_numbers_list]
     atom_pos_car = red_car(atom_pos_red, lattice)
