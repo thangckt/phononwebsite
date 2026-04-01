@@ -88,7 +88,6 @@ export class ExcitonWf extends StructureViewerBase {
         }
 
         this.values = this.excitons[this.excitonIndex].datagrid;
-        this.marchingCubesRequestId += 1;
         this.removeStructure();
 
         this.addLights();

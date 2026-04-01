@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { TrackballControls } from './static_libs/TrackballControls.js';
 import { atomic_symbol, covalent_radii } from './atomic_data.js';
 import { createAtomBadgeHtml } from './atomcolors.js';
-import { buildMarchingCubesGeometry } from './marchingcubesgeometry.js';
+import { IsosurfaceController } from './isosurfacecontroller.js';
 import { getCombinations } from './utils.js';
 import { getSharedLightConfig, sharedViewerMethods } from './viewercommon.js';
 
@@ -58,11 +58,7 @@ export class StructureViewerBase {
         this.defaultAtomRadiusScale = 1.0;
         this.appearanceSelectedAtomNumber = null;
         this.bondRules = {};
-        this.marchingCubesWorker = null;
-        this.marchingCubesWorkerFailed = false;
-        this.marchingCubesRequestId = 0;
-        this.marchingCubesWorkerBusy = false;
-        this.isosurfacePreviewCache = null;
+        this.isosurfaceController = new IsosurfaceController(this);
     }
 
     init(container = this.container, options = {}) {
@@ -125,7 +121,7 @@ export class StructureViewerBase {
     }
 
     clearIsosurfacePreviewCache() {
-        this.isosurfacePreviewCache = null;
+        this.isosurfaceController.clearPreviewCache();
     }
 
     getContainerDimensions() {
@@ -595,216 +591,16 @@ export class StructureViewerBase {
         return { insideIsAbove: true };
     }
 
-    getPreviewStride() {
-        const voxelCount = (this.sizex || 1) * (this.sizey || 1) * (this.sizez || 1);
-        const minSize = Math.min(this.sizex || 1, this.sizey || 1, this.sizez || 1);
-        if (minSize < 12) return 1;
-        if (voxelCount > 800000 && minSize >= 24) return 4;
-        if (voxelCount > 250000 && minSize >= 18) return 3;
-        if (voxelCount > 80000 && minSize >= 12) return 2;
-        return 1;
-    }
-
-    buildDownsampledField(values, sizex, sizey, sizez, stride, periodic) {
-        if (stride <= 1) {
-            return { values, sizex, sizey, sizez };
-        }
-
-        const reducedX = periodic ? Math.max(2, Math.floor(sizex / stride)) : Math.max(2, Math.floor((sizex - 1) / stride) + 1);
-        const reducedY = periodic ? Math.max(2, Math.floor(sizey / stride)) : Math.max(2, Math.floor((sizey - 1) / stride) + 1);
-        const reducedZ = periodic ? Math.max(2, Math.floor(sizez / stride)) : Math.max(2, Math.floor((sizez - 1) / stride) + 1);
-        const reducedValues = new Float32Array(reducedX * reducedY * reducedZ);
-        let writeIndex = 0;
-
-        for (let z = 0; z < reducedZ; z++) {
-            const sourceZ = periodic ? (z * stride) % sizez : Math.min(z * stride, sizez - 1);
-            for (let y = 0; y < reducedY; y++) {
-                const sourceY = periodic ? (y * stride) % sizey : Math.min(y * stride, sizey - 1);
-                for (let x = 0; x < reducedX; x++) {
-                    const sourceX = periodic ? (x * stride) % sizex : Math.min(x * stride, sizex - 1);
-                    reducedValues[writeIndex] = values[sourceX + sizex * sourceY + sizex * sizey * sourceZ];
-                    writeIndex += 1;
-                }
-            }
-        }
-
-        return { values: reducedValues, sizex: reducedX, sizey: reducedY, sizez: reducedZ };
-    }
-
-    getInteractiveMarchingCubesInput() {
-        const stride = this.getPreviewStride();
-        if (stride <= 1) {
-            return { values: this.values, sizex: this.sizex, sizey: this.sizey, sizez: this.sizez };
-        }
-
-        const options = this.getMarchingCubesOptions();
-        const periodic = !!options.periodic;
-        const cacheKey = `${stride}:${this.sizex}:${this.sizey}:${this.sizez}:${periodic ? 'p' : 'n'}`;
-        if (!this.isosurfacePreviewCache || this.isosurfacePreviewCache.key !== cacheKey) {
-            this.isosurfacePreviewCache = {
-                key: cacheKey,
-                data: this.buildDownsampledField(this.values, this.sizex, this.sizey, this.sizez, stride, periodic),
-            };
-        }
-
-        return this.isosurfacePreviewCache.data;
-    }
-
-    getMarchingCubesWorker() {
-        if (this.marchingCubesWorkerFailed || typeof Worker === 'undefined') {
-            return null;
-        }
-        if (this.marchingCubesWorker) {
-            return this.marchingCubesWorker;
-        }
-
-        try {
-            this.marchingCubesWorker = new Worker(
-                new URL('./marchingcubesworker.js', import.meta.url),
-                { type: 'module' },
-            );
-            this.marchingCubesWorker.onmessage = (event) => {
-                this.marchingCubesWorkerBusy = false;
-                const { requestId, positions, normals } = event.data;
-                this.applyMarchingCubesBuffers(
-                    requestId,
-                    new Float32Array(positions),
-                    new Float32Array(normals),
-                );
-            };
-            this.marchingCubesWorker.onerror = () => {
-                this.marchingCubesWorkerBusy = false;
-                this.marchingCubesWorkerFailed = true;
-                if (this.marchingCubesWorker) {
-                    this.marchingCubesWorker.terminate();
-                    this.marchingCubesWorker = null;
-                }
-            };
-        } catch (error) {
-            this.marchingCubesWorkerFailed = true;
-            this.marchingCubesWorker = null;
-        }
-
-        return this.marchingCubesWorker;
-    }
-
-    resetMarchingCubesWorker() {
-        this.marchingCubesWorkerBusy = false;
-        if (this.marchingCubesWorker) {
-            this.marchingCubesWorker.terminate();
-            this.marchingCubesWorker = null;
-        }
-    }
-
-    createMarchingCubesGeometry(positions, normals) {
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
-        return geometry;
-    }
-
-    applyMarchingCubesBuffers(requestId, positions, normals) {
-        if (requestId !== this.marchingCubesRequestId || !this.scene) {
-            return;
-        }
-
-        this.removeNamedSceneObjects('isosurface');
-        const geometry = this.createMarchingCubesGeometry(positions, normals);
-        this.addMarchingCubesGeometry(geometry);
-        this.render();
-    }
-
     requestMarchingCubesUpdate() {
-        if (!Array.isArray(this.values) || !this.values.length || !this.scene) {
-            return;
-        }
-
-        const requestId = ++this.marchingCubesRequestId;
-        const payload = {
-            requestId,
-            values: Float32Array.from(this.values),
-            sizex: this.sizex,
-            sizey: this.sizey,
-            sizez: this.sizez,
-            gridCell: this.gridCell,
-            isolevel: this.isolevel,
-            options: this.getMarchingCubesOptions(),
-        };
-
-        const worker = this.getMarchingCubesWorker();
-        if (worker) {
-            if (this.marchingCubesWorkerBusy) {
-                this.resetMarchingCubesWorker();
-            }
-            const activeWorker = this.getMarchingCubesWorker();
-            if (activeWorker) {
-                this.marchingCubesWorkerBusy = true;
-                activeWorker.postMessage(payload, [payload.values.buffer]);
-                return;
-            }
-        }
-
-        const geometry = buildMarchingCubesGeometry(
-            this.values,
-            this.sizex,
-            this.sizey,
-            this.sizez,
-            this.gridCell,
-            this.isolevel,
-            this.getMarchingCubesOptions(),
-        );
-        this.removeNamedSceneObjects('isosurface');
-        this.addMarchingCubesGeometry(geometry);
-        this.render();
+        this.isosurfaceController.requestUpdate();
     }
 
     updateIsosurfaceSync() {
-        if (!this.scene || !Array.isArray(this.values) || !this.values.length) {
-            return;
-        }
-
-        this.marchingCubesRequestId += 1;
-        if (this.marchingCubesWorkerBusy) {
-            this.resetMarchingCubesWorker();
-        }
-
-        const geometry = buildMarchingCubesGeometry(
-            this.values,
-            this.sizex,
-            this.sizey,
-            this.sizez,
-            this.gridCell,
-            this.isolevel,
-            this.getMarchingCubesOptions(),
-        );
-        this.removeNamedSceneObjects('isosurface');
-        this.addMarchingCubesGeometry(geometry);
-        this.render();
+        this.isosurfaceController.updateSync();
     }
 
     updateIsosurfacePreview() {
-        if (!this.scene || !Array.isArray(this.values) || !this.values.length) {
-            return;
-        }
-
-        this.marchingCubesRequestId += 1;
-        if (this.marchingCubesWorkerBusy) {
-            this.resetMarchingCubesWorker();
-        }
-
-        const preview = this.getInteractiveMarchingCubesInput();
-        const geometry = buildMarchingCubesGeometry(
-            preview.values,
-            preview.sizex,
-            preview.sizey,
-            preview.sizez,
-            this.gridCell,
-            this.isolevel,
-            this.getMarchingCubesOptions(),
-        );
-        this.removeNamedSceneObjects('isosurface');
-        this.addMarchingCubesGeometry(geometry);
-        this.render();
+        this.isosurfaceController.updatePreview();
     }
 
     updateIsosurface() {
