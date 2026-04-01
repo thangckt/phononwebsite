@@ -295,4 +295,45 @@ describe('VibCrystal advanced appearance', function () {
     assert.equal(v.getAtomColorHex(6), vestaDefault);
     dom.window.close();
   });
+
+  it('keeps manually added bond rules across phonon mode updates', function () {
+    const v = new VibCrystal(makeContainer());
+    v.initialized = true;
+    v.updatelocal = () => {};
+
+    const phonon = { atom_numbers: [6, 8] };
+    const phononweb = {
+      phonon,
+      vibrations: [[
+        { real: () => 0, imag: () => 0 },
+        { real: () => 0, imag: () => 0 },
+        { real: () => 0, imag: () => 0 },
+      ]],
+      atoms: [
+        [0, 0, 0, 0],
+        [1, 1.6, 0, 0],
+      ],
+      k: 0,
+      n: 0,
+    };
+
+    v.update(phononweb);
+    v.setBondRule(6, 8, 2.25);
+    v.update(phononweb);
+
+    assert.equal(v.bondRules[v.getBondRuleKey(6, 8)].cutoff, 2.25);
+  });
+
+  it('uses the closest observed pair distance as the default bond cutoff', function () {
+    const v = new VibCrystal(makeContainer());
+    v.phonon = { atom_numbers: [6, 8] };
+    v.atoms = [
+      [0, 0, 0, 0],
+      [1, 2.05, 0, 0],
+      [1, 4.40, 0, 0],
+    ];
+
+    const cutoff = v.getDefaultBondCutoff(6, 8);
+    assert.equal(Number(cutoff.toFixed(2)), 2.11);
+  });
 });
