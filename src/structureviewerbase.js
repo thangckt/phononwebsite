@@ -4,6 +4,7 @@ import { atomic_symbol, covalent_radii } from './atomic_data.js';
 import { createAtomBadgeHtml } from './atomcolors.js';
 import { bindAppearanceAtomSelection, bindBondRuleControls, bindEnterToApply, createBondColorInputStateUpdater } from './appearancecontrols.js';
 import { IsosurfaceController } from './isosurfacecontroller.js';
+import { getRaymarchPerformanceProfile } from './raymarchperformance.js';
 import { getCombinations } from './utils.js';
 import { createAtomSphereGeometry, createBondCylinderGeometry } from './viewergeometry.js';
 import { buildBondList, getViewerAtomRadius } from './viewermeshes.js';
@@ -44,6 +45,8 @@ export class StructureViewerBase {
         this.isInitialized = false;
         this.continuousRender = false;
         this.renderQueued = false;
+        this.interactionActive = false;
+        this.interactionTimeoutId = null;
 
         this.cameraViewAngle = 18;
         this.cameraNear = 0.1;
@@ -94,7 +97,7 @@ export class StructureViewerBase {
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setClearColor(0xffffff);
-        this.renderer.setPixelRatio(window.devicePixelRatio || 1);
+        this.renderer.setPixelRatio(this.getPreferredPixelRatio());
         this.renderer.setSize(this.dimensions.width, this.dimensions.height, false);
         containerElement.appendChild(this.renderer.domElement);
         this.canvas = this.renderer.domElement;
@@ -115,6 +118,7 @@ export class StructureViewerBase {
         this.controls.staticMoving = true;
         this.controls.dynamicDampingFactor = 0.3;
         this.controls.addEventListener('change', () => {
+            this.handleInteractionActivity();
             this.requestRender();
         });
         if (typeof options.configureControls === 'function') {
@@ -169,6 +173,7 @@ export class StructureViewerBase {
     setIsosurfaceRenderMode(mode) {
         this.isosurfaceController.setMode(mode);
         this.isosurfaceRenderMode = this.isosurfaceController.getMode();
+        this.updateRendererPixelRatio();
         if (Array.isArray(this.values) && this.values.length) {
             this.updateIsosurface();
         }
@@ -198,6 +203,61 @@ export class StructureViewerBase {
         }
 
         return { width, height, ratio: width / height };
+    }
+
+    getPreferredPixelRatio() {
+        const nativePixelRatio = window.devicePixelRatio || 1;
+        if (!this.getIsosurfaceRenderMode().startsWith('raymarch')) {
+            return nativePixelRatio;
+        }
+        const interpolation = this.getIsosurfaceRenderMode() === 'raymarch-tricubic' ? 'tricubic' : 'trilinear';
+        const profile = getRaymarchPerformanceProfile({
+            interacting: this.interactionActive,
+            selectedInterpolation: interpolation,
+            gridSizeMax: Math.max(this.sizex || 1, this.sizey || 1, this.sizez || 1),
+        });
+        return nativePixelRatio / profile.resolutionDivisor;
+    }
+
+    getRaymarchRenderConfig(baseInterpolation) {
+        return getRaymarchPerformanceProfile({
+            interacting: this.interactionActive,
+            selectedInterpolation: baseInterpolation,
+            gridSizeMax: Math.max(this.sizex || 1, this.sizey || 1, this.sizez || 1),
+        });
+    }
+
+    handleInteractionActivity() {
+        const wasActive = this.interactionActive;
+        this.interactionActive = true;
+        this.updateRendererPixelRatio();
+        if (!wasActive && this.getIsosurfaceRenderMode().startsWith('raymarch') && Array.isArray(this.values) && this.values.length) {
+            this.updateIsosurface();
+        }
+
+        if (this.interactionTimeoutId) {
+            window.clearTimeout(this.interactionTimeoutId);
+        }
+        this.interactionTimeoutId = window.setTimeout(() => {
+            this.interactionActive = false;
+            this.interactionTimeoutId = null;
+            this.updateRendererPixelRatio();
+            if (this.getIsosurfaceRenderMode().startsWith('raymarch') && Array.isArray(this.values) && this.values.length) {
+                this.updateIsosurface();
+            } else {
+                this.requestRender();
+            }
+        }, 140);
+    }
+
+    updateRendererPixelRatio() {
+        if (!this.renderer) {
+            return;
+        }
+        this.renderer.setPixelRatio(this.getPreferredPixelRatio());
+        if (this.dimensions && this.dimensions.width && this.dimensions.height) {
+            this.renderer.setSize(this.dimensions.width, this.dimensions.height, false);
+        }
     }
 
     setDisplayCombo(domCombo) {
@@ -681,7 +741,7 @@ export class StructureViewerBase {
         }
         this.camera.aspect = this.dimensions.ratio;
         this.camera.updateProjectionMatrix();
-        this.renderer.setSize(this.dimensions.width, this.dimensions.height, false);
+        this.updateRendererPixelRatio();
         this.controls.handleResize();
         this.requestRender();
     }

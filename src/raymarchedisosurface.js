@@ -1,9 +1,10 @@
 import * as THREE from 'three';
+import { RAYMARCH_PERFORMANCE_SETTINGS } from './raymarchperformance.js';
 
 const MAX_STEPS = 384;
 const MAX_REFINEMENT_STEPS = 2;
 const MAX_RAY_HITS = 2;
-const RAYMARCH_OPACITY_COMPENSATION = 1.7;
+const RAYMARCH_OPACITY_COMPENSATION = RAYMARCH_PERFORMANCE_SETTINGS.opacityCompensation;
 
 function createCellMatrix(gridCell) {
     const a = gridCell[0];
@@ -30,7 +31,7 @@ function getInterpolationMode(interpolation) {
     return interpolation === 'tricubic' ? 1 : 0;
 }
 
-function createMaterial({ texture, gridCell, isolevel, opacity, color, periodic, gridSize, interpolation, textureRepeat }) {
+function createMaterial({ texture, gridCell, isolevel, opacity, color, periodic, gridSize, interpolation, textureRepeat, stepCount, activeRayHits }) {
     const cellMatrix4 = createCellMatrix(gridCell);
     const objectToTextureMatrix = new THREE.Matrix4().copy(cellMatrix4).invert();
     const gradientMatrix = new THREE.Matrix3().setFromMatrix4(objectToTextureMatrix).transpose();
@@ -51,7 +52,8 @@ function createMaterial({ texture, gridCell, isolevel, opacity, color, periodic,
             uGradientMatrix: { value: gradientMatrix },
             uWorldToTexture: { value: new THREE.Matrix4() },
             uTextureToWorld: { value: new THREE.Matrix4() },
-            uStepCount: { value: Math.max(96, Math.min(MAX_STEPS, Math.round(Math.max(...gridSize) * 2.0))) },
+            uStepCount: { value: Math.max(24, Math.min(MAX_STEPS, Math.round(stepCount || (Math.max(...gridSize) * 2.0)))) },
+            uActiveRayHits: { value: Math.max(1, Math.min(MAX_RAY_HITS, Math.round(activeRayHits || MAX_RAY_HITS))) },
             uInterpolationMode: { value: getInterpolationMode(interpolation) },
             uTextureRepeat: { value: new THREE.Vector3(textureRepeat[0], textureRepeat[1], textureRepeat[2]) },
         },
@@ -78,6 +80,7 @@ function createMaterial({ texture, gridCell, isolevel, opacity, color, periodic,
             uniform mat4 uWorldToTexture;
             uniform mat4 uTextureToWorld;
             uniform int uStepCount;
+            uniform int uActiveRayHits;
             uniform int uInterpolationMode;
             uniform vec3 uTextureRepeat;
 
@@ -282,7 +285,7 @@ function createMaterial({ texture, gridCell, isolevel, opacity, color, periodic,
                 shadedColor = min(shadedColor, vec3(1.0));
                 float clampedOpacity = clamp(uOpacity, 0.0, 0.9999);
                 float targetOpacity = min(0.9999, clampedOpacity * ${RAYMARCH_OPACITY_COMPENSATION.toFixed(2)});
-                float hitCount = float(${MAX_RAY_HITS});
+                float hitCount = float(max(uActiveRayHits, 1));
                 float effectiveOpacity = 1.0 - pow(max(1.0 - targetOpacity, 1e-4), 1.0 / hitCount);
                 return vec4(shadedColor, effectiveOpacity);
             }
@@ -309,6 +312,9 @@ function createMaterial({ texture, gridCell, isolevel, opacity, color, periodic,
                 vec4 accumulated = vec4(0.0);
 
                 for (int hitIndex = 0; hitIndex < ${MAX_RAY_HITS}; hitIndex++) {
+                    if (hitIndex >= uActiveRayHits) {
+                        break;
+                    }
                     vec3 previousPos = cameraTex + rayDirection * currentStartT;
                     float previousValue = sampleVolume(previousPos) - uIsolevel;
                     bool foundHit = false;
@@ -390,6 +396,8 @@ export function createRaymarchedIsosurface({
     gridSize = [1, 1, 1],
     interpolation = 'trilinear',
     textureRepeat = [1, 1, 1],
+    stepCount = null,
+    activeRayHits = MAX_RAY_HITS,
 }) {
     if (!texture || !Array.isArray(gridCell) || gridCell.length !== 3) {
         return null;
@@ -406,6 +414,8 @@ export function createRaymarchedIsosurface({
         gridSize,
         interpolation,
         textureRepeat,
+        stepCount,
+        activeRayHits,
     });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = 'isosurface';
@@ -426,6 +436,8 @@ export function updateRaymarchedIsosurface(object, {
     gridSize = [1, 1, 1],
     interpolation = 'trilinear',
     textureRepeat = [1, 1, 1],
+    stepCount = null,
+    activeRayHits = MAX_RAY_HITS,
 }) {
     if (!object || !object.material || !object.material.uniforms) {
         return false;
@@ -451,7 +463,10 @@ export function updateRaymarchedIsosurface(object, {
         uniforms.uPeriodic.value = periodic ? 1 : 0;
     }
     if (uniforms.uStepCount) {
-        uniforms.uStepCount.value = Math.max(96, Math.min(MAX_STEPS, Math.round(Math.max(...gridSize) * 2.0)));
+        uniforms.uStepCount.value = Math.max(24, Math.min(MAX_STEPS, Math.round(stepCount || (Math.max(...gridSize) * 2.0))));
+    }
+    if (uniforms.uActiveRayHits) {
+        uniforms.uActiveRayHits.value = Math.max(1, Math.min(MAX_RAY_HITS, Math.round(activeRayHits || MAX_RAY_HITS)));
     }
     if (uniforms.uInterpolationMode) {
         uniforms.uInterpolationMode.value = getInterpolationMode(interpolation);

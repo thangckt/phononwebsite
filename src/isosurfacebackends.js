@@ -305,11 +305,22 @@ export class RaymarchIsosurfaceBackend extends BaseIsosurfaceBackend {
         return false;
     }
 
+    getRenderConfig() {
+        if (typeof this.host.getRaymarchRenderConfig === 'function') {
+            return this.host.getRaymarchRenderConfig(this.interpolation);
+        }
+        return {
+            interpolation: this.interpolation,
+            stepCount: Math.max(96, Math.min(384, Math.round(Math.max(this.host.sizex, this.host.sizey, this.host.sizez) * 2.0))),
+        };
+    }
+
     updateExistingObjects() {
         if (!this.hasIsosurfaceObjects()) {
             return false;
         }
 
+        const renderConfig = this.getRenderConfig();
         let updated = false;
         this.host.forEachNamedSceneObject('isosurface', (object) => {
             updated = updateRaymarchedIsosurface(object, {
@@ -319,8 +330,10 @@ export class RaymarchIsosurfaceBackend extends BaseIsosurfaceBackend {
                 color: 0xffff00,
                 periodic: !!this.host.getMarchingCubesOptions().periodic,
                 gridSize: [this.host.sizex, this.host.sizey, this.host.sizez],
-                interpolation: this.interpolation,
+                interpolation: renderConfig.interpolation,
                 textureRepeat: object.userData && object.userData.textureRepeat ? object.userData.textureRepeat : [1, 1, 1],
+                stepCount: renderConfig.stepCount,
+                activeRayHits: renderConfig.activeRayHits,
             }) || updated;
         });
 
@@ -343,6 +356,7 @@ export class RaymarchIsosurfaceBackend extends BaseIsosurfaceBackend {
         if (this.updateExistingObjects()) {
             return;
         }
+        const renderConfig = this.getRenderConfig();
         const object = createRaymarchedIsosurface({
             texture: this.volumeTexture,
             gridCell: this.host.gridCell,
@@ -351,8 +365,10 @@ export class RaymarchIsosurfaceBackend extends BaseIsosurfaceBackend {
             color: 0xffff00,
             periodic: !!this.host.getMarchingCubesOptions().periodic,
             gridSize: [this.host.sizex, this.host.sizey, this.host.sizez],
-            interpolation: this.interpolation,
+            interpolation: renderConfig.interpolation,
             textureRepeat: [1, 1, 1],
+            stepCount: renderConfig.stepCount,
+            activeRayHits: renderConfig.activeRayHits,
         });
         if (!object) {
             this.useFallback();
