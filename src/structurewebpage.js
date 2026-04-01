@@ -84,6 +84,17 @@ export class StructureWebpage {
         this.domIsosurfaceSection = domSection;
     }
 
+    setIsosurfaceModeInput(domInput) {
+        this.domIsosurfaceModeInput = domInput;
+        if (!domInput || !domInput.length) {
+            return;
+        }
+        domInput.val(this.viewer.getIsosurfaceRenderMode());
+        domInput.on('change', () => {
+            this.viewer.setIsosurfaceRenderMode(domInput.val());
+        });
+    }
+
     setIsolevelInput(domInput, domValue = null) {
         this.domIsolevelInput = domInput;
         this.domIsolevelValue = domValue;

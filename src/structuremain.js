@@ -16,6 +16,7 @@ page.setTitle($('#name'));
 page.setLattice($('#lattice'));
 page.setAtomPositions($('#atompos'));
 page.setFileInput($('#file-input'));
+page.setIsosurfaceModeInput($('#isosurface_mode'));
 page.setIsolevelInput($('#isolevel_range'), $('#isolevel_value'));
 page.setIsosurfaceOpacityInput($('#isosurface_opacity_range'), $('#isosurface_opacity_value'));
 page.setIsosurfaceSection($('#isosurface_section'));

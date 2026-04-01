@@ -37,6 +37,7 @@ export class StructureViewerBase {
         this.cell = null;
         this.isolevel = 0.02;
         this.isosurfaceOpacity = 0.18;
+        this.isosurfaceRenderMode = 'marching-cubes';
         this.isInitialized = false;
 
         this.cameraViewAngle = 18;
@@ -125,6 +126,18 @@ export class StructureViewerBase {
 
     clearIsosurfacePreviewCache() {
         this.isosurfaceController.clearPreviewCache();
+    }
+
+    setIsosurfaceRenderMode(mode) {
+        this.isosurfaceController.setMode(mode);
+        this.isosurfaceRenderMode = this.isosurfaceController.getMode();
+        if (Array.isArray(this.values) && this.values.length) {
+            this.updateIsosurface();
+        }
+    }
+
+    getIsosurfaceRenderMode() {
+        return this.isosurfaceController.getMode();
     }
 
     getContainerDimensions() {
@@ -603,6 +616,14 @@ export class StructureViewerBase {
         mesh.name = 'isosurface';
         mesh.position.sub(this.geometricCenter);
         this.scene.add(mesh);
+    }
+
+    addIsosurfaceObject(object) {
+        if (!object) {
+            return;
+        }
+        object.name = 'isosurface';
+        this.scene.add(object);
     }
 
     onWindowResize() {

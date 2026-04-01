@@ -185,6 +185,27 @@ export class StructureViewer extends StructureViewerBase {
         }
     }
 
+    addIsosurfaceObject(object) {
+        if (!object) {
+            return;
+        }
+
+        for (let ix = 0; ix < this.nx; ix++) {
+            for (let iy = 0; iy < this.ny; iy++) {
+                for (let iz = 0; iz < this.nz; iz++) {
+                    const mesh = object.clone();
+                    mesh.name = 'isosurface';
+                    mesh.position.set(
+                        ix * this.baseLattice[0][0] + iy * this.baseLattice[1][0] + iz * this.baseLattice[2][0] - this.geometricCenter.x,
+                        ix * this.baseLattice[0][1] + iy * this.baseLattice[1][1] + iz * this.baseLattice[2][1] - this.geometricCenter.y,
+                        ix * this.baseLattice[0][2] + iy * this.baseLattice[1][2] + iz * this.baseLattice[2][2] - this.geometricCenter.z,
+                    );
+                    this.scene.add(mesh);
+                }
+            }
+        }
+    }
+
     updateStructure() {
         if (!this.scene || !this.structureData || !this.baseLattice || !this.baseAtoms.length) {
             return;

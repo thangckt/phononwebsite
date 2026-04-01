@@ -51,6 +51,17 @@ export class ExcitonWebpage {
         domInput.click(function () { this.value = ''; });
     }
 
+    setIsosurfaceModeInput(domInput) {
+        this.domIsosurfaceModeInput = domInput;
+        if (!domInput || !domInput.length) {
+            return;
+        }
+        domInput.val(this.viewer.getIsosurfaceRenderMode());
+        domInput.on('change', () => {
+            this.viewer.setIsosurfaceRenderMode(domInput.val());
+        });
+    }
+
     setIsolevelInput(domInput, domValue = null) {
         this.domIsolevelInput = domInput;
         this.domIsolevelValue = domValue;

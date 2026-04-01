@@ -20,6 +20,7 @@ page.setTitle($('#name'));
 page.setMaterialsList($('#mat'));
 page.setLattice($('#lattice'));
 page.setFileInput($('#file-input'));
+page.setIsosurfaceModeInput($('#isosurface_mode'));
 page.setIsolevelInput($('#isolevel_range'), $('#isolevel_value'));
 page.setIsosurfaceOpacityInput($('#isosurface_opacity_range'), $('#isosurface_opacity_value'));
 page.setCameraDirectionButton($('#camerax'), 'x');

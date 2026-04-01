@@ -52,6 +52,13 @@
                         <div id="isosurface_section" class="isosurface-section">
                             <h3>Isosurface:</h3>
                             <div class="appearance-row">
+                                <label for="isosurface_mode">render</label>
+                                <select id="isosurface_mode">
+                                    <option value="marching-cubes">marching cubes</option>
+                                    <option value="raymarch">raymarch</option>
+                                </select>
+                            </div>
+                            <div class="appearance-row">
                                 <label for="isolevel_range">level</label>
                                 <div class="isosurface-control-field">
                                     <input id="isolevel_range" class="input-isolevel" type="range" min="0.001" max="1.0" step="0.001" value="0.02">
