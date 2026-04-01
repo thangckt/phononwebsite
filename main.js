@@ -67846,6 +67846,910 @@ function requireWhammy () {
 var whammyExports = requireWhammy();
 var Whammy$1 = /*@__PURE__*/getDefaultExportFromCjs(whammyExports);
 
+// stats.js - http://github.com/mrdoob/stats.js
+var Stats=function(){function f(a,e,b){a=document.createElement(a);a.id=e;a.style.cssText=b;return a}function l(a,e,b){var c=f("div",a,"padding:0 0 3px 3px;text-align:left;background:"+b),d=f("div",a+"Text","font-family:Helvetica,Arial,sans-serif;font-size:9px;font-weight:bold;line-height:15px;color:"+e);d.innerHTML=a.toUpperCase();c.appendChild(d);a=f("div",a+"Graph","width:74px;height:30px;background:"+e);c.appendChild(a);for(e=0;74>e;e++)a.appendChild(f("span","","width:1px;height:30px;float:left;opacity:0.9;background:"+
+b));return c}function m(a){for(var b=c.children,d=0;d<b.length;d++)b[d].style.display=d===a?"block":"none";n=a;}function p(a,b){a.appendChild(a.firstChild).style.height=Math.min(30,30-30*b)+"px";}var q=self.performance&&self.performance.now?self.performance.now.bind(performance):Date.now,k=q(),r=k,t=0,n=0,c=f("div","stats","width:80px;opacity:0.9;cursor:pointer");c.addEventListener("mousedown",function(a){a.preventDefault();m(++n%c.children.length);},!1);var d=0,u=Infinity,v=0,b=l("fps","#0ff","#002"),
+A=b.children[0],B=b.children[1];c.appendChild(b);var g=0,w=Infinity,x=0,b=l("ms","#0f0","#020"),C=b.children[0],D=b.children[1];c.appendChild(b);if(self.performance&&self.performance.memory){var h=0,y=Infinity,z=0,b=l("mb","#f08","#201"),E=b.children[0],F=b.children[1];c.appendChild(b);}m(n);return {REVISION:14,domElement:c,setMode:m,begin:function(){k=q();},end:function(){var a=q();g=a-k;w=Math.min(w,g);x=Math.max(x,g);C.textContent=(g|0)+" MS ("+(w|0)+"-"+(x|0)+")";p(D,g/200);t++;if(a>r+1E3&&(d=Math.round(1E3*
+t/(a-r)),u=Math.min(u,d),v=Math.max(v,d),A.textContent=d+" FPS ("+u+"-"+v+")",p(B,d/100),r=a,t=0,void 0!==h)){var b=performance.memory.usedJSHeapSize,c=performance.memory.jsHeapSizeLimit;h=Math.round(9.54E-7*b);y=Math.min(y,h);z=Math.max(z,h);E.textContent=h+" MB ("+y+"-"+z+")";p(F,b/c);}return a},update:function(){k=this.end();}}};
+
+var jmol_colors = [
+[1.000,0.000,0.000] ,// None
+[1.000,1.000,1.000], // H
+[0.851,1.000,1.000], // He
+[0.800,0.502,1.000], // Li
+[0.761,1.000,0.000], // Be
+[1.000,0.710,0.710], // B
+[0.565,0.565,0.565], // C
+[0.188,0.314,0.973], // N
+[1.000,0.051,0.051], // O
+[0.565,0.878,0.314], // F
+[0.702,0.890,0.961], // Ne
+[0.671,0.361,0.949], // Na
+[0.541,1.000,0.000], // Mg
+[0.749,0.651,0.651], // Al
+[0.941,0.784,0.627], // Si
+[1.000,0.502,0.000], // P
+[1.000,1.000,0.188], // S
+[0.122,0.941,0.122], // Cl
+[0.502,0.820,0.890], // Ar
+[0.561,0.251,0.831], // K
+[0.239,1.000,0.000], // Ca
+[0.902,0.902,0.902], // Sc
+[0.749,0.761,0.780], // Ti
+[0.651,0.651,0.671], // V
+[0.541,0.600,0.780], // Cr
+[0.612,0.478,0.780], // Mn
+[0.878,0.400,0.200], // Fe
+[0.941,0.565,0.627], // Co
+[0.314,0.816,0.314], // Ni
+[0.784,0.502,0.200], // Cu
+[0.490,0.502,0.690], // Zn
+[0.761,0.561,0.561], // Ga
+[0.400,0.561,0.561], // Ge
+[0.741,0.502,0.890], // As
+[1.000,0.631,0.000], // Se
+[0.651,0.161,0.161], // Br
+[0.361,0.722,0.820], // Kr
+[0.439,0.180,0.690], // Rb
+[0.000,1.000,0.000], // Sr
+[0.580,1.000,1.000], // Y
+[0.580,0.878,0.878], // Zr
+[0.451,0.761,0.788], // Nb
+[0.329,0.710,0.710], // Mo
+[0.231,0.620,0.620], // Tc
+[0.141,0.561,0.561], // Ru
+[0.039,0.490,0.549], // Rh
+[0.000,0.412,0.522], // Pd
+[0.753,0.753,0.753], // Ag
+[1.000,0.851,0.561], // Cd
+[0.651,0.459,0.451], // In
+[0.400,0.502,0.502], // Sn
+[0.620,0.388,0.710], // Sb
+[0.831,0.478,0.000], // Te
+[0.580,0.000,0.580], // I
+[0.259,0.620,0.690], // Xe
+[0.341,0.090,0.561], // Cs
+[0.000,0.788,0.000], // Ba
+[0.439,0.831,1.000], // La
+[1.000,1.000,0.780], // Ce
+[0.851,1.000,0.780], // Pr
+[0.780,1.000,0.780], // Nd
+[0.639,1.000,0.780], // Pm
+[0.561,1.000,0.780], // Sm
+[0.380,1.000,0.780], // Eu
+[0.271,1.000,0.780], // Gd
+[0.188,1.000,0.780], // Tb
+[0.122,1.000,0.780], // Dy
+[0.000,1.000,0.612], // Ho
+[0.000,0.902,0.459], // Er
+[0.000,0.831,0.322], // Tm
+[0.000,0.749,0.220], // Yb
+[0.000,0.671,0.141], // Lu
+[0.302,0.761,1.000], // Hf
+[0.302,0.651,1.000], // Ta
+[0.129,0.580,0.839], // W
+[0.149,0.490,0.671], // Re
+[0.149,0.400,0.588], // Os
+[0.090,0.329,0.529], // Ir
+[0.816,0.816,0.878], // Pt
+[1.000,0.820,0.137], // Au
+[0.722,0.722,0.816], // Hg
+[0.651,0.329,0.302], // Tl
+[0.341,0.349,0.380], // Pb
+[0.620,0.310,0.710], // Bi
+[0.671,0.361,0.000], // Po
+[0.459,0.310,0.271], // At
+[0.259,0.510,0.588], // Rn
+[0.259,0.000,0.400], // Fr
+[0.000,0.490,0.000], // Ra
+[0.439,0.671,0.980], // Ac
+[0.000,0.729,1.000], // Th
+[0.000,0.631,1.000], // Pa
+[0.000,0.561,1.000], // U
+[0.000,0.502,1.000], // Np
+[0.000,0.420,1.000], // Pu
+[0.329,0.361,0.949], // Am
+[0.471,0.361,0.890], // Cm
+[0.541,0.310,0.890], // Bk
+[0.631,0.212,0.831], // Cf
+[0.702,0.122,0.831], // Es
+[0.702,0.122,0.729], // Fm
+[0.702,0.051,0.651], // Md
+[0.741,0.051,0.529], // No
+[0.780,0.000,0.400], // Lr
+[0.800,0.000,0.349], // Rf
+[0.820,0.000,0.310], // Db
+[0.851,0.000,0.271], // Sg
+[0.878,0.000,0.220], // Bh
+[0.902,0.000,0.180], // Hs
+[0.922,0.000,0.149]  // Mt
+];
+
+// Previous colors are the REAL jmol colors. following list contains VESTA colors.
+
+var vesta_colors = [
+[1.000,0.000,0.000] ,// None
+[1.00000,0.80000,0.80000] ,// H
+[0.98907,0.91312,0.81091] ,// He
+[0.52731,0.87953,0.45670] ,// Li
+[0.37147,0.84590,0.48292] ,// Be
+[0.12490,0.63612,0.05948] ,// B
+[0.50430,0.28659,0.16236] ,// C
+[0.69139,0.72934,0.90280] ,// N
+[0.99997,0.01328,0.00000] ,// O
+[0.69139,0.72934,0.90280] ,// F
+[0.99954,0.21788,0.71035] ,// Ne
+[0.97955,0.86618,0.23787] ,// Na
+[0.98773,0.48452,0.08470] ,// Mg
+[0.50718,0.70056,0.84062] ,// Al
+[0.10596,0.23226,0.98096] ,// Si
+[0.75557,0.61256,0.76425] ,// P
+[1.00000,0.98071,0.00000] ,// S
+[0.19583,0.98828,0.01167] ,// Cl
+[0.81349,0.99731,0.77075] ,// Ar
+[0.63255,0.13281,0.96858] ,// K
+[0.35642,0.58863,0.74498] ,// Ca
+[0.71209,0.38930,0.67279] ,// Sc
+[0.47237,0.79393,1.00000] ,// Ti
+[0.90000,0.10000,0.00000] ,// V
+[0.00000,0.00000,0.62000] ,// Cr
+[0.66148,0.03412,0.62036] ,// Mn
+[0.71051,0.44662,0.00136] ,// Fe
+[0.00000,0.00000,0.68666] ,// Co
+[0.72032,0.73631,0.74339] ,// Ni
+[0.13390,0.28022,0.86606] ,// Cu
+[0.56123,0.56445,0.50799] ,// Zn
+[0.62292,0.89293,0.45486] ,// Ga
+[0.49557,0.43499,0.65193] ,// Ge
+[0.45814,0.81694,0.34249] ,// As
+[0.60420,0.93874,0.06122] ,// Se
+[0.49645,0.19333,0.01076] ,// Br
+[0.98102,0.75805,0.95413] ,// Kr
+[1.00000,0.00000,0.60000] ,// Rb
+[0.00000,1.00000,0.15259] ,// Sr
+[0.40259,0.59739,0.55813] ,// Y
+[0.00000,1.00000,0.00000] ,// Zr
+[0.29992,0.70007,0.46459] ,// Nb
+[0.70584,0.52602,0.68925] ,// Mo
+[0.80574,0.68699,0.79478] ,// Tc
+[0.81184,0.72113,0.68089] ,// Ru
+[0.80748,0.82205,0.67068] ,// Rh
+[0.75978,0.76818,0.72454] ,// Pd
+[0.72032,0.73631,0.74339] ,// Ag
+[0.95145,0.12102,0.86354] ,// Cd
+[0.84378,0.50401,0.73483] ,// In
+[0.60764,0.56052,0.72926] ,// Sn
+[0.84627,0.51498,0.31315] ,// Sb
+[0.67958,0.63586,0.32038] ,// Te
+[0.55914,0.12200,0.54453] ,// I
+[0.60662,0.63218,0.97305] ,// Xe
+[0.05872,0.99922,0.72578] ,// Cs
+[0.11835,0.93959,0.17565] ,// Ba
+[0.35340,0.77057,0.28737] ,// La
+[0.82055,0.99071,0.02374] ,// Ce
+[0.99130,0.88559,0.02315] ,// Pr
+[0.98701,0.55560,0.02744] ,// Nd
+[0.00000,0.00000,0.96000] ,// Pm
+[0.99042,0.02403,0.49195] ,// Sm
+[0.98367,0.03078,0.83615] ,// Eu
+[0.75325,0.01445,1.00000] ,// Gd
+[0.44315,0.01663,0.99782] ,// Tb
+[0.19390,0.02374,0.99071] ,// Dy
+[0.02837,0.25876,0.98608] ,// Ho
+[0.28688,0.45071,0.23043] ,// Er
+[0.00000,0.00000,0.88000] ,// Tm
+[0.15323,0.99165,0.95836] ,// Yb
+[0.15097,0.99391,0.71032] ,// Lu
+[0.70704,0.70552,0.35090] ,// Hf
+[0.71952,0.60694,0.33841] ,// Ta
+[0.55616,0.54257,0.50178] ,// W
+[0.70294,0.69401,0.55789] ,// Re
+[0.78703,0.69512,0.47379] ,// Os
+[0.78975,0.81033,0.45049] ,// Ir
+[0.79997,0.77511,0.75068] ,// Pt
+[0.99628,0.70149,0.22106] ,// Au
+[0.82940,0.72125,0.79823] ,// Hg
+[0.58798,0.53854,0.42649] ,// Tl
+[0.32386,0.32592,0.35729] ,// Pb
+[0.82428,0.18732,0.97211] ,// Bi
+[0.00000,0.00000,1.00000] ,// Po
+[0.00000,0.00000,1.00000] ,// At
+[1.00000,1.00000,0.00000] ,// Rn
+[0.00000,0.00000,0.00000] ,// Fr
+[0.42959,0.66659,0.34786] ,// Ra
+[0.39344,0.62101,0.45034] ,// Ac
+[0.14893,0.99596,0.47106] ,// Th
+[0.16101,0.98387,0.20855] ,// Pa
+[0.47774,0.63362,0.66714] ,// U
+[0.30000,0.30000,0.30000] ,// Np
+[0.30000,0.30000,0.30000] ,// Pu
+[0.30000,0.30000,0.30000] ,// Am
+[0.471,0.361,0.890], // Cm
+[0.541,0.310,0.890], // Bk
+[0.631,0.212,0.831], // Cf
+[0.702,0.122,0.831], // Es
+[0.702,0.122,0.729], // Fm
+[0.702,0.051,0.651], // Md
+[0.741,0.051,0.529], // No
+[0.780,0.000,0.400], // Lr
+[0.800,0.000,0.349], // Rf
+[0.820,0.000,0.310], // Db
+[0.851,0.000,0.271], // Sg
+[0.878,0.000,0.220], // Bh
+[0.902,0.000,0.180], // Hs
+[0.922,0.000,0.149]  // Mt
+];
+
+var atomic_number = {};
+atomic_number['H' ]  =1;
+atomic_number['He']  =2;
+atomic_number['Li']  =3;
+atomic_number['Be']  =4;
+atomic_number['B' ]  =5;
+atomic_number['C' ]  =6;
+atomic_number['N' ]  =7;
+atomic_number['O' ]  =8;
+atomic_number['F' ]  =9;
+atomic_number['Ne']  =10;
+atomic_number['Na']  =11;
+atomic_number['Mg']  =12;
+atomic_number['Al']  =13;
+atomic_number['Si']  =14;
+atomic_number['P' ]  =15;
+atomic_number['S' ]  =16;
+atomic_number['Cl']  =17;
+atomic_number['Ar']  =18;
+atomic_number['K' ]  =19;
+atomic_number['Ca']  =20;
+atomic_number['Sc']  =21;
+atomic_number['Ti']  =22;
+atomic_number['V' ]  =23;
+atomic_number['Cr']  =24;
+atomic_number['Mn']  =25;
+atomic_number['Fe']  =26;
+atomic_number['Co']  =27;
+atomic_number['Ni']  =28;
+atomic_number['Cu']  =29;
+atomic_number['Zn']  =30;
+atomic_number['Ga']  =31;
+atomic_number['Ge']  =32;
+atomic_number['As']  =33;
+atomic_number['Se']  =34;
+atomic_number['Br']  =35;
+atomic_number['Kr']  =36;
+atomic_number['Rb']  =37;
+atomic_number['Sr']  =38;
+atomic_number['Y' ]  =39;
+atomic_number['Zr']  =40;
+atomic_number['Nb']  =41;
+atomic_number['Mo']  =42;
+atomic_number['Tc']  =43;
+atomic_number['Ru']  =44;
+atomic_number['Rh']  =45;
+atomic_number['Pd']  =46;
+atomic_number['Ag']  =47;
+atomic_number['Cd']  =48;
+atomic_number['In']  =49;
+atomic_number['Sn']  =50;
+atomic_number['Sb']  =51;
+atomic_number['Te']  =52;
+atomic_number['I' ]  =53;
+atomic_number['Xe']  =54;
+atomic_number['Cs']  =55;
+atomic_number['Ba']  =56;
+atomic_number['La']  =57;
+atomic_number['Ce']  =58;
+atomic_number['Pr']  =59;
+atomic_number['Nd']  =60;
+atomic_number['Pm']  =61;
+atomic_number['Sm']  =62;
+atomic_number['Eu']  =63;
+atomic_number['Gd']  =64;
+atomic_number['Tb']  =65;
+atomic_number['Dy']  =66;
+atomic_number['Ho']  =67;
+atomic_number['Er']  =68;
+atomic_number['Tm']  =69;
+atomic_number['Yb']  =70;
+atomic_number['Lu']  =71;
+atomic_number['Hf']  =72;
+atomic_number['Ta']  =73;
+atomic_number['W' ]  =74;
+atomic_number['Re']  =75;
+atomic_number['Os']  =76;
+atomic_number['Ir']  =77;
+atomic_number['Pt']  =78;
+atomic_number['Au']  =79;
+atomic_number['Hg']  =80;
+atomic_number['Tl']  =81;
+atomic_number['Pb']  =82;
+atomic_number['Bi']  =83;
+atomic_number['Po']  =84;
+atomic_number['At']  =85;
+atomic_number['Rn']  =86;
+atomic_number['Fr']  =87;
+atomic_number['Ra']  =88;
+atomic_number['Ac']  =89;
+atomic_number['Th']  =90;
+atomic_number['Pa']  =91;
+atomic_number['U' ]  =92;
+atomic_number['Np']  =93;
+atomic_number['Pu']  =94;
+atomic_number['Am']  =95;
+atomic_number['Cm']  =96;
+atomic_number['Bk']  =97;
+atomic_number['Cf']  =98;
+atomic_number['Es']  =99;
+atomic_number['Fm']  =100;
+atomic_number['Md']  =101;
+atomic_number['No']  =102;
+atomic_number['Lr']  =103;
+atomic_number['Rf']  =104;
+atomic_number['Db']  =105;
+atomic_number['Sg']  =106;
+atomic_number['Bh']  =107;
+atomic_number['Hs']  =108;
+atomic_number['Mt']  =109;
+
+
+var atomic_symbol$1 = ['','H','He','Li','Be','B','C','N','O','F','Ne','Na','Mg','Al','Si',
+'P','S','Cl','Ar','K' ,'Ca','Sc','Ti','Vi','Cr','Mn','Fe','Co','Ni','Cu','Zn','Ga',
+'Ge','As','Se','Br','Kr','Rb','Sr','Y' ,'Zr','Nb','Mo','Tc','Ru','Rh','Pd','Ag',
+'Cd','In','Sn','Sb','Te','I' ,'Xe','Cs','Ba','La','Ce','Pr','Nd','Pm','Sm','Eu',
+'Gd','Tb','Dy','Ho','Er','Tm','Yb','Lu','Hf','Ta','W' ,'Re','Os','Ir','Pt','Au',
+'Hg','Tl','Pb','Bi','Po','At','Rn','Fr','Ra','Ac','Th','Pa','U' ,'Np','Pu','Am',
+'Cm','Bk','Cf','Es','Fm','Md','No','Lr','Rf','Db','Sg','Bh','Hs','Mt'];
+
+//from phonopy
+var atomic_mass = [null,1.00794,4.002602,6.941,9.012182,10.811,12.0107,14.0067,15.9994,
+18.9984032,20.1797, 22.98976928,24.305,26.9815386,28.0855,30.973762,32.065,35.453,39.948,
+39.0983,40.078,44.955912,47.867,50.9415,51.9961,54.938045,55.845,58.933195,58.6934,63.546,
+65.38,69.723,72.64,74.9216,78.96,79.904,83.798,85.4678,87.62,88.90585,91.224,92.90638,95.96,
+null,101.07,102.9055,106.42,107.8682,112.411,114.818,118.71,121.76,127.6,126.90447,131.293,
+132.9054519,137.327,138.90547,140.116,140.90765,144.242,null,150.36,151.964,157.25,
+158.92535,162.5,164.93032,167.259,168.93421,173.054,174.9668,178.49,180.94788,183.84,
+186.207,190.23,192.217,195.084,196.966569,200.59,204.3833,207.2,208.9804,null,null,null,
+null,null,null,232.03806,231.03588,238.02891,null,null,null,null,null,null,null,null,
+null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null];
+
+/* Covalent radii from:
+
+  Covalent radii revisited,
+  Beatriz Cordero, Verónica Gómez, Ana E. Platero-Prats, Marc Revés,
+  Jorge Echeverría, Eduard Cremades, Flavia Barragán and Santiago Alvarez,
+  Dalton Trans., 2008, 2832-2838 DOI:10.1039/B801115J
+  */
+
+var covalent_radii =
+[0.0,  0.31, 0.28, 1.28, 0.96, 0.84, 0.76, 0.71, 0.66, 0.57, //0
+ 0.58, 1.66, 1.41, 1.21, 1.11, 1.07, 1.05, 1.02, 1.06, 2.03, //1
+ 1.76, 1.70, 1.60, 1.53, 1.39, 1.39, 1.32, 1.26, 1.24, 1.32, //2
+ 1.22, 1.22, 1.20, 1.19, 1.20, 1.20, 1.16, 2.20, 1.95, 1.90, //3
+ 1.75, 1.64, 1.54, 1.47, 1.46, 1.42, 1.39, 1.45, 1.44, 1.42, //4
+ 1.39, 1.39, 1.38, 1.39, 1.40, 2.44, 2.15, 2.07, 2.04, 2.03, //5
+ 2.01, 1.99, 1.98, 1.98, 1.96, 1.94, 1.92, 1.92, 1.89, 1.90, //6
+ 1.87, 1.87, 1.75, 1.70, 1.62, 1.51, 1.44, 1.41, 1.36, 1.36, //7
+ 1.32, 1.45, 1.46, 1.48, 1.40, 1.50, 1.50, 2.60, 2.21, 2.15, //8
+ 2.06, 2.00, 1.96, 1.90, 1.87, 1.80, 1.69, 0,    0,    0,    //9
+ 0,    0,    0,    0 ];                                       //10
+
+const pi$1 = 3.14159265359;
+
+function matrix_scale(a,scale) {
+  return [a[0].map(function(x) {return x*scale}),
+          a[1].map(function(x) {return x*scale}),
+          a[2].map(function(x) {return x*scale})];
+}
+
+function vec_scale(a,scale) {
+    return [a[0]*scale,a[1]*scale,a[2]*scale];
+}
+
+function vec_dot(a,b) {
+    return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+}
+
+function vec_cross(a,b) {
+    return [a[1]*b[2]-a[2]*b[1],
+            a[2]*b[0]-a[0]*b[2],
+            a[0]*b[1]-a[1]*b[0]]
+}
+
+function distance(a,b) {
+    /* Distance between two points
+    */
+    let x = a[0]-b[0];
+    let y = a[1]-b[1];
+    let z = a[2]-b[2];
+    return Math.sqrt(x*x + y*y + z*z);
+}
+
+function getCombinations(elements) {
+    /*
+    Get combintations 2 by two based on:
+    http://stackoverflow.com/questions/29169011/javascript-arrays-finding-the-number-of-combinations-of-2-elements
+    */
+    let combos = [];
+    for (var i = 0; i < elements.length; i++)
+        for (var j = i + 1; j < elements.length; j++)
+            combos.push([elements[i], elements[j]]);
+    return combos;
+}
+
+function rec_lat(lat) {
+    /* Calculate the reciprocal lattice
+    */
+    let a1 = lat[0];
+    let a2 = lat[1];
+    let a3 = lat[2];
+    let b1 = vec_cross(a2,a3);
+    let b2 = vec_cross(a3,a1);
+    let b3 = vec_cross(a1,a2);
+    let v = vec_dot(a1,b1);
+    b1 = vec_scale(b1,1/v);
+    b2 = vec_scale(b2,1/v);
+    b3 = vec_scale(b3,1/v);
+    return [b1,b2,b3]
+}
+
+function point_in_list(point,points) {
+    /*
+    Return the index of the point if it is present in a list of points
+    */
+    for (let i=0; i<points.length; i++) {
+        if (distance(point,points[i]) < 1e-4) {
+            return {found:true,index:i};
+        }
+    }
+    return {found:false};
+}
+
+function red_car(a,lat) {
+    let x=a[0];
+    let y=a[1];
+    let z=a[2];
+    return [x*lat[0][0] + y*lat[1][0] + z*lat[2][0],
+            x*lat[0][1] + y*lat[1][1] + z*lat[2][1],
+            x*lat[0][2] + y*lat[1][2] + z*lat[2][2]]
+}
+
+function red_car_list(red,lat) {
+    let car = [];
+    for (let i=0; i<red.length; i++) {
+        car.push(red_car(red[i],lat));
+    }
+    return car;
+}
+
+function get_formula(atom_types) {
+    //create the name from the elements
+    //from https://stackoverflow.com/questions/15052702/count-unique-elements-in-array-without-sorting
+    let counts = {};
+    for (var i = 0; i < atom_types.length; i++) {
+        counts[atom_types[i]] = 1 + (counts[atom_types[i]] || 0);
+    }
+
+    //make the name from the counter
+    let name = "";
+    for (let element in counts) {
+        name += element;
+        if (counts[element] !== 1) {
+            name += counts[element];
+        }
+    }
+    return name;
+}
+
+function getReasonableRepetitions(natoms,lat) {
+    /*
+    choose a reasonable number of repetitions
+    Some logic can be implemented here to improve
+    in which directions the repetitions are made
+    */
+
+    if (natoms <= 4)                              { return [3,3,3]; }
+    if (natoms > 4 && natoms <= 15)              { return [2,2,2]; }
+    if (natoms > 15 && natoms <= 50)             { return [2,2,1]; }
+    return [1,1,1];
+
+}
+
+function subscript_numbers(old_string) {
+    let string = "";
+    for (const a of old_string) {
+        if (!isNaN(a)) {
+            string += "<sub>"+a+"</sub>";
+        }
+        else {
+            string += a;
+        }
+    }
+    return string;
+}
+
+function normalize_formula_string(value) {
+    if (typeof value !== 'string' || !value) {
+        return value;
+    }
+
+    if (!/^(?:[A-Z][a-z]?\d*)+$/.test(value)) {
+        return value;
+    }
+
+    return value.replace(/([A-Z][a-z]?)(\d*)/g, function(match, element, count) {
+        if (!count || count === '1') {
+            return element;
+        }
+        return element + count;
+    });
+}
+
+function format_formula_html(value) {
+    return subscript_numbers(normalize_formula_string(value));
+}
+
+function atomColorHexToCss(colorHex) {
+    return '#' + Number(colorHex).toString(16).padStart(6, '0');
+}
+
+function getAtomBadgeTextColor(colorHex) {
+    let color = Number(colorHex);
+    let red = (color >> 16) & 255;
+    let green = (color >> 8) & 255;
+    let blue = color & 255;
+    let luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
+    return luminance > 0.6 ? '#111827' : '#ffffff';
+}
+
+function applyAtomBadgeStyle(element, atomNumber, getAtomColorHex) {
+    if (!element || !Number.isFinite(atomNumber) || typeof getAtomColorHex !== 'function') {
+        return;
+    }
+    let colorHex = getAtomColorHex(atomNumber);
+    element.style.setProperty('--atom-badge-bg', atomColorHexToCss(colorHex));
+    element.style.setProperty('--atom-badge-fg', getAtomBadgeTextColor(colorHex));
+}
+
+function createAtomBadgeHtml(label, atomNumber, getAtomColorHex) {
+    let style = '';
+    if (Number.isFinite(atomNumber) && typeof getAtomColorHex === 'function') {
+        let colorHex = getAtomColorHex(atomNumber);
+        style =
+            ' style="--atom-badge-bg: ' + atomColorHexToCss(colorHex) +
+            '; --atom-badge-fg: ' + getAtomBadgeTextColor(colorHex) + ';"';
+    }
+    return '<span class="atom-type-badge"' + style + '>' + label + '</span>';
+}
+
+function createBondColorInputStateUpdater(viewer, bondColorInput) {
+    return () => {
+        if (bondColorInput && bondColorInput.length) {
+            bondColorInput.prop('disabled', viewer.bondColorByAtom);
+        }
+    };
+}
+
+function bindAppearanceAtomSelection(viewer, atomList, atomColorInput, atomRadiusInput) {
+    if (!atomList || !atomList.length) {
+        return;
+    }
+
+    atomList.on('click', 'button[data-atom-number]', (event) => {
+        const atomNumber = Number(event.currentTarget.getAttribute('data-atom-number'));
+        if (!Number.isFinite(atomNumber)) {
+            return;
+        }
+        viewer.setSelectedAppearanceAtomNumber(atomNumber);
+        if (atomColorInput && atomColorInput.length) {
+            atomColorInput.val(viewer.colorToInputHex(viewer.getAtomColorHex(atomNumber)));
+        }
+        if (atomRadiusInput && atomRadiusInput.length) {
+            atomRadiusInput.val(viewer.getAtomRadiusScale(atomNumber));
+        }
+    });
+}
+
+function bindEnterToApply(inputs, apply) {
+    for (let i = 0; i < inputs.length; i++) {
+        const domInput = inputs[i];
+        if (domInput && domInput.length) {
+            domInput.on('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    apply();
+                }
+            });
+        }
+    }
+}
+
+function bindBondRuleControls(
+    viewer,
+    domBondRulesList,
+    domBondAddAtomA,
+    domBondAddAtomB,
+    domBondAddCutoffInput,
+    onRulesChanged,
+) {
+    if (domBondRulesList && domBondRulesList.length) {
+        domBondRulesList.on('click', 'button[data-remove-key]', (event) => {
+            const key = event.currentTarget.getAttribute('data-remove-key');
+            if (key && viewer.bondRules[key]) {
+                delete viewer.bondRules[key];
+                onRulesChanged();
+            }
+        });
+    }
+
+    const updateBondCutoffInput = () => {
+        if (!domBondAddCutoffInput || !domBondAddCutoffInput.length) {
+            return;
+        }
+        const a = Number(domBondAddAtomA.val());
+        const b = Number(domBondAddAtomB.val());
+        if (!Number.isFinite(a) || !Number.isFinite(b)) {
+            return;
+        }
+        const key = viewer.getBondRuleKey(a, b);
+        const value = viewer.bondRules[key] ? viewer.bondRules[key].cutoff : viewer.getDefaultBondCutoff(a, b);
+        domBondAddCutoffInput.val(Number(value).toFixed(2));
+    };
+
+    const addBondRuleFromControls = () => {
+        const a = Number(domBondAddAtomA.val());
+        const b = Number(domBondAddAtomB.val());
+        if (!Number.isFinite(a) || !Number.isFinite(b)) {
+            return;
+        }
+        let cutoff = viewer.getDefaultBondCutoff(a, b);
+        if (domBondAddCutoffInput && domBondAddCutoffInput.length) {
+            const parsed = parseFloat(domBondAddCutoffInput.val());
+            if (Number.isFinite(parsed) && parsed > 0) {
+                cutoff = parsed;
+            }
+            domBondAddCutoffInput.val(cutoff.toFixed(2));
+        }
+        viewer.setBondRule(a, b, cutoff);
+        onRulesChanged();
+    };
+
+    if (domBondAddAtomA && domBondAddAtomA.length) {
+        domBondAddAtomA.on('change', updateBondCutoffInput);
+    }
+    if (domBondAddAtomB && domBondAddAtomB.length) {
+        domBondAddAtomB.on('change', updateBondCutoffInput);
+    }
+    if (domBondAddCutoffInput && domBondAddCutoffInput.length) {
+        domBondAddCutoffInput.on('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                addBondRuleFromControls();
+            }
+        });
+    }
+}
+
+function getSharedLightConfig() {
+    return {
+        color: 0xdddddd,
+        intensity: 1.0,
+        position: [1, 1, 2],
+        ambient: 0x333333,
+    };
+}
+
+const sharedViewerMethods = {
+    colorToInputHex(colorHex) {
+        return `#${Number(colorHex).toString(16).padStart(6, '0')}`;
+    },
+
+    normalizeColorHex(value, fallback) {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            return value;
+        }
+        if (typeof value === 'string') {
+            let normalized = value.trim();
+            if (!normalized) {
+                return fallback;
+            }
+            if (normalized.startsWith('#')) {
+                normalized = normalized.slice(1);
+            }
+            if (/^[0-9a-fA-F]{6}$/.test(normalized)) {
+                return parseInt(normalized, 16);
+            }
+        }
+        return fallback;
+    },
+
+    getDefaultAtomColor(atomNumber) {
+        const palette = this.display === 'vesta' ? vesta_colors : jmol_colors;
+        const rgb = palette[atomNumber] || [0.5, 0.5, 0.5];
+        return new Color(rgb[0], rgb[1], rgb[2]).getHex();
+    },
+
+    getAtomColorHex(atomNumber) {
+        if (Object.prototype.hasOwnProperty.call(this.atomColorOverrides, atomNumber)) {
+            return this.atomColorOverrides[atomNumber];
+        }
+        return this.getDefaultAtomColor(atomNumber);
+    },
+
+    getAtomColor(atomNumber) {
+        return new Color(this.getAtomColorHex(atomNumber));
+    },
+
+    clearAtomColorOverride(atomNumber) {
+        delete this.atomColorOverrides[atomNumber];
+    },
+
+    getAtomRadiusScale(atomNumber) {
+        if (Object.prototype.hasOwnProperty.call(this.atomRadiusScaleOverrides, atomNumber)) {
+            return this.atomRadiusScaleOverrides[atomNumber];
+        }
+        return this.defaultAtomRadiusScale;
+    },
+
+    setAtomRadiusScaleOverride(atomNumber, scale) {
+        if (!Number.isFinite(scale)) {
+            return;
+        }
+        this.atomRadiusScaleOverrides[atomNumber] = Math.max(0.1, scale);
+    },
+
+    getSelectedAppearanceAtomNumber() {
+        if (Number.isFinite(this.appearanceSelectedAtomNumber)) {
+            return this.appearanceSelectedAtomNumber;
+        }
+        if (this.atom_numbers && this.atom_numbers.length) {
+            return this.atom_numbers[0];
+        }
+        return null;
+    },
+
+    setSelectedAppearanceAtomNumber(atomNumber) {
+        this.appearanceSelectedAtomNumber = atomNumber;
+        const atomList = this.domAppearanceAtomList || this.dom_appearance_atom_list;
+        if (atomList && atomList.length) {
+            atomList.find('button').removeClass('active');
+            atomList.find(`button[data-atom-number="${atomNumber}"]`).addClass('active');
+        }
+    },
+
+    getBondRuleKey(atomNumberA, atomNumberB) {
+        const a = Math.min(atomNumberA, atomNumberB);
+        const b = Math.max(atomNumberA, atomNumberB);
+        return `${a}-${b}`;
+    },
+
+    setBondRule(atomNumberA, atomNumberB, cutoff) {
+        const key = this.getBondRuleKey(atomNumberA, atomNumberB);
+        const a = Math.min(atomNumberA, atomNumberB);
+        const b = Math.max(atomNumberA, atomNumberB);
+        this.bondRules[key] = {
+            a,
+            b,
+            cutoff: Number.isFinite(cutoff) ? cutoff : this.getDefaultBondCutoff(a, b),
+        };
+    },
+
+    removeBondRule(atomNumberA, atomNumberB) {
+        const key = this.getBondRuleKey(atomNumberA, atomNumberB);
+        delete this.bondRules[key];
+    },
+
+    hasBondRule(atomNumberA, atomNumberB) {
+        const key = this.getBondRuleKey(atomNumberA, atomNumberB);
+        return Object.prototype.hasOwnProperty.call(this.bondRules, key);
+    },
+
+    refreshBondRulesUI() {
+        const domBondRulesList = this.domBondRulesList || this.dom_bond_rules_list;
+        if (!domBondRulesList || !domBondRulesList.length) {
+            return;
+        }
+
+        domBondRulesList.empty();
+        const keys = Object.keys(this.bondRules).sort();
+        if (!keys.length) {
+            domBondRulesList.append('<div>none</div>');
+            return;
+        }
+
+        for (let i = 0; i < keys.length; i++) {
+            const rule = this.bondRules[keys[i]];
+            const label =
+                '<span class="atom-badge-pair">' +
+                createAtomBadgeHtml(atomic_symbol$1[rule.a], rule.a, this.getAtomColorHex.bind(this)) +
+                '<span class="atom-badge-separator">-</span>' +
+                createAtomBadgeHtml(atomic_symbol$1[rule.b], rule.b, this.getAtomColorHex.bind(this)) +
+                '</span>';
+            const cutoff = Number(rule.cutoff).toFixed(2);
+            domBondRulesList.append(
+                '<div class="appearance-controls">' +
+                '<span>' + label + ' ' + cutoff + '</span>' +
+                '<button type="button" data-remove-key="' + keys[i] + '">remove</button>' +
+                '</div>'
+            );
+        }
+    },
+
+    addLights() {
+        this.scene.add(this.camera);
+        if (this.pointLight) {
+            this.pointLight.visible = true;
+        }
+        this.scene.add(new AmbientLight(getSharedLightConfig().ambient));
+    },
+
+    updateLightStyle() {
+        if (!this.pointLight) {
+            return;
+        }
+        const lightConfig = getSharedLightConfig();
+        this.pointLight.color.setHex(lightConfig.color);
+        this.pointLight.intensity = lightConfig.intensity;
+        this.pointLight.position.set(...lightConfig.position);
+    },
+
+    createShadedMaterial(config = {}) {
+        if (!this.shading) {
+            return new MeshBasicMaterial(config);
+        }
+        return new MeshLambertMaterial({
+            blending: NormalBlending,
+            ...config,
+        });
+    },
+
+    disposeSceneObject(object) {
+        if (!object) {
+            return;
+        }
+        if (object.geometry) {
+            object.geometry.dispose();
+        }
+        if (object.material) {
+            if (Array.isArray(object.material)) {
+                for (let i = 0; i < object.material.length; i++) {
+                    if (object.material[i] && object.material[i].dispose) {
+                        object.material[i].dispose();
+                    }
+                }
+            } else if (object.material.dispose) {
+                object.material.dispose();
+            }
+        }
+    },
+
+    removeNamedSceneObjects(name) {
+        if (!this.scene) {
+            return;
+        }
+
+        for (let i = this.scene.children.length - 1; i >= 0; i--) {
+            const child = this.scene.children[i];
+            if (child && child.name === name) {
+                this.disposeSceneObject(child);
+                this.scene.remove(child);
+            }
+        }
+    },
+
+    forEachNamedSceneObject(name, callback) {
+        if (!this.scene || typeof callback !== 'function') {
+            return;
+        }
+
+        for (let i = 0; i < this.scene.children.length; i++) {
+            const child = this.scene.children[i];
+            if (child && child.name === name) {
+                callback(child);
+            }
+        }
+    },
+};
+
 /**
  * @author Eberhard Graether / http://egraether.com/
  * @author Mark Lundin 	/ http://mark-lundin.com
@@ -68481,579 +69385,2517 @@ var TrackballControls = function ( object, domElement ) {
 TrackballControls.prototype = Object.create( EventDispatcher.prototype );
 TrackballControls.prototype.constructor = TrackballControls;
 
-// stats.js - http://github.com/mrdoob/stats.js
-var Stats=function(){function f(a,e,b){a=document.createElement(a);a.id=e;a.style.cssText=b;return a}function l(a,e,b){var c=f("div",a,"padding:0 0 3px 3px;text-align:left;background:"+b),d=f("div",a+"Text","font-family:Helvetica,Arial,sans-serif;font-size:9px;font-weight:bold;line-height:15px;color:"+e);d.innerHTML=a.toUpperCase();c.appendChild(d);a=f("div",a+"Graph","width:74px;height:30px;background:"+e);c.appendChild(a);for(e=0;74>e;e++)a.appendChild(f("span","","width:1px;height:30px;float:left;opacity:0.9;background:"+
-b));return c}function m(a){for(var b=c.children,d=0;d<b.length;d++)b[d].style.display=d===a?"block":"none";n=a;}function p(a,b){a.appendChild(a.firstChild).style.height=Math.min(30,30-30*b)+"px";}var q=self.performance&&self.performance.now?self.performance.now.bind(performance):Date.now,k=q(),r=k,t=0,n=0,c=f("div","stats","width:80px;opacity:0.9;cursor:pointer");c.addEventListener("mousedown",function(a){a.preventDefault();m(++n%c.children.length);},!1);var d=0,u=Infinity,v=0,b=l("fps","#0ff","#002"),
-A=b.children[0],B=b.children[1];c.appendChild(b);var g=0,w=Infinity,x=0,b=l("ms","#0f0","#020"),C=b.children[0],D=b.children[1];c.appendChild(b);if(self.performance&&self.performance.memory){var h=0,y=Infinity,z=0,b=l("mb","#f08","#201"),E=b.children[0],F=b.children[1];c.appendChild(b);}m(n);return {REVISION:14,domElement:c,setMode:m,begin:function(){k=q();},end:function(){var a=q();g=a-k;w=Math.min(w,g);x=Math.max(x,g);C.textContent=(g|0)+" MS ("+(w|0)+"-"+(x|0)+")";p(D,g/200);t++;if(a>r+1E3&&(d=Math.round(1E3*
-t/(a-r)),u=Math.min(u,d),v=Math.max(v,d),A.textContent=d+" FPS ("+u+"-"+v+")",p(B,d/100),r=a,t=0,void 0!==h)){var b=performance.memory.usedJSHeapSize,c=performance.memory.jsHeapSizeLimit;h=Math.round(9.54E-7*b);y=Math.min(y,h);z=Math.max(z,h);E.textContent=h+" MB ("+y+"-"+z+")";p(F,b/c);}return a},update:function(){k=this.end();}}};
+/**
+ * @author alteredq / http://alteredqualia.com/
+ *
+ * Port of greggman's ThreeD version of marching cubes to Three.js
+ * http://webglsamples.googlecode.com/hg/blob/blob.html
+ */
 
-var jmol_colors = [
-[1.000,0.000,0.000] ,// None
-[1.000,1.000,1.000], // H
-[0.851,1.000,1.000], // He
-[0.800,0.502,1.000], // Li
-[0.761,1.000,0.000], // Be
-[1.000,0.710,0.710], // B
-[0.565,0.565,0.565], // C
-[0.188,0.314,0.973], // N
-[1.000,0.051,0.051], // O
-[0.565,0.878,0.314], // F
-[0.702,0.890,0.961], // Ne
-[0.671,0.361,0.949], // Na
-[0.541,1.000,0.000], // Mg
-[0.749,0.651,0.651], // Al
-[0.941,0.784,0.627], // Si
-[1.000,0.502,0.000], // P
-[1.000,1.000,0.188], // S
-[0.122,0.941,0.122], // Cl
-[0.502,0.820,0.890], // Ar
-[0.561,0.251,0.831], // K
-[0.239,1.000,0.000], // Ca
-[0.902,0.902,0.902], // Sc
-[0.749,0.761,0.780], // Ti
-[0.651,0.651,0.671], // V
-[0.541,0.600,0.780], // Cr
-[0.612,0.478,0.780], // Mn
-[0.878,0.400,0.200], // Fe
-[0.941,0.565,0.627], // Co
-[0.314,0.816,0.314], // Ni
-[0.784,0.502,0.200], // Cu
-[0.490,0.502,0.690], // Zn
-[0.761,0.561,0.561], // Ga
-[0.400,0.561,0.561], // Ge
-[0.741,0.502,0.890], // As
-[1.000,0.631,0.000], // Se
-[0.651,0.161,0.161], // Br
-[0.361,0.722,0.820], // Kr
-[0.439,0.180,0.690], // Rb
-[0.000,1.000,0.000], // Sr
-[0.580,1.000,1.000], // Y
-[0.580,0.878,0.878], // Zr
-[0.451,0.761,0.788], // Nb
-[0.329,0.710,0.710], // Mo
-[0.231,0.620,0.620], // Tc
-[0.141,0.561,0.561], // Ru
-[0.039,0.490,0.549], // Rh
-[0.000,0.412,0.522], // Pd
-[0.753,0.753,0.753], // Ag
-[1.000,0.851,0.561], // Cd
-[0.651,0.459,0.451], // In
-[0.400,0.502,0.502], // Sn
-[0.620,0.388,0.710], // Sb
-[0.831,0.478,0.000], // Te
-[0.580,0.000,0.580], // I
-[0.259,0.620,0.690], // Xe
-[0.341,0.090,0.561], // Cs
-[0.000,0.788,0.000], // Ba
-[0.439,0.831,1.000], // La
-[1.000,1.000,0.780], // Ce
-[0.851,1.000,0.780], // Pr
-[0.780,1.000,0.780], // Nd
-[0.639,1.000,0.780], // Pm
-[0.561,1.000,0.780], // Sm
-[0.380,1.000,0.780], // Eu
-[0.271,1.000,0.780], // Gd
-[0.188,1.000,0.780], // Tb
-[0.122,1.000,0.780], // Dy
-[0.000,1.000,0.612], // Ho
-[0.000,0.902,0.459], // Er
-[0.000,0.831,0.322], // Tm
-[0.000,0.749,0.220], // Yb
-[0.000,0.671,0.141], // Lu
-[0.302,0.761,1.000], // Hf
-[0.302,0.651,1.000], // Ta
-[0.129,0.580,0.839], // W
-[0.149,0.490,0.671], // Re
-[0.149,0.400,0.588], // Os
-[0.090,0.329,0.529], // Ir
-[0.816,0.816,0.878], // Pt
-[1.000,0.820,0.137], // Au
-[0.722,0.722,0.816], // Hg
-[0.651,0.329,0.302], // Tl
-[0.341,0.349,0.380], // Pb
-[0.620,0.310,0.710], // Bi
-[0.671,0.361,0.000], // Po
-[0.459,0.310,0.271], // At
-[0.259,0.510,0.588], // Rn
-[0.259,0.000,0.400], // Fr
-[0.000,0.490,0.000], // Ra
-[0.439,0.671,0.980], // Ac
-[0.000,0.729,1.000], // Th
-[0.000,0.631,1.000], // Pa
-[0.000,0.561,1.000], // U
-[0.000,0.502,1.000], // Np
-[0.000,0.420,1.000], // Pu
-[0.329,0.361,0.949], // Am
-[0.471,0.361,0.890], // Cm
-[0.541,0.310,0.890], // Bk
-[0.631,0.212,0.831], // Cf
-[0.702,0.122,0.831], // Es
-[0.702,0.122,0.729], // Fm
-[0.702,0.051,0.651], // Md
-[0.741,0.051,0.529], // No
-[0.780,0.000,0.400], // Lr
-[0.800,0.000,0.349], // Rf
-[0.820,0.000,0.310], // Db
-[0.851,0.000,0.271], // Sg
-[0.878,0.000,0.220], // Bh
-[0.902,0.000,0.180], // Hs
-[0.922,0.000,0.149]  // Mt
-];
+/////////////////////////////////////
+// Marching cubes lookup tables
+/////////////////////////////////////
 
-// Previous colors are the REAL jmol colors. following list contains VESTA colors.
+// These tables are straight from Paul Bourke's page:
+// http://local.wasp.uwa.edu.au/~pbourke/geometry/polygonise/
+// who in turn got them from Cory Gene Bloyd.
 
-var vesta_colors = [
-[1.000,0.000,0.000] ,// None
-[1.00000,0.80000,0.80000] ,// H
-[0.98907,0.91312,0.81091] ,// He
-[0.52731,0.87953,0.45670] ,// Li
-[0.37147,0.84590,0.48292] ,// Be
-[0.12490,0.63612,0.05948] ,// B
-[0.50430,0.28659,0.16236] ,// C
-[0.69139,0.72934,0.90280] ,// N
-[0.99997,0.01328,0.00000] ,// O
-[0.69139,0.72934,0.90280] ,// F
-[0.99954,0.21788,0.71035] ,// Ne
-[0.97955,0.86618,0.23787] ,// Na
-[0.98773,0.48452,0.08470] ,// Mg
-[0.50718,0.70056,0.84062] ,// Al
-[0.10596,0.23226,0.98096] ,// Si
-[0.75557,0.61256,0.76425] ,// P
-[1.00000,0.98071,0.00000] ,// S
-[0.19583,0.98828,0.01167] ,// Cl
-[0.81349,0.99731,0.77075] ,// Ar
-[0.63255,0.13281,0.96858] ,// K
-[0.35642,0.58863,0.74498] ,// Ca
-[0.71209,0.38930,0.67279] ,// Sc
-[0.47237,0.79393,1.00000] ,// Ti
-[0.90000,0.10000,0.00000] ,// V
-[0.00000,0.00000,0.62000] ,// Cr
-[0.66148,0.03412,0.62036] ,// Mn
-[0.71051,0.44662,0.00136] ,// Fe
-[0.00000,0.00000,0.68666] ,// Co
-[0.72032,0.73631,0.74339] ,// Ni
-[0.13390,0.28022,0.86606] ,// Cu
-[0.56123,0.56445,0.50799] ,// Zn
-[0.62292,0.89293,0.45486] ,// Ga
-[0.49557,0.43499,0.65193] ,// Ge
-[0.45814,0.81694,0.34249] ,// As
-[0.60420,0.93874,0.06122] ,// Se
-[0.49645,0.19333,0.01076] ,// Br
-[0.98102,0.75805,0.95413] ,// Kr
-[1.00000,0.00000,0.60000] ,// Rb
-[0.00000,1.00000,0.15259] ,// Sr
-[0.40259,0.59739,0.55813] ,// Y
-[0.00000,1.00000,0.00000] ,// Zr
-[0.29992,0.70007,0.46459] ,// Nb
-[0.70584,0.52602,0.68925] ,// Mo
-[0.80574,0.68699,0.79478] ,// Tc
-[0.81184,0.72113,0.68089] ,// Ru
-[0.80748,0.82205,0.67068] ,// Rh
-[0.75978,0.76818,0.72454] ,// Pd
-[0.72032,0.73631,0.74339] ,// Ag
-[0.95145,0.12102,0.86354] ,// Cd
-[0.84378,0.50401,0.73483] ,// In
-[0.60764,0.56052,0.72926] ,// Sn
-[0.84627,0.51498,0.31315] ,// Sb
-[0.67958,0.63586,0.32038] ,// Te
-[0.55914,0.12200,0.54453] ,// I
-[0.60662,0.63218,0.97305] ,// Xe
-[0.05872,0.99922,0.72578] ,// Cs
-[0.11835,0.93959,0.17565] ,// Ba
-[0.35340,0.77057,0.28737] ,// La
-[0.82055,0.99071,0.02374] ,// Ce
-[0.99130,0.88559,0.02315] ,// Pr
-[0.98701,0.55560,0.02744] ,// Nd
-[0.00000,0.00000,0.96000] ,// Pm
-[0.99042,0.02403,0.49195] ,// Sm
-[0.98367,0.03078,0.83615] ,// Eu
-[0.75325,0.01445,1.00000] ,// Gd
-[0.44315,0.01663,0.99782] ,// Tb
-[0.19390,0.02374,0.99071] ,// Dy
-[0.02837,0.25876,0.98608] ,// Ho
-[0.28688,0.45071,0.23043] ,// Er
-[0.00000,0.00000,0.88000] ,// Tm
-[0.15323,0.99165,0.95836] ,// Yb
-[0.15097,0.99391,0.71032] ,// Lu
-[0.70704,0.70552,0.35090] ,// Hf
-[0.71952,0.60694,0.33841] ,// Ta
-[0.55616,0.54257,0.50178] ,// W
-[0.70294,0.69401,0.55789] ,// Re
-[0.78703,0.69512,0.47379] ,// Os
-[0.78975,0.81033,0.45049] ,// Ir
-[0.79997,0.77511,0.75068] ,// Pt
-[0.99628,0.70149,0.22106] ,// Au
-[0.82940,0.72125,0.79823] ,// Hg
-[0.58798,0.53854,0.42649] ,// Tl
-[0.32386,0.32592,0.35729] ,// Pb
-[0.82428,0.18732,0.97211] ,// Bi
-[0.00000,0.00000,1.00000] ,// Po
-[0.00000,0.00000,1.00000] ,// At
-[1.00000,1.00000,0.00000] ,// Rn
-[0.00000,0.00000,0.00000] ,// Fr
-[0.42959,0.66659,0.34786] ,// Ra
-[0.39344,0.62101,0.45034] ,// Ac
-[0.14893,0.99596,0.47106] ,// Th
-[0.16101,0.98387,0.20855] ,// Pa
-[0.47774,0.63362,0.66714] ,// U
-[0.30000,0.30000,0.30000] ,// Np
-[0.30000,0.30000,0.30000] ,// Pu
-[0.30000,0.30000,0.30000] ,// Am
-[0.471,0.361,0.890], // Cm
-[0.541,0.310,0.890], // Bk
-[0.631,0.212,0.831], // Cf
-[0.702,0.122,0.831], // Es
-[0.702,0.122,0.729], // Fm
-[0.702,0.051,0.651], // Md
-[0.741,0.051,0.529], // No
-[0.780,0.000,0.400], // Lr
-[0.800,0.000,0.349], // Rf
-[0.820,0.000,0.310], // Db
-[0.851,0.000,0.271], // Sg
-[0.878,0.000,0.220], // Bh
-[0.902,0.000,0.180], // Hs
-[0.922,0.000,0.149]  // Mt
-];
+const edgeTable = new Int32Array([
+0x0  , 0x109, 0x203, 0x30a, 0x406, 0x50f, 0x605, 0x70c,
+0x80c, 0x905, 0xa0f, 0xb06, 0xc0a, 0xd03, 0xe09, 0xf00,
+0x190, 0x99 , 0x393, 0x29a, 0x596, 0x49f, 0x795, 0x69c,
+0x99c, 0x895, 0xb9f, 0xa96, 0xd9a, 0xc93, 0xf99, 0xe90,
+0x230, 0x339, 0x33 , 0x13a, 0x636, 0x73f, 0x435, 0x53c,
+0xa3c, 0xb35, 0x83f, 0x936, 0xe3a, 0xf33, 0xc39, 0xd30,
+0x3a0, 0x2a9, 0x1a3, 0xaa , 0x7a6, 0x6af, 0x5a5, 0x4ac,
+0xbac, 0xaa5, 0x9af, 0x8a6, 0xfaa, 0xea3, 0xda9, 0xca0,
+0x460, 0x569, 0x663, 0x76a, 0x66 , 0x16f, 0x265, 0x36c,
+0xc6c, 0xd65, 0xe6f, 0xf66, 0x86a, 0x963, 0xa69, 0xb60,
+0x5f0, 0x4f9, 0x7f3, 0x6fa, 0x1f6, 0xff , 0x3f5, 0x2fc,
+0xdfc, 0xcf5, 0xfff, 0xef6, 0x9fa, 0x8f3, 0xbf9, 0xaf0,
+0x650, 0x759, 0x453, 0x55a, 0x256, 0x35f, 0x55 , 0x15c,
+0xe5c, 0xf55, 0xc5f, 0xd56, 0xa5a, 0xb53, 0x859, 0x950,
+0x7c0, 0x6c9, 0x5c3, 0x4ca, 0x3c6, 0x2cf, 0x1c5, 0xcc ,
+0xfcc, 0xec5, 0xdcf, 0xcc6, 0xbca, 0xac3, 0x9c9, 0x8c0,
+0x8c0, 0x9c9, 0xac3, 0xbca, 0xcc6, 0xdcf, 0xec5, 0xfcc,
+0xcc , 0x1c5, 0x2cf, 0x3c6, 0x4ca, 0x5c3, 0x6c9, 0x7c0,
+0x950, 0x859, 0xb53, 0xa5a, 0xd56, 0xc5f, 0xf55, 0xe5c,
+0x15c, 0x55 , 0x35f, 0x256, 0x55a, 0x453, 0x759, 0x650,
+0xaf0, 0xbf9, 0x8f3, 0x9fa, 0xef6, 0xfff, 0xcf5, 0xdfc,
+0x2fc, 0x3f5, 0xff , 0x1f6, 0x6fa, 0x7f3, 0x4f9, 0x5f0,
+0xb60, 0xa69, 0x963, 0x86a, 0xf66, 0xe6f, 0xd65, 0xc6c,
+0x36c, 0x265, 0x16f, 0x66 , 0x76a, 0x663, 0x569, 0x460,
+0xca0, 0xda9, 0xea3, 0xfaa, 0x8a6, 0x9af, 0xaa5, 0xbac,
+0x4ac, 0x5a5, 0x6af, 0x7a6, 0xaa , 0x1a3, 0x2a9, 0x3a0,
+0xd30, 0xc39, 0xf33, 0xe3a, 0x936, 0x83f, 0xb35, 0xa3c,
+0x53c, 0x435, 0x73f, 0x636, 0x13a, 0x33 , 0x339, 0x230,
+0xe90, 0xf99, 0xc93, 0xd9a, 0xa96, 0xb9f, 0x895, 0x99c,
+0x69c, 0x795, 0x49f, 0x596, 0x29a, 0x393, 0x99 , 0x190,
+0xf00, 0xe09, 0xd03, 0xc0a, 0xb06, 0xa0f, 0x905, 0x80c,
+0x70c, 0x605, 0x50f, 0x406, 0x30a, 0x203, 0x109, 0x0]);
 
-var atomic_number = {};
-atomic_number['H' ]  =1;
-atomic_number['He']  =2;
-atomic_number['Li']  =3;
-atomic_number['Be']  =4;
-atomic_number['B' ]  =5;
-atomic_number['C' ]  =6;
-atomic_number['N' ]  =7;
-atomic_number['O' ]  =8;
-atomic_number['F' ]  =9;
-atomic_number['Ne']  =10;
-atomic_number['Na']  =11;
-atomic_number['Mg']  =12;
-atomic_number['Al']  =13;
-atomic_number['Si']  =14;
-atomic_number['P' ]  =15;
-atomic_number['S' ]  =16;
-atomic_number['Cl']  =17;
-atomic_number['Ar']  =18;
-atomic_number['K' ]  =19;
-atomic_number['Ca']  =20;
-atomic_number['Sc']  =21;
-atomic_number['Ti']  =22;
-atomic_number['V' ]  =23;
-atomic_number['Cr']  =24;
-atomic_number['Mn']  =25;
-atomic_number['Fe']  =26;
-atomic_number['Co']  =27;
-atomic_number['Ni']  =28;
-atomic_number['Cu']  =29;
-atomic_number['Zn']  =30;
-atomic_number['Ga']  =31;
-atomic_number['Ge']  =32;
-atomic_number['As']  =33;
-atomic_number['Se']  =34;
-atomic_number['Br']  =35;
-atomic_number['Kr']  =36;
-atomic_number['Rb']  =37;
-atomic_number['Sr']  =38;
-atomic_number['Y' ]  =39;
-atomic_number['Zr']  =40;
-atomic_number['Nb']  =41;
-atomic_number['Mo']  =42;
-atomic_number['Tc']  =43;
-atomic_number['Ru']  =44;
-atomic_number['Rh']  =45;
-atomic_number['Pd']  =46;
-atomic_number['Ag']  =47;
-atomic_number['Cd']  =48;
-atomic_number['In']  =49;
-atomic_number['Sn']  =50;
-atomic_number['Sb']  =51;
-atomic_number['Te']  =52;
-atomic_number['I' ]  =53;
-atomic_number['Xe']  =54;
-atomic_number['Cs']  =55;
-atomic_number['Ba']  =56;
-atomic_number['La']  =57;
-atomic_number['Ce']  =58;
-atomic_number['Pr']  =59;
-atomic_number['Nd']  =60;
-atomic_number['Pm']  =61;
-atomic_number['Sm']  =62;
-atomic_number['Eu']  =63;
-atomic_number['Gd']  =64;
-atomic_number['Tb']  =65;
-atomic_number['Dy']  =66;
-atomic_number['Ho']  =67;
-atomic_number['Er']  =68;
-atomic_number['Tm']  =69;
-atomic_number['Yb']  =70;
-atomic_number['Lu']  =71;
-atomic_number['Hf']  =72;
-atomic_number['Ta']  =73;
-atomic_number['W' ]  =74;
-atomic_number['Re']  =75;
-atomic_number['Os']  =76;
-atomic_number['Ir']  =77;
-atomic_number['Pt']  =78;
-atomic_number['Au']  =79;
-atomic_number['Hg']  =80;
-atomic_number['Tl']  =81;
-atomic_number['Pb']  =82;
-atomic_number['Bi']  =83;
-atomic_number['Po']  =84;
-atomic_number['At']  =85;
-atomic_number['Rn']  =86;
-atomic_number['Fr']  =87;
-atomic_number['Ra']  =88;
-atomic_number['Ac']  =89;
-atomic_number['Th']  =90;
-atomic_number['Pa']  =91;
-atomic_number['U' ]  =92;
-atomic_number['Np']  =93;
-atomic_number['Pu']  =94;
-atomic_number['Am']  =95;
-atomic_number['Cm']  =96;
-atomic_number['Bk']  =97;
-atomic_number['Cf']  =98;
-atomic_number['Es']  =99;
-atomic_number['Fm']  =100;
-atomic_number['Md']  =101;
-atomic_number['No']  =102;
-atomic_number['Lr']  =103;
-atomic_number['Rf']  =104;
-atomic_number['Db']  =105;
-atomic_number['Sg']  =106;
-atomic_number['Bh']  =107;
-atomic_number['Hs']  =108;
-atomic_number['Mt']  =109;
+const triTable = new Int32Array([
+-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+0, 8, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+0, 1, 9, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+1, 8, 3, 9, 8, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+1, 2, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+0, 8, 3, 1, 2, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+9, 2, 10, 0, 2, 9, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+2, 8, 3, 2, 10, 8, 10, 9, 8, -1, -1, -1, -1, -1, -1, -1,
+3, 11, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+0, 11, 2, 8, 11, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+1, 9, 0, 2, 3, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+1, 11, 2, 1, 9, 11, 9, 8, 11, -1, -1, -1, -1, -1, -1, -1,
+3, 10, 1, 11, 10, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+0, 10, 1, 0, 8, 10, 8, 11, 10, -1, -1, -1, -1, -1, -1, -1,
+3, 9, 0, 3, 11, 9, 11, 10, 9, -1, -1, -1, -1, -1, -1, -1,
+9, 8, 10, 10, 8, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+4, 7, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+4, 3, 0, 7, 3, 4, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+0, 1, 9, 8, 4, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+4, 1, 9, 4, 7, 1, 7, 3, 1, -1, -1, -1, -1, -1, -1, -1,
+1, 2, 10, 8, 4, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+3, 4, 7, 3, 0, 4, 1, 2, 10, -1, -1, -1, -1, -1, -1, -1,
+9, 2, 10, 9, 0, 2, 8, 4, 7, -1, -1, -1, -1, -1, -1, -1,
+2, 10, 9, 2, 9, 7, 2, 7, 3, 7, 9, 4, -1, -1, -1, -1,
+8, 4, 7, 3, 11, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+11, 4, 7, 11, 2, 4, 2, 0, 4, -1, -1, -1, -1, -1, -1, -1,
+9, 0, 1, 8, 4, 7, 2, 3, 11, -1, -1, -1, -1, -1, -1, -1,
+4, 7, 11, 9, 4, 11, 9, 11, 2, 9, 2, 1, -1, -1, -1, -1,
+3, 10, 1, 3, 11, 10, 7, 8, 4, -1, -1, -1, -1, -1, -1, -1,
+1, 11, 10, 1, 4, 11, 1, 0, 4, 7, 11, 4, -1, -1, -1, -1,
+4, 7, 8, 9, 0, 11, 9, 11, 10, 11, 0, 3, -1, -1, -1, -1,
+4, 7, 11, 4, 11, 9, 9, 11, 10, -1, -1, -1, -1, -1, -1, -1,
+9, 5, 4, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+9, 5, 4, 0, 8, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+0, 5, 4, 1, 5, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+8, 5, 4, 8, 3, 5, 3, 1, 5, -1, -1, -1, -1, -1, -1, -1,
+1, 2, 10, 9, 5, 4, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+3, 0, 8, 1, 2, 10, 4, 9, 5, -1, -1, -1, -1, -1, -1, -1,
+5, 2, 10, 5, 4, 2, 4, 0, 2, -1, -1, -1, -1, -1, -1, -1,
+2, 10, 5, 3, 2, 5, 3, 5, 4, 3, 4, 8, -1, -1, -1, -1,
+9, 5, 4, 2, 3, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+0, 11, 2, 0, 8, 11, 4, 9, 5, -1, -1, -1, -1, -1, -1, -1,
+0, 5, 4, 0, 1, 5, 2, 3, 11, -1, -1, -1, -1, -1, -1, -1,
+2, 1, 5, 2, 5, 8, 2, 8, 11, 4, 8, 5, -1, -1, -1, -1,
+10, 3, 11, 10, 1, 3, 9, 5, 4, -1, -1, -1, -1, -1, -1, -1,
+4, 9, 5, 0, 8, 1, 8, 10, 1, 8, 11, 10, -1, -1, -1, -1,
+5, 4, 0, 5, 0, 11, 5, 11, 10, 11, 0, 3, -1, -1, -1, -1,
+5, 4, 8, 5, 8, 10, 10, 8, 11, -1, -1, -1, -1, -1, -1, -1,
+9, 7, 8, 5, 7, 9, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+9, 3, 0, 9, 5, 3, 5, 7, 3, -1, -1, -1, -1, -1, -1, -1,
+0, 7, 8, 0, 1, 7, 1, 5, 7, -1, -1, -1, -1, -1, -1, -1,
+1, 5, 3, 3, 5, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+9, 7, 8, 9, 5, 7, 10, 1, 2, -1, -1, -1, -1, -1, -1, -1,
+10, 1, 2, 9, 5, 0, 5, 3, 0, 5, 7, 3, -1, -1, -1, -1,
+8, 0, 2, 8, 2, 5, 8, 5, 7, 10, 5, 2, -1, -1, -1, -1,
+2, 10, 5, 2, 5, 3, 3, 5, 7, -1, -1, -1, -1, -1, -1, -1,
+7, 9, 5, 7, 8, 9, 3, 11, 2, -1, -1, -1, -1, -1, -1, -1,
+9, 5, 7, 9, 7, 2, 9, 2, 0, 2, 7, 11, -1, -1, -1, -1,
+2, 3, 11, 0, 1, 8, 1, 7, 8, 1, 5, 7, -1, -1, -1, -1,
+11, 2, 1, 11, 1, 7, 7, 1, 5, -1, -1, -1, -1, -1, -1, -1,
+9, 5, 8, 8, 5, 7, 10, 1, 3, 10, 3, 11, -1, -1, -1, -1,
+5, 7, 0, 5, 0, 9, 7, 11, 0, 1, 0, 10, 11, 10, 0, -1,
+11, 10, 0, 11, 0, 3, 10, 5, 0, 8, 0, 7, 5, 7, 0, -1,
+11, 10, 5, 7, 11, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+10, 6, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+0, 8, 3, 5, 10, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+9, 0, 1, 5, 10, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+1, 8, 3, 1, 9, 8, 5, 10, 6, -1, -1, -1, -1, -1, -1, -1,
+1, 6, 5, 2, 6, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+1, 6, 5, 1, 2, 6, 3, 0, 8, -1, -1, -1, -1, -1, -1, -1,
+9, 6, 5, 9, 0, 6, 0, 2, 6, -1, -1, -1, -1, -1, -1, -1,
+5, 9, 8, 5, 8, 2, 5, 2, 6, 3, 2, 8, -1, -1, -1, -1,
+2, 3, 11, 10, 6, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+11, 0, 8, 11, 2, 0, 10, 6, 5, -1, -1, -1, -1, -1, -1, -1,
+0, 1, 9, 2, 3, 11, 5, 10, 6, -1, -1, -1, -1, -1, -1, -1,
+5, 10, 6, 1, 9, 2, 9, 11, 2, 9, 8, 11, -1, -1, -1, -1,
+6, 3, 11, 6, 5, 3, 5, 1, 3, -1, -1, -1, -1, -1, -1, -1,
+0, 8, 11, 0, 11, 5, 0, 5, 1, 5, 11, 6, -1, -1, -1, -1,
+3, 11, 6, 0, 3, 6, 0, 6, 5, 0, 5, 9, -1, -1, -1, -1,
+6, 5, 9, 6, 9, 11, 11, 9, 8, -1, -1, -1, -1, -1, -1, -1,
+5, 10, 6, 4, 7, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+4, 3, 0, 4, 7, 3, 6, 5, 10, -1, -1, -1, -1, -1, -1, -1,
+1, 9, 0, 5, 10, 6, 8, 4, 7, -1, -1, -1, -1, -1, -1, -1,
+10, 6, 5, 1, 9, 7, 1, 7, 3, 7, 9, 4, -1, -1, -1, -1,
+6, 1, 2, 6, 5, 1, 4, 7, 8, -1, -1, -1, -1, -1, -1, -1,
+1, 2, 5, 5, 2, 6, 3, 0, 4, 3, 4, 7, -1, -1, -1, -1,
+8, 4, 7, 9, 0, 5, 0, 6, 5, 0, 2, 6, -1, -1, -1, -1,
+7, 3, 9, 7, 9, 4, 3, 2, 9, 5, 9, 6, 2, 6, 9, -1,
+3, 11, 2, 7, 8, 4, 10, 6, 5, -1, -1, -1, -1, -1, -1, -1,
+5, 10, 6, 4, 7, 2, 4, 2, 0, 2, 7, 11, -1, -1, -1, -1,
+0, 1, 9, 4, 7, 8, 2, 3, 11, 5, 10, 6, -1, -1, -1, -1,
+9, 2, 1, 9, 11, 2, 9, 4, 11, 7, 11, 4, 5, 10, 6, -1,
+8, 4, 7, 3, 11, 5, 3, 5, 1, 5, 11, 6, -1, -1, -1, -1,
+5, 1, 11, 5, 11, 6, 1, 0, 11, 7, 11, 4, 0, 4, 11, -1,
+0, 5, 9, 0, 6, 5, 0, 3, 6, 11, 6, 3, 8, 4, 7, -1,
+6, 5, 9, 6, 9, 11, 4, 7, 9, 7, 11, 9, -1, -1, -1, -1,
+10, 4, 9, 6, 4, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+4, 10, 6, 4, 9, 10, 0, 8, 3, -1, -1, -1, -1, -1, -1, -1,
+10, 0, 1, 10, 6, 0, 6, 4, 0, -1, -1, -1, -1, -1, -1, -1,
+8, 3, 1, 8, 1, 6, 8, 6, 4, 6, 1, 10, -1, -1, -1, -1,
+1, 4, 9, 1, 2, 4, 2, 6, 4, -1, -1, -1, -1, -1, -1, -1,
+3, 0, 8, 1, 2, 9, 2, 4, 9, 2, 6, 4, -1, -1, -1, -1,
+0, 2, 4, 4, 2, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+8, 3, 2, 8, 2, 4, 4, 2, 6, -1, -1, -1, -1, -1, -1, -1,
+10, 4, 9, 10, 6, 4, 11, 2, 3, -1, -1, -1, -1, -1, -1, -1,
+0, 8, 2, 2, 8, 11, 4, 9, 10, 4, 10, 6, -1, -1, -1, -1,
+3, 11, 2, 0, 1, 6, 0, 6, 4, 6, 1, 10, -1, -1, -1, -1,
+6, 4, 1, 6, 1, 10, 4, 8, 1, 2, 1, 11, 8, 11, 1, -1,
+9, 6, 4, 9, 3, 6, 9, 1, 3, 11, 6, 3, -1, -1, -1, -1,
+8, 11, 1, 8, 1, 0, 11, 6, 1, 9, 1, 4, 6, 4, 1, -1,
+3, 11, 6, 3, 6, 0, 0, 6, 4, -1, -1, -1, -1, -1, -1, -1,
+6, 4, 8, 11, 6, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+7, 10, 6, 7, 8, 10, 8, 9, 10, -1, -1, -1, -1, -1, -1, -1,
+0, 7, 3, 0, 10, 7, 0, 9, 10, 6, 7, 10, -1, -1, -1, -1,
+10, 6, 7, 1, 10, 7, 1, 7, 8, 1, 8, 0, -1, -1, -1, -1,
+10, 6, 7, 10, 7, 1, 1, 7, 3, -1, -1, -1, -1, -1, -1, -1,
+1, 2, 6, 1, 6, 8, 1, 8, 9, 8, 6, 7, -1, -1, -1, -1,
+2, 6, 9, 2, 9, 1, 6, 7, 9, 0, 9, 3, 7, 3, 9, -1,
+7, 8, 0, 7, 0, 6, 6, 0, 2, -1, -1, -1, -1, -1, -1, -1,
+7, 3, 2, 6, 7, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+2, 3, 11, 10, 6, 8, 10, 8, 9, 8, 6, 7, -1, -1, -1, -1,
+2, 0, 7, 2, 7, 11, 0, 9, 7, 6, 7, 10, 9, 10, 7, -1,
+1, 8, 0, 1, 7, 8, 1, 10, 7, 6, 7, 10, 2, 3, 11, -1,
+11, 2, 1, 11, 1, 7, 10, 6, 1, 6, 7, 1, -1, -1, -1, -1,
+8, 9, 6, 8, 6, 7, 9, 1, 6, 11, 6, 3, 1, 3, 6, -1,
+0, 9, 1, 11, 6, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+7, 8, 0, 7, 0, 6, 3, 11, 0, 11, 6, 0, -1, -1, -1, -1,
+7, 11, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+7, 6, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+3, 0, 8, 11, 7, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+0, 1, 9, 11, 7, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+8, 1, 9, 8, 3, 1, 11, 7, 6, -1, -1, -1, -1, -1, -1, -1,
+10, 1, 2, 6, 11, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+1, 2, 10, 3, 0, 8, 6, 11, 7, -1, -1, -1, -1, -1, -1, -1,
+2, 9, 0, 2, 10, 9, 6, 11, 7, -1, -1, -1, -1, -1, -1, -1,
+6, 11, 7, 2, 10, 3, 10, 8, 3, 10, 9, 8, -1, -1, -1, -1,
+7, 2, 3, 6, 2, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+7, 0, 8, 7, 6, 0, 6, 2, 0, -1, -1, -1, -1, -1, -1, -1,
+2, 7, 6, 2, 3, 7, 0, 1, 9, -1, -1, -1, -1, -1, -1, -1,
+1, 6, 2, 1, 8, 6, 1, 9, 8, 8, 7, 6, -1, -1, -1, -1,
+10, 7, 6, 10, 1, 7, 1, 3, 7, -1, -1, -1, -1, -1, -1, -1,
+10, 7, 6, 1, 7, 10, 1, 8, 7, 1, 0, 8, -1, -1, -1, -1,
+0, 3, 7, 0, 7, 10, 0, 10, 9, 6, 10, 7, -1, -1, -1, -1,
+7, 6, 10, 7, 10, 8, 8, 10, 9, -1, -1, -1, -1, -1, -1, -1,
+6, 8, 4, 11, 8, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+3, 6, 11, 3, 0, 6, 0, 4, 6, -1, -1, -1, -1, -1, -1, -1,
+8, 6, 11, 8, 4, 6, 9, 0, 1, -1, -1, -1, -1, -1, -1, -1,
+9, 4, 6, 9, 6, 3, 9, 3, 1, 11, 3, 6, -1, -1, -1, -1,
+6, 8, 4, 6, 11, 8, 2, 10, 1, -1, -1, -1, -1, -1, -1, -1,
+1, 2, 10, 3, 0, 11, 0, 6, 11, 0, 4, 6, -1, -1, -1, -1,
+4, 11, 8, 4, 6, 11, 0, 2, 9, 2, 10, 9, -1, -1, -1, -1,
+10, 9, 3, 10, 3, 2, 9, 4, 3, 11, 3, 6, 4, 6, 3, -1,
+8, 2, 3, 8, 4, 2, 4, 6, 2, -1, -1, -1, -1, -1, -1, -1,
+0, 4, 2, 4, 6, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+1, 9, 0, 2, 3, 4, 2, 4, 6, 4, 3, 8, -1, -1, -1, -1,
+1, 9, 4, 1, 4, 2, 2, 4, 6, -1, -1, -1, -1, -1, -1, -1,
+8, 1, 3, 8, 6, 1, 8, 4, 6, 6, 10, 1, -1, -1, -1, -1,
+10, 1, 0, 10, 0, 6, 6, 0, 4, -1, -1, -1, -1, -1, -1, -1,
+4, 6, 3, 4, 3, 8, 6, 10, 3, 0, 3, 9, 10, 9, 3, -1,
+10, 9, 4, 6, 10, 4, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+4, 9, 5, 7, 6, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+0, 8, 3, 4, 9, 5, 11, 7, 6, -1, -1, -1, -1, -1, -1, -1,
+5, 0, 1, 5, 4, 0, 7, 6, 11, -1, -1, -1, -1, -1, -1, -1,
+11, 7, 6, 8, 3, 4, 3, 5, 4, 3, 1, 5, -1, -1, -1, -1,
+9, 5, 4, 10, 1, 2, 7, 6, 11, -1, -1, -1, -1, -1, -1, -1,
+6, 11, 7, 1, 2, 10, 0, 8, 3, 4, 9, 5, -1, -1, -1, -1,
+7, 6, 11, 5, 4, 10, 4, 2, 10, 4, 0, 2, -1, -1, -1, -1,
+3, 4, 8, 3, 5, 4, 3, 2, 5, 10, 5, 2, 11, 7, 6, -1,
+7, 2, 3, 7, 6, 2, 5, 4, 9, -1, -1, -1, -1, -1, -1, -1,
+9, 5, 4, 0, 8, 6, 0, 6, 2, 6, 8, 7, -1, -1, -1, -1,
+3, 6, 2, 3, 7, 6, 1, 5, 0, 5, 4, 0, -1, -1, -1, -1,
+6, 2, 8, 6, 8, 7, 2, 1, 8, 4, 8, 5, 1, 5, 8, -1,
+9, 5, 4, 10, 1, 6, 1, 7, 6, 1, 3, 7, -1, -1, -1, -1,
+1, 6, 10, 1, 7, 6, 1, 0, 7, 8, 7, 0, 9, 5, 4, -1,
+4, 0, 10, 4, 10, 5, 0, 3, 10, 6, 10, 7, 3, 7, 10, -1,
+7, 6, 10, 7, 10, 8, 5, 4, 10, 4, 8, 10, -1, -1, -1, -1,
+6, 9, 5, 6, 11, 9, 11, 8, 9, -1, -1, -1, -1, -1, -1, -1,
+3, 6, 11, 0, 6, 3, 0, 5, 6, 0, 9, 5, -1, -1, -1, -1,
+0, 11, 8, 0, 5, 11, 0, 1, 5, 5, 6, 11, -1, -1, -1, -1,
+6, 11, 3, 6, 3, 5, 5, 3, 1, -1, -1, -1, -1, -1, -1, -1,
+1, 2, 10, 9, 5, 11, 9, 11, 8, 11, 5, 6, -1, -1, -1, -1,
+0, 11, 3, 0, 6, 11, 0, 9, 6, 5, 6, 9, 1, 2, 10, -1,
+11, 8, 5, 11, 5, 6, 8, 0, 5, 10, 5, 2, 0, 2, 5, -1,
+6, 11, 3, 6, 3, 5, 2, 10, 3, 10, 5, 3, -1, -1, -1, -1,
+5, 8, 9, 5, 2, 8, 5, 6, 2, 3, 8, 2, -1, -1, -1, -1,
+9, 5, 6, 9, 6, 0, 0, 6, 2, -1, -1, -1, -1, -1, -1, -1,
+1, 5, 8, 1, 8, 0, 5, 6, 8, 3, 8, 2, 6, 2, 8, -1,
+1, 5, 6, 2, 1, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+1, 3, 6, 1, 6, 10, 3, 8, 6, 5, 6, 9, 8, 9, 6, -1,
+10, 1, 0, 10, 0, 6, 9, 5, 0, 5, 6, 0, -1, -1, -1, -1,
+0, 3, 8, 5, 6, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+10, 5, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+11, 5, 10, 7, 5, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+11, 5, 10, 11, 7, 5, 8, 3, 0, -1, -1, -1, -1, -1, -1, -1,
+5, 11, 7, 5, 10, 11, 1, 9, 0, -1, -1, -1, -1, -1, -1, -1,
+10, 7, 5, 10, 11, 7, 9, 8, 1, 8, 3, 1, -1, -1, -1, -1,
+11, 1, 2, 11, 7, 1, 7, 5, 1, -1, -1, -1, -1, -1, -1, -1,
+0, 8, 3, 1, 2, 7, 1, 7, 5, 7, 2, 11, -1, -1, -1, -1,
+9, 7, 5, 9, 2, 7, 9, 0, 2, 2, 11, 7, -1, -1, -1, -1,
+7, 5, 2, 7, 2, 11, 5, 9, 2, 3, 2, 8, 9, 8, 2, -1,
+2, 5, 10, 2, 3, 5, 3, 7, 5, -1, -1, -1, -1, -1, -1, -1,
+8, 2, 0, 8, 5, 2, 8, 7, 5, 10, 2, 5, -1, -1, -1, -1,
+9, 0, 1, 5, 10, 3, 5, 3, 7, 3, 10, 2, -1, -1, -1, -1,
+9, 8, 2, 9, 2, 1, 8, 7, 2, 10, 2, 5, 7, 5, 2, -1,
+1, 3, 5, 3, 7, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+0, 8, 7, 0, 7, 1, 1, 7, 5, -1, -1, -1, -1, -1, -1, -1,
+9, 0, 3, 9, 3, 5, 5, 3, 7, -1, -1, -1, -1, -1, -1, -1,
+9, 8, 7, 5, 9, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+5, 8, 4, 5, 10, 8, 10, 11, 8, -1, -1, -1, -1, -1, -1, -1,
+5, 0, 4, 5, 11, 0, 5, 10, 11, 11, 3, 0, -1, -1, -1, -1,
+0, 1, 9, 8, 4, 10, 8, 10, 11, 10, 4, 5, -1, -1, -1, -1,
+10, 11, 4, 10, 4, 5, 11, 3, 4, 9, 4, 1, 3, 1, 4, -1,
+2, 5, 1, 2, 8, 5, 2, 11, 8, 4, 5, 8, -1, -1, -1, -1,
+0, 4, 11, 0, 11, 3, 4, 5, 11, 2, 11, 1, 5, 1, 11, -1,
+0, 2, 5, 0, 5, 9, 2, 11, 5, 4, 5, 8, 11, 8, 5, -1,
+9, 4, 5, 2, 11, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+2, 5, 10, 3, 5, 2, 3, 4, 5, 3, 8, 4, -1, -1, -1, -1,
+5, 10, 2, 5, 2, 4, 4, 2, 0, -1, -1, -1, -1, -1, -1, -1,
+3, 10, 2, 3, 5, 10, 3, 8, 5, 4, 5, 8, 0, 1, 9, -1,
+5, 10, 2, 5, 2, 4, 1, 9, 2, 9, 4, 2, -1, -1, -1, -1,
+8, 4, 5, 8, 5, 3, 3, 5, 1, -1, -1, -1, -1, -1, -1, -1,
+0, 4, 5, 1, 0, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+8, 4, 5, 8, 5, 3, 9, 0, 5, 0, 3, 5, -1, -1, -1, -1,
+9, 4, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+4, 11, 7, 4, 9, 11, 9, 10, 11, -1, -1, -1, -1, -1, -1, -1,
+0, 8, 3, 4, 9, 7, 9, 11, 7, 9, 10, 11, -1, -1, -1, -1,
+1, 10, 11, 1, 11, 4, 1, 4, 0, 7, 4, 11, -1, -1, -1, -1,
+3, 1, 4, 3, 4, 8, 1, 10, 4, 7, 4, 11, 10, 11, 4, -1,
+4, 11, 7, 9, 11, 4, 9, 2, 11, 9, 1, 2, -1, -1, -1, -1,
+9, 7, 4, 9, 11, 7, 9, 1, 11, 2, 11, 1, 0, 8, 3, -1,
+11, 7, 4, 11, 4, 2, 2, 4, 0, -1, -1, -1, -1, -1, -1, -1,
+11, 7, 4, 11, 4, 2, 8, 3, 4, 3, 2, 4, -1, -1, -1, -1,
+2, 9, 10, 2, 7, 9, 2, 3, 7, 7, 4, 9, -1, -1, -1, -1,
+9, 10, 7, 9, 7, 4, 10, 2, 7, 8, 7, 0, 2, 0, 7, -1,
+3, 7, 10, 3, 10, 2, 7, 4, 10, 1, 10, 0, 4, 0, 10, -1,
+1, 10, 2, 8, 7, 4, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+4, 9, 1, 4, 1, 7, 7, 1, 3, -1, -1, -1, -1, -1, -1, -1,
+4, 9, 1, 4, 1, 7, 0, 8, 1, 8, 7, 1, -1, -1, -1, -1,
+4, 0, 3, 7, 4, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+4, 8, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+9, 10, 8, 10, 11, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+3, 0, 9, 3, 9, 11, 11, 9, 10, -1, -1, -1, -1, -1, -1, -1,
+0, 1, 10, 0, 10, 8, 8, 10, 11, -1, -1, -1, -1, -1, -1, -1,
+3, 1, 10, 11, 3, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+1, 2, 11, 1, 11, 9, 9, 11, 8, -1, -1, -1, -1, -1, -1, -1,
+3, 0, 9, 3, 9, 11, 1, 2, 9, 2, 11, 9, -1, -1, -1, -1,
+0, 2, 11, 8, 0, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+3, 2, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+2, 3, 8, 2, 8, 10, 10, 8, 9, -1, -1, -1, -1, -1, -1, -1,
+9, 10, 2, 0, 9, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+2, 3, 8, 2, 8, 10, 0, 1, 8, 1, 10, 8, -1, -1, -1, -1,
+1, 10, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+1, 3, 8, 9, 1, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+0, 9, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+0, 3, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]);
 
-
-var atomic_symbol$1 = ['','H','He','Li','Be','B','C','N','O','F','Ne','Na','Mg','Al','Si',
-'P','S','Cl','Ar','K' ,'Ca','Sc','Ti','Vi','Cr','Mn','Fe','Co','Ni','Cu','Zn','Ga',
-'Ge','As','Se','Br','Kr','Rb','Sr','Y' ,'Zr','Nb','Mo','Tc','Ru','Rh','Pd','Ag',
-'Cd','In','Sn','Sb','Te','I' ,'Xe','Cs','Ba','La','Ce','Pr','Nd','Pm','Sm','Eu',
-'Gd','Tb','Dy','Ho','Er','Tm','Yb','Lu','Hf','Ta','W' ,'Re','Os','Ir','Pt','Au',
-'Hg','Tl','Pb','Bi','Po','At','Rn','Fr','Ra','Ac','Th','Pa','U' ,'Np','Pu','Am',
-'Cm','Bk','Cf','Es','Fm','Md','No','Lr','Rf','Db','Sg','Bh','Hs','Mt'];
-
-//from phonopy
-var atomic_mass = [null,1.00794,4.002602,6.941,9.012182,10.811,12.0107,14.0067,15.9994,
-18.9984032,20.1797, 22.98976928,24.305,26.9815386,28.0855,30.973762,32.065,35.453,39.948,
-39.0983,40.078,44.955912,47.867,50.9415,51.9961,54.938045,55.845,58.933195,58.6934,63.546,
-65.38,69.723,72.64,74.9216,78.96,79.904,83.798,85.4678,87.62,88.90585,91.224,92.90638,95.96,
-null,101.07,102.9055,106.42,107.8682,112.411,114.818,118.71,121.76,127.6,126.90447,131.293,
-132.9054519,137.327,138.90547,140.116,140.90765,144.242,null,150.36,151.964,157.25,
-158.92535,162.5,164.93032,167.259,168.93421,173.054,174.9668,178.49,180.94788,183.84,
-186.207,190.23,192.217,195.084,196.966569,200.59,204.3833,207.2,208.9804,null,null,null,
-null,null,null,232.03806,231.03588,238.02891,null,null,null,null,null,null,null,null,
-null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null];
-
-/* Covalent radii from:
-
-  Covalent radii revisited,
-  Beatriz Cordero, Verónica Gómez, Ana E. Platero-Prats, Marc Revés,
-  Jorge Echeverría, Eduard Cremades, Flavia Barragán and Santiago Alvarez,
-  Dalton Trans., 2008, 2832-2838 DOI:10.1039/B801115J
-  */
-
-var covalent_radii =
-[0.0,  0.31, 0.28, 1.28, 0.96, 0.84, 0.76, 0.71, 0.66, 0.57, //0
- 0.58, 1.66, 1.41, 1.21, 1.11, 1.07, 1.05, 1.02, 1.06, 2.03, //1
- 1.76, 1.70, 1.60, 1.53, 1.39, 1.39, 1.32, 1.26, 1.24, 1.32, //2
- 1.22, 1.22, 1.20, 1.19, 1.20, 1.20, 1.16, 2.20, 1.95, 1.90, //3
- 1.75, 1.64, 1.54, 1.47, 1.46, 1.42, 1.39, 1.45, 1.44, 1.42, //4
- 1.39, 1.39, 1.38, 1.39, 1.40, 2.44, 2.15, 2.07, 2.04, 2.03, //5
- 2.01, 1.99, 1.98, 1.98, 1.96, 1.94, 1.92, 1.92, 1.89, 1.90, //6
- 1.87, 1.87, 1.75, 1.70, 1.62, 1.51, 1.44, 1.41, 1.36, 1.36, //7
- 1.32, 1.45, 1.46, 1.48, 1.40, 1.50, 1.50, 2.60, 2.21, 2.15, //8
- 2.06, 2.00, 1.96, 1.90, 1.87, 1.80, 1.69, 0,    0,    0,    //9
- 0,    0,    0,    0 ];                                       //10
-
-const pi$1 = 3.14159265359;
-
-function matrix_scale(a,scale) {
-  return [a[0].map(function(x) {return x*scale}),
-          a[1].map(function(x) {return x*scale}),
-          a[2].map(function(x) {return x*scale})];
+const triangleCountTable = new Uint8Array(256);
+for (let cubeindex = 0; cubeindex < 256; cubeindex++) {
+    let count = 0;
+    const triOffset = cubeindex << 4;
+    while (triTable[triOffset + count * 3] !== -1) {
+        count += 1;
+    }
+    triangleCountTable[cubeindex] = count;
 }
 
-function vec_scale(a,scale) {
-    return [a[0]*scale,a[1]*scale,a[2]*scale];
+function getWrappedIndexAndShift(index, size) {
+    if (size <= 0) {
+        return { index: 0, shift: 0 };
+    }
+    const shift = Math.floor(index / size);
+    const wrappedIndex = ((index % size) + size) % size;
+    return { index: wrappedIndex, shift };
 }
 
-function vec_dot(a,b) {
-    return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+function getGridValue(values, x, y, z, sizex, sizey, sizez, size2, periodic) {
+    if (!periodic) {
+        return values[x + sizex * y + size2 * z];
+    }
+
+    const wx = getWrappedIndexAndShift(x, sizex);
+    const wy = getWrappedIndexAndShift(y, sizey);
+    const wz = getWrappedIndexAndShift(z, sizez);
+    return values[wx.index + sizex * wy.index + size2 * wz.index];
 }
 
-function vec_cross(a,b) {
-    return [a[1]*b[2]-a[2]*b[1],
-            a[2]*b[0]-a[0]*b[2],
-            a[0]*b[1]-a[1]*b[0]]
+function getGridPointCoords(target, targetOffset, x, y, z, sizex, sizey, sizez, periodic, gridCell) {
+    if (!periodic) {
+        const fx = sizex > 1 ? x / (sizex - 1) : 0;
+        const fy = sizey > 1 ? y / (sizey - 1) : 0;
+        const fz = sizez > 1 ? z / (sizez - 1) : 0;
+        target[targetOffset] = fx * gridCell[0][0] + fy * gridCell[1][0] + fz * gridCell[2][0];
+        target[targetOffset + 1] = fx * gridCell[0][1] + fy * gridCell[1][1] + fz * gridCell[2][1];
+        target[targetOffset + 2] = fx * gridCell[0][2] + fy * gridCell[1][2] + fz * gridCell[2][2];
+        return;
+    }
+
+    const wx = getWrappedIndexAndShift(x, sizex);
+    const wy = getWrappedIndexAndShift(y, sizey);
+    const wz = getWrappedIndexAndShift(z, sizez);
+    const fx = wx.index / sizex + wx.shift;
+    const fy = wy.index / sizey + wy.shift;
+    const fz = wz.index / sizez + wz.shift;
+    target[targetOffset] = fx * gridCell[0][0] + fy * gridCell[1][0] + fz * gridCell[2][0];
+    target[targetOffset + 1] = fx * gridCell[0][1] + fy * gridCell[1][1] + fz * gridCell[2][1];
+    target[targetOffset + 2] = fx * gridCell[0][2] + fy * gridCell[1][2] + fz * gridCell[2][2];
 }
 
-function distance(a,b) {
-    /* Distance between two points
-    */
-    let x = a[0]-b[0];
-    let y = a[1]-b[1];
-    let z = a[2]-b[2];
-    return Math.sqrt(x*x + y*y + z*z);
+function interpolateVertex(target, targetOffset, pointA, pointAOffset, pointB, pointBOffset, valueA, valueB, isolevel) {
+    const delta = valueB - valueA;
+    const mu = delta === 0 ? 0.5 : (isolevel - valueA) / delta;
+    target[targetOffset] = pointA[pointAOffset] + (pointB[pointBOffset] - pointA[pointAOffset]) * mu;
+    target[targetOffset + 1] = pointA[pointAOffset + 1] + (pointB[pointBOffset + 1] - pointA[pointAOffset + 1]) * mu;
+    target[targetOffset + 2] = pointA[pointAOffset + 2] + (pointB[pointBOffset + 2] - pointA[pointAOffset + 2]) * mu;
 }
 
-function getCombinations(elements) {
-    /*
-    Get combintations 2 by two based on:
-    http://stackoverflow.com/questions/29169011/javascript-arrays-finding-the-number-of-combinations-of-2-elements
-    */
-    let combos = [];
-    for (var i = 0; i < elements.length; i++)
-        for (var j = i + 1; j < elements.length; j++)
-            combos.push([elements[i], elements[j]]);
-    return combos;
+function computeCubeIndex(value0, value1, value2, value3, value4, value5, value6, value7, isolevel, insideIsAbove) {
+    let cubeindex = 0;
+    if (insideIsAbove) {
+        if (value0 > isolevel) cubeindex |= 1;
+        if (value1 > isolevel) cubeindex |= 2;
+        if (value2 > isolevel) cubeindex |= 8;
+        if (value3 > isolevel) cubeindex |= 4;
+        if (value4 > isolevel) cubeindex |= 16;
+        if (value5 > isolevel) cubeindex |= 32;
+        if (value6 > isolevel) cubeindex |= 128;
+        if (value7 > isolevel) cubeindex |= 64;
+        return cubeindex;
+    }
+
+    if (value0 < isolevel) cubeindex |= 1;
+    if (value1 < isolevel) cubeindex |= 2;
+    if (value2 < isolevel) cubeindex |= 8;
+    if (value3 < isolevel) cubeindex |= 4;
+    if (value4 < isolevel) cubeindex |= 16;
+    if (value5 < isolevel) cubeindex |= 32;
+    if (value6 < isolevel) cubeindex |= 128;
+    if (value7 < isolevel) cubeindex |= 64;
+    return cubeindex;
 }
 
-function rec_lat(lat) {
-    /* Calculate the reciprocal lattice
-    */
-    let a1 = lat[0];
-    let a2 = lat[1];
-    let a3 = lat[2];
-    let b1 = vec_cross(a2,a3);
-    let b2 = vec_cross(a3,a1);
-    let b3 = vec_cross(a1,a2);
-    let v = vec_dot(a1,b1);
-    b1 = vec_scale(b1,1/v);
-    b2 = vec_scale(b2,1/v);
-    b3 = vec_scale(b3,1/v);
-    return [b1,b2,b3]
+function writeTriangle(positions, normals, writeOffset, vlist, vertexIndex1, vertexIndex2, vertexIndex3) {
+    const v1 = vertexIndex1 * 3;
+    const v2 = vertexIndex2 * 3;
+    const v3 = vertexIndex3 * 3;
+
+    positions[writeOffset] = vlist[v1];
+    positions[writeOffset + 1] = vlist[v1 + 1];
+    positions[writeOffset + 2] = vlist[v1 + 2];
+    positions[writeOffset + 3] = vlist[v2];
+    positions[writeOffset + 4] = vlist[v2 + 1];
+    positions[writeOffset + 5] = vlist[v2 + 2];
+    positions[writeOffset + 6] = vlist[v3];
+    positions[writeOffset + 7] = vlist[v3 + 1];
+    positions[writeOffset + 8] = vlist[v3 + 2];
+
+    const abx = vlist[v2] - vlist[v1];
+    const aby = vlist[v2 + 1] - vlist[v1 + 1];
+    const abz = vlist[v2 + 2] - vlist[v1 + 2];
+    const acx = vlist[v3] - vlist[v1];
+    const acy = vlist[v3 + 1] - vlist[v1 + 1];
+    const acz = vlist[v3 + 2] - vlist[v1 + 2];
+    let nx = aby * acz - abz * acy;
+    let ny = abz * acx - abx * acz;
+    let nz = abx * acy - aby * acx;
+    const length = Math.hypot(nx, ny, nz) || 1;
+    nx /= length;
+    ny /= length;
+    nz /= length;
+
+    for (let i = 0; i < 9; i += 3) {
+        normals[writeOffset + i] = nx;
+        normals[writeOffset + i + 1] = ny;
+        normals[writeOffset + i + 2] = nz;
+    }
 }
 
-function point_in_list(point,points) {
-    /*
-    Return the index of the point if it is present in a list of points
-    */
-    for (let i=0; i<points.length; i++) {
-        if (distance(point,points[i]) < 1e-4) {
-            return {found:true,index:i};
+function buildMarchingCubesBuffers(values, sizex, sizey, sizez, gridCell, isolevel, options = {}) {
+    const periodic = !!options.periodic;
+    const insideIsAbove = !!options.insideIsAbove;
+    const size2 = sizex * sizey;
+    const vlist = new Float32Array(36);
+    const points = new Float32Array(24);
+
+    const xLimit = periodic ? sizex : sizex - 1;
+    const yLimit = periodic ? sizey : sizey - 1;
+    const zLimit = periodic ? sizez : sizez - 1;
+    let triangleCount = 0;
+
+    for (let z = 0; z < zLimit; z++) {
+        for (let y = 0; y < yLimit; y++) {
+            for (let x = 0; x < xLimit; x++) {
+                const value0 = getGridValue(values, x, y, z, sizex, sizey, sizez, size2, periodic);
+                const value1 = getGridValue(values, x + 1, y, z, sizex, sizey, sizez, size2, periodic);
+                const value2 = getGridValue(values, x, y + 1, z, sizex, sizey, sizez, size2, periodic);
+                const value3 = getGridValue(values, x + 1, y + 1, z, sizex, sizey, sizez, size2, periodic);
+                const value4 = getGridValue(values, x, y, z + 1, sizex, sizey, sizez, size2, periodic);
+                const value5 = getGridValue(values, x + 1, y, z + 1, sizex, sizey, sizez, size2, periodic);
+                const value6 = getGridValue(values, x, y + 1, z + 1, sizex, sizey, sizez, size2, periodic);
+                const value7 = getGridValue(values, x + 1, y + 1, z + 1, sizex, sizey, sizez, size2, periodic);
+                const cubeindex = computeCubeIndex(value0, value1, value2, value3, value4, value5, value6, value7, isolevel, insideIsAbove);
+                triangleCount += triangleCountTable[cubeindex];
+            }
         }
     }
-    return {found:false};
-}
 
-function red_car(a,lat) {
-    let x=a[0];
-    let y=a[1];
-    let z=a[2];
-    return [x*lat[0][0] + y*lat[1][0] + z*lat[2][0],
-            x*lat[0][1] + y*lat[1][1] + z*lat[2][1],
-            x*lat[0][2] + y*lat[1][2] + z*lat[2][2]]
-}
+    const positions = new Float32Array(triangleCount * 9);
+    const normals = new Float32Array(triangleCount * 9);
+    let writeOffset = 0;
 
-function red_car_list(red,lat) {
-    let car = [];
-    for (let i=0; i<red.length; i++) {
-        car.push(red_car(red[i],lat));
-    }
-    return car;
-}
+    for (let z = 0; z < zLimit; z++) {
+        for (let y = 0; y < yLimit; y++) {
+            for (let x = 0; x < xLimit; x++) {
+                const value0 = getGridValue(values, x, y, z, sizex, sizey, sizez, size2, periodic);
+                const value1 = getGridValue(values, x + 1, y, z, sizex, sizey, sizez, size2, periodic);
+                const value2 = getGridValue(values, x, y + 1, z, sizex, sizey, sizez, size2, periodic);
+                const value3 = getGridValue(values, x + 1, y + 1, z, sizex, sizey, sizez, size2, periodic);
+                const value4 = getGridValue(values, x, y, z + 1, sizex, sizey, sizez, size2, periodic);
+                const value5 = getGridValue(values, x + 1, y, z + 1, sizex, sizey, sizez, size2, periodic);
+                const value6 = getGridValue(values, x, y + 1, z + 1, sizex, sizey, sizez, size2, periodic);
+                const value7 = getGridValue(values, x + 1, y + 1, z + 1, sizex, sizey, sizez, size2, periodic);
+                const cubeindex = computeCubeIndex(value0, value1, value2, value3, value4, value5, value6, value7, isolevel, insideIsAbove);
+                const bits = edgeTable[cubeindex];
+                if (bits === 0) {
+                    continue;
+                }
 
-function get_formula(atom_types) {
-    //create the name from the elements
-    //from https://stackoverflow.com/questions/15052702/count-unique-elements-in-array-without-sorting
-    let counts = {};
-    for (var i = 0; i < atom_types.length; i++) {
-        counts[atom_types[i]] = 1 + (counts[atom_types[i]] || 0);
-    }
+                getGridPointCoords(points, 0, x, y, z, sizex, sizey, sizez, periodic, gridCell);
+                getGridPointCoords(points, 3, x + 1, y, z, sizex, sizey, sizez, periodic, gridCell);
+                getGridPointCoords(points, 6, x, y + 1, z, sizex, sizey, sizez, periodic, gridCell);
+                getGridPointCoords(points, 9, x + 1, y + 1, z, sizex, sizey, sizez, periodic, gridCell);
+                getGridPointCoords(points, 12, x, y, z + 1, sizex, sizey, sizez, periodic, gridCell);
+                getGridPointCoords(points, 15, x + 1, y, z + 1, sizex, sizey, sizez, periodic, gridCell);
+                getGridPointCoords(points, 18, x, y + 1, z + 1, sizex, sizey, sizez, periodic, gridCell);
+                getGridPointCoords(points, 21, x + 1, y + 1, z + 1, sizex, sizey, sizez, periodic, gridCell);
 
-    //make the name from the counter
-    let name = "";
-    for (let element in counts) {
-        name += element;
-        if (counts[element] !== 1) {
-            name += counts[element];
+                if (bits & 1) interpolateVertex(vlist, 0, points, 0, points, 3, value0, value1, isolevel);
+                if (bits & 2) interpolateVertex(vlist, 3, points, 3, points, 9, value1, value3, isolevel);
+                if (bits & 4) interpolateVertex(vlist, 6, points, 6, points, 9, value2, value3, isolevel);
+                if (bits & 8) interpolateVertex(vlist, 9, points, 0, points, 6, value0, value2, isolevel);
+                if (bits & 16) interpolateVertex(vlist, 12, points, 12, points, 15, value4, value5, isolevel);
+                if (bits & 32) interpolateVertex(vlist, 15, points, 15, points, 21, value5, value7, isolevel);
+                if (bits & 64) interpolateVertex(vlist, 18, points, 18, points, 21, value6, value7, isolevel);
+                if (bits & 128) interpolateVertex(vlist, 21, points, 12, points, 18, value4, value6, isolevel);
+                if (bits & 256) interpolateVertex(vlist, 24, points, 0, points, 12, value0, value4, isolevel);
+                if (bits & 512) interpolateVertex(vlist, 27, points, 3, points, 15, value1, value5, isolevel);
+                if (bits & 1024) interpolateVertex(vlist, 30, points, 9, points, 21, value3, value7, isolevel);
+                if (bits & 2048) interpolateVertex(vlist, 33, points, 6, points, 18, value2, value6, isolevel);
+
+                const triOffset = cubeindex << 4;
+                for (let i = 0; triTable[triOffset + i] !== -1; i += 3) {
+                    writeTriangle(
+                        positions,
+                        normals,
+                        writeOffset,
+                        vlist,
+                        triTable[triOffset + i],
+                        triTable[triOffset + i + 1],
+                        triTable[triOffset + i + 2],
+                    );
+                    writeOffset += 9;
+                }
+            }
         }
     }
-    return name;
+
+    return {
+        positions,
+        normals,
+    };
 }
 
-function getReasonableRepetitions(natoms,lat) {
-    /*
-    choose a reasonable number of repetitions
-    Some logic can be implemented here to improve
-    in which directions the repetitions are made
-    */
-
-    if (natoms <= 4)                              { return [3,3,3]; }
-    if (natoms > 4 && natoms <= 15)              { return [2,2,2]; }
-    if (natoms > 15 && natoms <= 50)             { return [2,2,1]; }
-    return [1,1,1];
-
+function buildMarchingCubesGeometry(values, sizex, sizey, sizez, gridCell, isolevel, options = {}) {
+    const buffers = buildMarchingCubesBuffers(values, sizex, sizey, sizez, gridCell, isolevel, options);
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new BufferAttribute(buffers.positions, 3));
+    geometry.setAttribute('normal', new BufferAttribute(buffers.normals, 3));
+    return geometry;
 }
 
-function subscript_numbers(old_string) {
-    let string = "";
-    for (const a of old_string) {
-        if (!isNaN(a)) {
-            string += "<sub>"+a+"</sub>";
-        }
-        else {
-            string += a;
-        }
-    }
-    return string;
+function createVolumeTexture(values, sizex, sizey, sizez) {
+    const textureValues = values instanceof Float32Array ? values : Float32Array.from(values);
+    const texture = new DataTexture3D(textureValues, sizex, sizey, sizez);
+    texture.format = RedFormat;
+    texture.type = FloatType;
+    texture.minFilter = LinearFilter;
+    texture.magFilter = LinearFilter;
+    texture.unpackAlignment = 1;
+    texture.needsUpdate = true;
+    return texture;
 }
 
-function normalize_formula_string(value) {
-    if (typeof value !== 'string' || !value) {
-        return value;
+function disposeVolumeTexture(texture) {
+    if (texture && typeof texture.dispose === 'function') {
+        texture.dispose();
     }
+}
 
-    if (!/^(?:[A-Z][a-z]?\d*)+$/.test(value)) {
-        return value;
-    }
+const RAYMARCH_PERFORMANCE_SETTINGS = {
+    opacityCompensation: 1.7,
+    interactive: {
+        resolutionDivisor: 1,
+        interpolation: 'trilinear',
+        stepScale: 0.18,
+        minSteps: 16,
+        maxSteps: 64,
+        maxRayHits: 2,
+    },
+    settled: {
+        resolutionDivisor: 2,
+        interpolation: 'selected',
+        stepScale: 0.5,
+        minSteps: 56,
+        maxSteps: 224,
+        maxRayHits: 2,
+    },
+};
 
-    return value.replace(/([A-Z][a-z]?)(\d*)/g, function(match, element, count) {
-        if (!count || count === '1') {
-            return element;
-        }
-        return element + count;
+function getRaymarchPerformanceProfile({ interacting, selectedInterpolation, gridSizeMax }) {
+    const profile = interacting
+        ? RAYMARCH_PERFORMANCE_SETTINGS.interactive
+        : RAYMARCH_PERFORMANCE_SETTINGS.settled;
+
+    const interpolation = profile.interpolation === 'selected'
+        ? selectedInterpolation
+        : profile.interpolation;
+
+    const rawSteps = Math.round(gridSizeMax * 2.0 * profile.stepScale);
+    const stepCount = Math.max(profile.minSteps, Math.min(profile.maxSteps, rawSteps));
+
+    return {
+        interpolation,
+        stepCount,
+        resolutionDivisor: Math.max(1, Math.round(profile.resolutionDivisor || 1)),
+        activeRayHits: Math.max(1, Math.min(2, Math.round(profile.maxRayHits || 1))),
+    };
+}
+
+const MAX_STEPS = 384;
+const MAX_REFINEMENT_STEPS = 2;
+const MAX_RAY_HITS = 2;
+const RAYMARCH_OPACITY_COMPENSATION = RAYMARCH_PERFORMANCE_SETTINGS.opacityCompensation;
+
+function createCellMatrix(gridCell) {
+    const a = gridCell[0];
+    const b = gridCell[1];
+    const c = gridCell[2];
+
+    return new Matrix4().set(
+        a[0], b[0], c[0], 0,
+        a[1], b[1], c[1], 0,
+        a[2], b[2], c[2], 0,
+        0, 0, 0, 1,
+    );
+}
+
+function createRaymarchGeometry(gridCell) {
+    const geometry = new BoxBufferGeometry(1, 1, 1);
+    geometry.translate(0.5, 0.5, 0.5);
+    geometry.setAttribute('texturePosition', geometry.attributes.position.clone());
+    geometry.applyMatrix4(createCellMatrix(gridCell));
+    return geometry;
+}
+
+function getInterpolationMode(interpolation) {
+    return interpolation === 'tricubic' ? 1 : 0;
+}
+
+function createMaterial({ texture, gridCell, isolevel, opacity, color, periodic, gridSize, interpolation, textureRepeat, stepCount, activeRayHits }) {
+    const cellMatrix4 = createCellMatrix(gridCell);
+    const objectToTextureMatrix = new Matrix4().copy(cellMatrix4).invert();
+    const gradientMatrix = new Matrix3().setFromMatrix4(objectToTextureMatrix).transpose();
+    const colorValue = new Color(color);
+
+    return new ShaderMaterial({
+        glslVersion: GLSL3,
+        side: DoubleSide,
+        transparent: true,
+        depthWrite: opacity >= 0.999,
+        uniforms: {
+            uVolume: { value: texture },
+            uIsolevel: { value: isolevel },
+            uOpacity: { value: opacity },
+            uColor: { value: colorValue },
+            uGridSize: { value: new Vector3(gridSize[0], gridSize[1], gridSize[2]) },
+            uPeriodic: { value: periodic ? 1 : 0 },
+            uGradientMatrix: { value: gradientMatrix },
+            uWorldToTexture: { value: new Matrix4() },
+            uTextureToWorld: { value: new Matrix4() },
+            uStepCount: { value: Math.max(24, Math.min(MAX_STEPS, Math.round(stepCount || (Math.max(...gridSize) * 2.0)))) },
+            uActiveRayHits: { value: Math.max(1, Math.min(MAX_RAY_HITS, Math.round(activeRayHits || MAX_RAY_HITS))) },
+            uInterpolationMode: { value: getInterpolationMode(interpolation) },
+            uTextureRepeat: { value: new Vector3(textureRepeat[0], textureRepeat[1], textureRepeat[2]) },
+        },
+        vertexShader: `
+            in vec3 texturePosition;
+
+            out vec3 vTexturePosition;
+            void main() {
+                vTexturePosition = texturePosition;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            precision highp float;
+            precision highp sampler3D;
+
+            uniform sampler3D uVolume;
+            uniform float uIsolevel;
+            uniform float uOpacity;
+            uniform vec3 uColor;
+            uniform vec3 uGridSize;
+            uniform int uPeriodic;
+            uniform mat3 uGradientMatrix;
+            uniform mat4 uWorldToTexture;
+            uniform mat4 uTextureToWorld;
+            uniform int uStepCount;
+            uniform int uActiveRayHits;
+            uniform int uInterpolationMode;
+            uniform vec3 uTextureRepeat;
+
+            in vec3 vTexturePosition;
+            out vec4 outColor;
+
+            vec3 wrapSamplePosition(vec3 coord) {
+                coord *= uTextureRepeat;
+                if (uPeriodic == 1) {
+                    return fract(coord);
+                }
+                return clamp(coord, vec3(0.0), vec3(1.0));
+            }
+
+            int wrapIndex(int index, int size) {
+                if (uPeriodic == 1) {
+                    int wrapped = index % size;
+                    return wrapped < 0 ? wrapped + size : wrapped;
+                }
+                return clamp(index, 0, size - 1);
+            }
+
+            float fetchVoxel(ivec3 index) {
+                ivec3 dims = ivec3(max(uGridSize, vec3(1.0)));
+                ivec3 wrapped = ivec3(
+                    wrapIndex(index.x, dims.x),
+                    wrapIndex(index.y, dims.y),
+                    wrapIndex(index.z, dims.z)
+                );
+                return texelFetch(uVolume, wrapped, 0).r;
+            }
+
+            float cubicCatmullRom(float p0, float p1, float p2, float p3, float t) {
+                float a = -0.5 * p0 + 1.5 * p1 - 1.5 * p2 + 0.5 * p3;
+                float b = p0 - 2.5 * p1 + 2.0 * p2 - 0.5 * p3;
+                float c = -0.5 * p0 + 0.5 * p2;
+                float d = p1;
+                float value = ((a * t + b) * t + c) * t + d;
+                float lower = min(min(p0, p1), min(p2, p3));
+                float upper = max(max(p0, p1), max(p2, p3));
+                return clamp(value, lower, upper);
+            }
+
+            float sampleVolumeTrilinear(vec3 coord) {
+                vec3 wrappedCoord = wrapSamplePosition(coord);
+                vec3 dims = max(uGridSize, vec3(2.0));
+                vec3 gridCoord = (uPeriodic == 1)
+                    ? wrappedCoord * dims
+                    : wrappedCoord * (dims - vec3(1.0));
+
+                vec3 baseCoord = floor(gridCoord);
+                vec3 fraction = fract(gridCoord);
+
+                if (uPeriodic != 1) {
+                    vec3 maxBase = dims - vec3(2.0);
+                    baseCoord = min(baseCoord, maxBase);
+                    fraction = gridCoord - baseCoord;
+                }
+
+                ivec3 base = ivec3(baseCoord);
+
+                float c000 = fetchVoxel(base + ivec3(0, 0, 0));
+                float c100 = fetchVoxel(base + ivec3(1, 0, 0));
+                float c010 = fetchVoxel(base + ivec3(0, 1, 0));
+                float c110 = fetchVoxel(base + ivec3(1, 1, 0));
+                float c001 = fetchVoxel(base + ivec3(0, 0, 1));
+                float c101 = fetchVoxel(base + ivec3(1, 0, 1));
+                float c011 = fetchVoxel(base + ivec3(0, 1, 1));
+                float c111 = fetchVoxel(base + ivec3(1, 1, 1));
+
+                float c00 = mix(c000, c100, fraction.x);
+                float c10 = mix(c010, c110, fraction.x);
+                float c01 = mix(c001, c101, fraction.x);
+                float c11 = mix(c011, c111, fraction.x);
+                float c0 = mix(c00, c10, fraction.y);
+                float c1 = mix(c01, c11, fraction.y);
+                return mix(c0, c1, fraction.z);
+            }
+
+            float sampleVolumeTricubic(vec3 coord) {
+                vec3 wrappedCoord = wrapSamplePosition(coord);
+                vec3 dims = max(uGridSize, vec3(2.0));
+                vec3 gridCoord = (uPeriodic == 1)
+                    ? wrappedCoord * dims
+                    : wrappedCoord * (dims - vec3(1.0));
+                vec3 baseCoord = floor(gridCoord);
+                vec3 fraction = fract(gridCoord);
+
+                if (uPeriodic != 1) {
+                    vec3 maxBase = dims - vec3(2.0);
+                    baseCoord = min(baseCoord, maxBase);
+                    fraction = gridCoord - baseCoord;
+                }
+
+                ivec3 base = ivec3(baseCoord);
+
+                float yzPlane[4];
+                for (int kz = 0; kz < 4; kz++) {
+                    float yLine[4];
+                    for (int ky = 0; ky < 4; ky++) {
+                        float xLine[4];
+                        for (int kx = 0; kx < 4; kx++) {
+                            ivec3 sampleIndex = base + ivec3(kx - 1, ky - 1, kz - 1);
+                            xLine[kx] = fetchVoxel(sampleIndex);
+                        }
+                        yLine[ky] = cubicCatmullRom(xLine[0], xLine[1], xLine[2], xLine[3], fraction.x);
+                    }
+                    yzPlane[kz] = cubicCatmullRom(yLine[0], yLine[1], yLine[2], yLine[3], fraction.y);
+                }
+
+                return cubicCatmullRom(yzPlane[0], yzPlane[1], yzPlane[2], yzPlane[3], fraction.z);
+            }
+
+            float sampleVolume(vec3 coord) {
+                if (uInterpolationMode == 1) {
+                    return sampleVolumeTricubic(coord);
+                }
+                return sampleVolumeTrilinear(coord);
+            }
+
+            bool intersectBox(vec3 rayOrigin, vec3 rayDirection, out float tMin, out float tMax) {
+                vec3 invDir = 1.0 / max(abs(rayDirection), vec3(1e-6)) * sign(rayDirection);
+                vec3 t0 = (vec3(0.0) - rayOrigin) * invDir;
+                vec3 t1 = (vec3(1.0) - rayOrigin) * invDir;
+                vec3 tSmall = min(t0, t1);
+                vec3 tLarge = max(t0, t1);
+                tMin = max(max(tSmall.x, tSmall.y), tSmall.z);
+                tMax = min(min(tLarge.x, tLarge.y), tLarge.z);
+                return tMax > max(tMin, 0.0);
+            }
+
+            vec3 computeTextureGradient3(vec3 coord) {
+                vec3 eps = 1.0 / max(uGridSize, vec3(2.0));
+                float dx = sampleVolume(coord + vec3(eps.x, 0.0, 0.0)) - sampleVolume(coord - vec3(eps.x, 0.0, 0.0));
+                float dy = sampleVolume(coord + vec3(0.0, eps.y, 0.0)) - sampleVolume(coord - vec3(0.0, eps.y, 0.0));
+                float dz = sampleVolume(coord + vec3(0.0, 0.0, eps.z)) - sampleVolume(coord - vec3(0.0, 0.0, eps.z));
+                return vec3(dx, dy, dz);
+            }
+
+            vec3 estimateNormal(vec3 coord) {
+                vec3 gradient = computeTextureGradient3(coord);
+                return normalize(uGradientMatrix * gradient);
+            }
+
+            vec3 refineZeroCrossing(vec3 lowPos, vec3 highPos, float lowValue, float highValue) {
+                vec3 bestPos = mix(lowPos, highPos, 0.5);
+
+                for (int refine = 0; refine < ${MAX_REFINEMENT_STEPS}; refine++) {
+                    float denom = highValue - lowValue;
+                    float secantWeight = 0.5;
+                    if (abs(denom) > 1e-7) {
+                        secantWeight = clamp(-lowValue / denom, 0.0, 1.0);
+                    }
+
+                    vec3 secantPos = mix(lowPos, highPos, secantWeight);
+                    float secantValue = sampleVolume(secantPos) - uIsolevel;
+                    bestPos = secantPos;
+
+                    if (abs(secantValue) < 1e-5) {
+                        return secantPos;
+                    }
+
+                    vec3 gradient = computeTextureGradient3(secantPos);
+                    float derivative = dot(gradient, normalize(highPos - lowPos));
+                    if (abs(derivative) > 1e-6) {
+                        float newtonStep = clamp(secantValue / derivative, -0.5, 0.5);
+                        vec3 newtonPos = secantPos - normalize(highPos - lowPos) * newtonStep * length(highPos - lowPos);
+                        newtonPos = clamp(newtonPos, min(lowPos, highPos), max(lowPos, highPos));
+                        float newtonValue = sampleVolume(newtonPos) - uIsolevel;
+                        if (abs(newtonValue) < abs(secantValue)) {
+                            bestPos = newtonPos;
+                            secantPos = newtonPos;
+                            secantValue = newtonValue;
+                        }
+                    }
+
+                    if ((lowValue <= 0.0 && secantValue <= 0.0) || (lowValue >= 0.0 && secantValue >= 0.0)) {
+                        lowPos = secantPos;
+                        lowValue = secantValue;
+                    } else {
+                        highPos = secantPos;
+                        highValue = secantValue;
+                    }
+                }
+
+                return bestPos;
+            }
+
+            vec4 shadeHit(vec3 hitPos, vec3 rayDirection) {
+                vec3 normal = estimateNormal(hitPos);
+                if (dot(normal, rayDirection) > 0.0) {
+                    normal = -normal;
+                }
+                vec3 lightDir = normalize(vec3(0.45, 0.55, 1.0));
+                vec3 hitWorld = (uTextureToWorld * vec4(hitPos, 1.0)).xyz;
+                vec3 viewDir = normalize(cameraPosition - hitWorld);
+                float diffuse = 0.28 + 0.72 * max(dot(normal, lightDir), 0.0);
+                vec3 halfVector = normalize(lightDir + viewDir);
+                float specular = pow(max(dot(normal, halfVector), 0.0), 24.0);
+                vec3 shadedColor = uColor * diffuse;
+                shadedColor += uColor * (0.035 * specular) + vec3(0.012 * specular);
+                shadedColor = min(shadedColor, vec3(1.0));
+                float clampedOpacity = clamp(uOpacity, 0.0, 0.9999);
+                float targetOpacity = min(0.9999, clampedOpacity * ${RAYMARCH_OPACITY_COMPENSATION.toFixed(2)});
+                float hitCount = float(max(uActiveRayHits, 1));
+                float effectiveOpacity = 1.0 - pow(max(1.0 - targetOpacity, 1e-4), 1.0 / hitCount);
+                return vec4(shadedColor, effectiveOpacity);
+            }
+
+            void main() {
+                vec3 cameraTex = (uWorldToTexture * vec4(cameraPosition, 1.0)).xyz;
+                vec3 rayDirection = normalize(vTexturePosition - cameraTex);
+
+                float tEnter;
+                float tExit;
+                if (!intersectBox(cameraTex, rayDirection, tEnter, tExit)) {
+                    discard;
+                }
+
+                float startT = max(tEnter, 0.0);
+                float endT = tExit;
+                float span = endT - startT;
+                if (span <= 0.0) {
+                    discard;
+                }
+
+                float stepSize = span / float(max(uStepCount, 1));
+                float currentStartT = startT;
+                vec4 accumulated = vec4(0.0);
+
+                for (int hitIndex = 0; hitIndex < ${MAX_RAY_HITS}; hitIndex++) {
+                    if (hitIndex >= uActiveRayHits) {
+                        break;
+                    }
+                    vec3 previousPos = cameraTex + rayDirection * currentStartT;
+                    float previousValue = sampleVolume(previousPos) - uIsolevel;
+                    bool foundHit = false;
+                    float nextStartT = endT;
+
+                    for (int stepIndex = 1; stepIndex <= ${MAX_STEPS}; stepIndex++) {
+                        if (stepIndex > uStepCount) {
+                            break;
+                        }
+
+                        float t = currentStartT + float(stepIndex) * stepSize;
+                        if (t > endT) {
+                            break;
+                        }
+
+                        vec3 currentPos = cameraTex + rayDirection * t;
+                        float currentValue = sampleVolume(currentPos) - uIsolevel;
+
+                        if ((previousValue <= 0.0 && currentValue >= 0.0) || (previousValue >= 0.0 && currentValue <= 0.0)) {
+                            vec3 hitPos = refineZeroCrossing(previousPos, currentPos, previousValue, currentValue);
+                            float hitT = dot(hitPos - cameraTex, rayDirection);
+                            vec4 hitColor = shadeHit(hitPos, rayDirection);
+                            accumulated.rgb += (1.0 - accumulated.a) * hitColor.a * hitColor.rgb;
+                            accumulated.a += (1.0 - accumulated.a) * hitColor.a;
+                            nextStartT = hitT + stepSize * 1.25;
+                            foundHit = true;
+                            break;
+                        }
+
+                        previousPos = currentPos;
+                        previousValue = currentValue;
+                    }
+
+                    if (!foundHit || accumulated.a >= 0.98 || nextStartT >= endT) {
+                        break;
+                    }
+
+                    currentStartT = nextStartT;
+                }
+
+                if (accumulated.a <= 0.0) {
+                    discard;
+                }
+                vec3 finalColor = accumulated.rgb / max(accumulated.a, 1e-5);
+                outColor = vec4(clamp(finalColor, vec3(0.0), vec3(1.0)), accumulated.a);
+            }
+        `,
     });
 }
 
-function format_formula_html(value) {
-    return subscript_numbers(normalize_formula_string(value));
+function attachRaymarchUniformUpdater(mesh, gridCell) {
+    mesh.onBeforeRender = function() {
+        if (!this.material || !this.material.uniforms) {
+            return;
+        }
+        const activeGridCell = (this.userData && this.userData.gridCell) ? this.userData.gridCell : gridCell;
+        const textureRepeat = (this.userData && this.userData.textureRepeat) ? this.userData.textureRepeat : [1, 1, 1];
+        const cellMatrix = createCellMatrix(activeGridCell);
+        const textureToWorld = new Matrix4();
+        const worldToTexture = new Matrix4();
+        this.updateMatrixWorld();
+        textureToWorld.multiplyMatrices(this.matrixWorld, cellMatrix);
+        worldToTexture.copy(textureToWorld).invert();
+        this.material.uniforms.uTextureToWorld.value.copy(textureToWorld);
+        this.material.uniforms.uWorldToTexture.value.copy(worldToTexture);
+        if (this.material.uniforms.uTextureRepeat) {
+            this.material.uniforms.uTextureRepeat.value.set(textureRepeat[0], textureRepeat[1], textureRepeat[2]);
+        }
+    };
 }
 
-function atomColorHexToCss(colorHex) {
-    return '#' + Number(colorHex).toString(16).padStart(6, '0');
-}
-
-function getAtomBadgeTextColor(colorHex) {
-    let color = Number(colorHex);
-    let red = (color >> 16) & 255;
-    let green = (color >> 8) & 255;
-    let blue = color & 255;
-    let luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
-    return luminance > 0.6 ? '#111827' : '#ffffff';
-}
-
-function applyAtomBadgeStyle(element, atomNumber, getAtomColorHex) {
-    if (!element || !Number.isFinite(atomNumber) || typeof getAtomColorHex !== 'function') {
-        return;
+function createRaymarchedIsosurface({
+    texture,
+    gridCell,
+    isolevel,
+    opacity,
+    color = 0xffff00,
+    periodic = false,
+    gridSize = [1, 1, 1],
+    interpolation = 'trilinear',
+    textureRepeat = [1, 1, 1],
+    stepCount = null,
+    activeRayHits = MAX_RAY_HITS,
+}) {
+    if (!texture || !Array.isArray(gridCell) || gridCell.length !== 3) {
+        return null;
     }
-    let colorHex = getAtomColorHex(atomNumber);
-    element.style.setProperty('--atom-badge-bg', atomColorHexToCss(colorHex));
-    element.style.setProperty('--atom-badge-fg', getAtomBadgeTextColor(colorHex));
+
+    const geometry = createRaymarchGeometry(gridCell);
+    const material = createMaterial({
+        texture,
+        gridCell,
+        isolevel,
+        opacity,
+        color,
+        periodic,
+        gridSize,
+        interpolation,
+        textureRepeat,
+        stepCount,
+        activeRayHits,
+    });
+    const mesh = new Mesh(geometry, material);
+    mesh.name = 'isosurface';
+    mesh.frustumCulled = false;
+    mesh.userData.isRaymarchedIsosurface = true;
+    mesh.userData.gridCell = gridCell.map((vector) => vector.slice());
+    mesh.userData.textureRepeat = textureRepeat.slice();
+    attachRaymarchUniformUpdater(mesh, mesh.userData.gridCell);
+    return mesh;
 }
 
-function createAtomBadgeHtml(label, atomNumber, getAtomColorHex) {
-    let style = '';
-    if (Number.isFinite(atomNumber) && typeof getAtomColorHex === 'function') {
-        let colorHex = getAtomColorHex(atomNumber);
-        style =
-            ' style="--atom-badge-bg: ' + atomColorHexToCss(colorHex) +
-            '; --atom-badge-fg: ' + getAtomBadgeTextColor(colorHex) + ';"';
+function updateRaymarchedIsosurface(object, {
+    texture,
+    isolevel,
+    opacity,
+    color = 0xffff00,
+    periodic = false,
+    gridSize = [1, 1, 1],
+    interpolation = 'trilinear',
+    textureRepeat = [1, 1, 1],
+    stepCount = null,
+    activeRayHits = MAX_RAY_HITS,
+}) {
+    if (!object || !object.material || !object.material.uniforms) {
+        return false;
     }
-    return '<span class="atom-type-badge"' + style + '>' + label + '</span>';
+
+    const uniforms = object.material.uniforms;
+    if (uniforms.uVolume) {
+        uniforms.uVolume.value = texture;
+    }
+    if (uniforms.uIsolevel) {
+        uniforms.uIsolevel.value = isolevel;
+    }
+    if (uniforms.uOpacity) {
+        uniforms.uOpacity.value = opacity;
+    }
+    if (uniforms.uColor) {
+        uniforms.uColor.value = new Color(color);
+    }
+    if (uniforms.uGridSize) {
+        uniforms.uGridSize.value.set(gridSize[0], gridSize[1], gridSize[2]);
+    }
+    if (uniforms.uPeriodic) {
+        uniforms.uPeriodic.value = periodic ? 1 : 0;
+    }
+    if (uniforms.uStepCount) {
+        uniforms.uStepCount.value = Math.max(24, Math.min(MAX_STEPS, Math.round(stepCount || (Math.max(...gridSize) * 2.0))));
+    }
+    if (uniforms.uActiveRayHits) {
+        uniforms.uActiveRayHits.value = Math.max(1, Math.min(MAX_RAY_HITS, Math.round(activeRayHits || MAX_RAY_HITS)));
+    }
+    if (uniforms.uInterpolationMode) {
+        uniforms.uInterpolationMode.value = getInterpolationMode(interpolation);
+    }
+    if (uniforms.uTextureRepeat) {
+        uniforms.uTextureRepeat.value.set(textureRepeat[0], textureRepeat[1], textureRepeat[2]);
+    }
+    object.material.opacity = opacity;
+    object.material.transparent = true;
+    object.material.depthWrite = opacity >= 0.999;
+    object.material.needsUpdate = true;
+    if (object.userData && object.userData.gridCell) {
+        attachRaymarchUniformUpdater(object, object.userData.gridCell);
+    }
+    return true;
+}
+
+function supportsRaymarchedIsosurface(renderer) {
+    return !!(renderer && renderer.capabilities && renderer.capabilities.isWebGL2);
+}
+
+class BaseIsosurfaceBackend {
+    constructor(controller) {
+        this.controller = controller;
+    }
+
+    get host() {
+        return this.controller.host;
+    }
+
+    clearCache() {}
+
+    dispose() {}
+
+    applyGeometry(geometry) {
+        this.host.removeNamedSceneObjects('isosurface');
+        this.host.addMarchingCubesGeometry(geometry);
+        this.host.render();
+    }
+}
+
+class MarchingCubesIsosurfaceBackend extends BaseIsosurfaceBackend {
+    constructor(controller) {
+        super(controller);
+        this.worker = null;
+        this.workerFailed = false;
+        this.requestId = 0;
+        this.workerBusy = false;
+        this.previewCache = null;
+    }
+
+    clearCache() {
+        this.previewCache = null;
+    }
+
+    dispose() {
+        this.resetWorker();
+        this.previewCache = null;
+    }
+
+    getPreviewStride() {
+        const { sizex = 1, sizey = 1, sizez = 1 } = this.host;
+        const voxelCount = sizex * sizey * sizez;
+        const minSize = Math.min(sizex, sizey, sizez);
+        if (minSize < 12) return 1;
+        if (voxelCount > 800000 && minSize >= 24) return 4;
+        if (voxelCount > 250000 && minSize >= 18) return 3;
+        if (voxelCount > 80000 && minSize >= 12) return 2;
+        return 1;
+    }
+
+    buildDownsampledField(values, sizex, sizey, sizez, stride, periodic) {
+        if (stride <= 1) {
+            return { values, sizex, sizey, sizez };
+        }
+
+        const reducedX = periodic ? Math.max(2, Math.floor(sizex / stride)) : Math.max(2, Math.floor((sizex - 1) / stride) + 1);
+        const reducedY = periodic ? Math.max(2, Math.floor(sizey / stride)) : Math.max(2, Math.floor((sizey - 1) / stride) + 1);
+        const reducedZ = periodic ? Math.max(2, Math.floor(sizez / stride)) : Math.max(2, Math.floor((sizez - 1) / stride) + 1);
+        const reducedValues = new Float32Array(reducedX * reducedY * reducedZ);
+        let writeIndex = 0;
+
+        for (let z = 0; z < reducedZ; z++) {
+            const sourceZ = periodic ? (z * stride) % sizez : Math.min(z * stride, sizez - 1);
+            for (let y = 0; y < reducedY; y++) {
+                const sourceY = periodic ? (y * stride) % sizey : Math.min(y * stride, sizey - 1);
+                for (let x = 0; x < reducedX; x++) {
+                    const sourceX = periodic ? (x * stride) % sizex : Math.min(x * stride, sizex - 1);
+                    reducedValues[writeIndex] = values[sourceX + sizex * sourceY + sizex * sizey * sourceZ];
+                    writeIndex += 1;
+                }
+            }
+        }
+
+        return { values: reducedValues, sizex: reducedX, sizey: reducedY, sizez: reducedZ };
+    }
+
+    getInteractiveInput() {
+        const stride = this.getPreviewStride();
+        const { values, sizex, sizey, sizez } = this.host;
+        if (stride <= 1) {
+            return { values, sizex, sizey, sizez };
+        }
+
+        const options = this.host.getMarchingCubesOptions();
+        const periodic = !!options.periodic;
+        const cacheKey = `${stride}:${sizex}:${sizey}:${sizez}:${periodic ? 'p' : 'n'}`;
+        if (!this.previewCache || this.previewCache.key !== cacheKey) {
+            this.previewCache = {
+                key: cacheKey,
+                data: this.buildDownsampledField(values, sizex, sizey, sizez, stride, periodic),
+            };
+        }
+
+        return this.previewCache.data;
+    }
+
+    getWorker() {
+        if (this.workerFailed || typeof Worker === 'undefined') {
+            return null;
+        }
+        if (this.worker) {
+            return this.worker;
+        }
+
+        try {
+            this.worker = new Worker(new URL('./marchingcubesworker.js', import.meta.url), { type: 'module' });
+            this.worker.onmessage = (event) => {
+                this.workerBusy = false;
+                const { requestId, positions, normals } = event.data;
+                this.applyBuffers(requestId, new Float32Array(positions), new Float32Array(normals));
+            };
+            this.worker.onerror = () => {
+                this.workerBusy = false;
+                this.workerFailed = true;
+                if (this.worker) {
+                    this.worker.terminate();
+                    this.worker = null;
+                }
+            };
+        } catch (error) {
+            this.workerFailed = true;
+            this.worker = null;
+        }
+
+        return this.worker;
+    }
+
+    resetWorker() {
+        this.workerBusy = false;
+        if (this.worker) {
+            this.worker.terminate();
+            this.worker = null;
+        }
+    }
+
+    createGeometryFromBuffers(positions, normals) {
+        const geometry = new BufferGeometry();
+        geometry.setAttribute('position', new BufferAttribute(positions, 3));
+        geometry.setAttribute('normal', new BufferAttribute(normals, 3));
+        return geometry;
+    }
+
+    applyBuffers(requestId, positions, normals) {
+        if (requestId !== this.requestId || !this.host.scene) {
+            return;
+        }
+        this.applyGeometry(this.createGeometryFromBuffers(positions, normals));
+    }
+
+    buildGeometry(values, sizex, sizey, sizez) {
+        return buildMarchingCubesGeometry(
+            values,
+            sizex,
+            sizey,
+            sizez,
+            this.host.gridCell,
+            this.host.isolevel,
+            this.host.getMarchingCubesOptions(),
+        );
+    }
+
+    requestUpdate() {
+        if (!Array.isArray(this.host.values) || !this.host.values.length || !this.host.scene) {
+            return;
+        }
+
+        const requestId = ++this.requestId;
+        const payload = {
+            requestId,
+            values: Float32Array.from(this.host.values),
+            sizex: this.host.sizex,
+            sizey: this.host.sizey,
+            sizez: this.host.sizez,
+            gridCell: this.host.gridCell,
+            isolevel: this.host.isolevel,
+            options: this.host.getMarchingCubesOptions(),
+        };
+
+        const worker = this.getWorker();
+        if (worker) {
+            if (this.workerBusy) {
+                this.resetWorker();
+            }
+            const activeWorker = this.getWorker();
+            if (activeWorker) {
+                this.workerBusy = true;
+                activeWorker.postMessage(payload, [payload.values.buffer]);
+                return;
+            }
+        }
+
+        this.applyGeometry(this.buildGeometry(
+            this.host.values,
+            this.host.sizex,
+            this.host.sizey,
+            this.host.sizez,
+        ));
+    }
+
+    updateSync() {
+        if (!this.host.scene || !Array.isArray(this.host.values) || !this.host.values.length) {
+            return;
+        }
+        this.requestId += 1;
+        if (this.workerBusy) {
+            this.resetWorker();
+        }
+        this.applyGeometry(this.buildGeometry(
+            this.host.values,
+            this.host.sizex,
+            this.host.sizey,
+            this.host.sizez,
+        ));
+    }
+
+    updatePreview() {
+        if (!this.host.scene || !Array.isArray(this.host.values) || !this.host.values.length) {
+            return;
+        }
+        this.requestId += 1;
+        if (this.workerBusy) {
+            this.resetWorker();
+        }
+        const preview = this.getInteractiveInput();
+        this.applyGeometry(this.buildGeometry(
+            preview.values,
+            preview.sizex,
+            preview.sizey,
+            preview.sizez,
+        ));
+    }
+}
+
+class RaymarchIsosurfaceBackend extends BaseIsosurfaceBackend {
+    constructor(controller, interpolation = 'trilinear') {
+        super(controller);
+        this.interpolation = interpolation;
+        this.volumeTexture = null;
+        this.fallbackBackend = new MarchingCubesIsosurfaceBackend(controller);
+        this.warned = false;
+        this.volumeTextureKey = null;
+    }
+
+    clearCache() {
+        this.fallbackBackend.clearCache();
+    }
+
+    dispose() {
+        disposeVolumeTexture(this.volumeTexture);
+        this.volumeTexture = null;
+        this.volumeTextureKey = null;
+        this.fallbackBackend.dispose();
+    }
+
+    ensureVolumeTexture() {
+        const nextKey = [
+            this.host.values,
+            this.host.sizex,
+            this.host.sizey,
+            this.host.sizez,
+        ];
+        if (
+            this.volumeTexture &&
+            this.volumeTextureKey &&
+            this.volumeTextureKey[0] === nextKey[0] &&
+            this.volumeTextureKey[1] === nextKey[1] &&
+            this.volumeTextureKey[2] === nextKey[2] &&
+            this.volumeTextureKey[3] === nextKey[3]
+        ) {
+            return;
+        }
+        disposeVolumeTexture(this.volumeTexture);
+        this.volumeTexture = createVolumeTexture(
+            this.host.values,
+            this.host.sizex,
+            this.host.sizey,
+            this.host.sizez,
+        );
+        this.volumeTextureKey = nextKey;
+    }
+
+    useFallback() {
+        if (!this.warned) {
+            console.warn('Raymarched isosurface backend is unavailable here; falling back to marching cubes.');
+            this.warned = true;
+        }
+        return true;
+    }
+
+    hasIsosurfaceObjects() {
+        if (!this.host.scene) {
+            return false;
+        }
+        for (let i = 0; i < this.host.scene.children.length; i++) {
+            if (this.host.scene.children[i] && this.host.scene.children[i].name === 'isosurface') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    getRenderConfig() {
+        if (typeof this.host.getRaymarchRenderConfig === 'function') {
+            return this.host.getRaymarchRenderConfig(this.interpolation);
+        }
+        return {
+            interpolation: this.interpolation,
+            stepCount: Math.max(96, Math.min(384, Math.round(Math.max(this.host.sizex, this.host.sizey, this.host.sizez) * 2.0))),
+        };
+    }
+
+    updateExistingObjects() {
+        if (!this.hasIsosurfaceObjects()) {
+            return false;
+        }
+
+        const renderConfig = this.getRenderConfig();
+        let updated = false;
+        this.host.forEachNamedSceneObject('isosurface', (object) => {
+            updated = updateRaymarchedIsosurface(object, {
+                texture: this.volumeTexture,
+                isolevel: this.host.isolevel,
+                opacity: this.host.isosurfaceOpacity,
+                color: 0xffff00,
+                periodic: !!this.host.getMarchingCubesOptions().periodic,
+                gridSize: [this.host.sizex, this.host.sizey, this.host.sizez],
+                interpolation: renderConfig.interpolation,
+                textureRepeat: object.userData && object.userData.textureRepeat ? object.userData.textureRepeat : [1, 1, 1],
+                stepCount: renderConfig.stepCount,
+                activeRayHits: renderConfig.activeRayHits,
+            }) || updated;
+        });
+
+        if (updated) {
+            this.host.render();
+        }
+        return updated;
+    }
+
+    requestUpdate() {
+        if (!Array.isArray(this.host.values) || !this.host.values.length || !this.host.scene) {
+            return;
+        }
+        this.ensureVolumeTexture();
+        if (!this.volumeTexture || !supportsRaymarchedIsosurface(this.host.renderer)) {
+            this.useFallback();
+            this.fallbackBackend.requestUpdate();
+            return;
+        }
+        if (this.updateExistingObjects()) {
+            return;
+        }
+        const renderConfig = this.getRenderConfig();
+        const object = createRaymarchedIsosurface({
+            texture: this.volumeTexture,
+            gridCell: this.host.gridCell,
+            isolevel: this.host.isolevel,
+            opacity: this.host.isosurfaceOpacity,
+            color: 0xffff00,
+            periodic: !!this.host.getMarchingCubesOptions().periodic,
+            gridSize: [this.host.sizex, this.host.sizey, this.host.sizez],
+            interpolation: renderConfig.interpolation,
+            textureRepeat: [1, 1, 1],
+            stepCount: renderConfig.stepCount,
+            activeRayHits: renderConfig.activeRayHits,
+        });
+        if (!object) {
+            this.useFallback();
+            this.fallbackBackend.requestUpdate();
+            return;
+        }
+        this.host.removeNamedSceneObjects('isosurface');
+        this.host.addIsosurfaceObject(object);
+        this.host.render();
+    }
+
+    updateSync() {
+        this.requestUpdate();
+    }
+
+    updatePreview() {
+        this.requestUpdate();
+    }
+}
+
+class IsosurfaceController {
+    constructor(host) {
+        this.host = host;
+        this.mode = 'marching-cubes';
+        this.backends = {
+            'marching-cubes': new MarchingCubesIsosurfaceBackend(this),
+            'raymarch-trilinear': new RaymarchIsosurfaceBackend(this, 'trilinear'),
+            'raymarch-tricubic': new RaymarchIsosurfaceBackend(this, 'tricubic'),
+        };
+        this.backend = this.backends[this.mode];
+    }
+
+    clearPreviewCache() {
+        this.backend.clearCache();
+    }
+
+    setMode(mode) {
+        const normalizedMode = mode === 'raymarch' ? 'raymarch-trilinear' : mode;
+        const nextMode = this.backends[normalizedMode] ? normalizedMode : 'marching-cubes';
+        if (nextMode === this.mode) {
+            return;
+        }
+        if (this.backend) {
+            this.backend.dispose();
+        }
+        this.mode = nextMode;
+        this.backend = this.backends[this.mode];
+        this.host.removeNamedSceneObjects('isosurface');
+    }
+
+    getMode() {
+        return this.mode;
+    }
+
+    getAvailableModes() {
+        return Object.keys(this.backends);
+    }
+
+    requestUpdate() { this.backend.requestUpdate(); }
+    updateSync() { this.backend.updateSync(); }
+    updatePreview() { this.backend.updatePreview(); }
+}
+
+function createAtomSphereGeometry(radius, sphereLat, sphereLon) {
+    return new SphereGeometry(radius, sphereLat, sphereLon);
+}
+
+function createBondCylinderGeometry(radius, length, bondSegments, bondVertical) {
+    return new CylinderGeometry(
+        radius,
+        radius,
+        length,
+        bondSegments,
+        bondVertical,
+        true,
+    );
+}
+
+function createCellLineObject(lat, shift, color = 0x000000) {
+    const material = new LineBasicMaterial({ color });
+    const points = [];
+    const zero = new Vector3(0, 0, 0);
+    const cursor = new Vector3(0, 0, 0);
+    const x = new Vector3(lat[0][0], lat[0][1], lat[0][2]);
+    const y = new Vector3(lat[1][0], lat[1][1], lat[1][2]);
+    const z = new Vector3(lat[2][0], lat[2][1], lat[2][2]);
+
+    cursor.copy(zero);
+    cursor.sub(shift); points.push(cursor.clone());
+    cursor.add(x); points.push(cursor.clone());
+    cursor.add(y); points.push(cursor.clone());
+    cursor.sub(x); points.push(cursor.clone());
+    cursor.sub(y); points.push(cursor.clone());
+
+    cursor.copy(zero).add(z);
+    cursor.sub(shift); points.push(cursor.clone());
+    cursor.add(x); points.push(cursor.clone());
+    cursor.add(y); points.push(cursor.clone());
+    cursor.sub(x); points.push(cursor.clone());
+    cursor.sub(y); points.push(cursor.clone());
+
+    cursor.copy(zero);
+    cursor.sub(shift); points.push(cursor.clone());
+    cursor.add(z); points.push(cursor.clone());
+
+    cursor.add(x); points.push(cursor.clone());
+    cursor.sub(z); points.push(cursor.clone());
+
+    cursor.add(y); points.push(cursor.clone());
+    cursor.add(z); points.push(cursor.clone());
+
+    cursor.sub(x); points.push(cursor.clone());
+    cursor.sub(z); points.push(cursor.clone());
+
+    const geometry = new BufferGeometry().setFromPoints(points);
+    return new Line(geometry, material);
+}
+
+function getViewerAtomRadius(display, atomNumber, atomScale, sphereRadius, covalentRadii) {
+    if (display === 'vesta') {
+        return ((covalentRadii[atomNumber] || 0) / 2.3) * atomScale;
+    }
+    return sphereRadius * atomScale;
+}
+
+function buildBondList(atomobjects, bondRules, getBondRuleKey, getDefaultBondCutoff, options = {}) {
+    const bonds = [];
+    const requireRule = !!options.requireRule;
+
+    for (let i = 0; i < atomobjects.length; i++) {
+        const atomA = atomobjects[i];
+        for (let j = i + 1; j < atomobjects.length; j++) {
+            const atomB = atomobjects[j];
+            const distance = atomA.position.distanceTo(atomB.position);
+            const key = getBondRuleKey(atomA.atom_number, atomB.atom_number);
+            const rule = bondRules[key];
+            if (requireRule && !rule) {
+                continue;
+            }
+            const cutoff = rule ? rule.cutoff : getDefaultBondCutoff(atomA.atom_number, atomB.atom_number);
+            if (distance < cutoff) {
+                bonds.push({
+                    a: atomA.position,
+                    b: atomB.position,
+                    a_atom_number: atomA.atom_number,
+                    b_atom_number: atomB.atom_number,
+                    baseLength: distance,
+                });
+            }
+        }
+    }
+
+    return bonds;
+}
+
+const vecY = new Vector3(0, 1, 0);
+
+function getBond$1(point1, point2) {
+    const direction = new Vector3().subVectors(point2, point1);
+
+    return {
+        quaternion: new Quaternion().setFromUnitVectors(vecY, direction.clone().normalize()),
+        midpoint: point1.clone().add(direction.multiplyScalar(0.5)),
+    };
+}
+
+class StructureViewerBase {
+
+    constructor() {
+        this.display = 'jmol';
+        this.shading = true;
+        this.container = null;
+        this.scene = null;
+        this.camera = null;
+        this.renderer = null;
+        this.controls = null;
+        this.values = null;
+        this.sizex = 1;
+        this.sizey = 1;
+        this.sizez = 1;
+        this.cell = null;
+        this.isosurfaceState = {
+            level: 0.02,
+            levelWasManuallySet: false,
+        };
+        this.isosurfaceOpacity = 0.18;
+        this.isosurfaceRenderMode = 'marching-cubes';
+        this.isInitialized = false;
+        this.continuousRender = false;
+        this.renderQueued = false;
+        this.interactionActive = false;
+        this.interactionTimeoutId = null;
+
+        this.cameraViewAngle = 18;
+        this.cameraNear = 0.1;
+        this.cameraFar = 5000;
+        this.cameraDistance = 300;
+
+        this.sphereRadius = 0.5;
+        this.sphereLat = 12;
+        this.sphereLon = 12;
+        this.bondRadius = 0.1;
+        this.bondSegments = 6;
+        this.bondVertical = 1;
+
+        this.bondscolor = 0xffffff;
+        this.defaultBondsColor = this.bondscolor;
+        this.bondColorByAtom = true;
+        this.defaultBondColorByAtom = this.bondColorByAtom;
+        this.defaultBondRadius = this.bondRadius;
+        this.atomColorOverrides = {};
+        this.atomRadiusScaleOverrides = {};
+        this.defaultAtomRadiusScale = 1.0;
+        this.appearanceSelectedAtomNumber = null;
+        this.bondRules = {};
+        this.isosurfaceController = new IsosurfaceController(this);
+    }
+
+    init(container = this.container, options = {}) {
+        this.container = container;
+        this.continuousRender = options.continuousRender === true;
+        const containerElement = container.get(0);
+        this.dimensions = this.getContainerDimensions();
+
+        this.scene = new Scene();
+        this.camera = new PerspectiveCamera(
+            this.cameraViewAngle,
+            this.dimensions.ratio,
+            this.cameraNear,
+            this.cameraFar,
+        );
+        this.camera.position.set(0, 0, this.cameraDistance);
+        this.camera.lookAt(this.scene.position);
+
+        const lightConfig = getSharedLightConfig();
+        this.pointLight = new PointLight(lightConfig.color, lightConfig.intensity);
+        this.pointLight.position.set(...lightConfig.position);
+        this.pointLight.visible = true;
+        this.camera.add(this.pointLight);
+
+        this.renderer = new WebGLRenderer({ antialias: true });
+        this.renderer.setClearColor(0xffffff);
+        this.renderer.setPixelRatio(this.getPreferredPixelRatio());
+        this.renderer.setSize(this.dimensions.width, this.dimensions.height, false);
+        containerElement.appendChild(this.renderer.domElement);
+        this.canvas = this.renderer.domElement;
+        this.canvas.style.display = 'block';
+
+        if (!containerElement.clientHeight) {
+            containerElement.style.height = `${this.dimensions.height}px`;
+        }
+        if (containerElement.parentElement && !containerElement.parentElement.clientHeight) {
+            containerElement.parentElement.style.height = `${this.dimensions.height}px`;
+        }
+
+        const controlsElement = options.controlsElement || this.renderer.domElement;
+        this.controls = new TrackballControls(this.camera, controlsElement);
+        this.controls.rotateSpeed = 1.0;
+        this.controls.zoomSpeed = 1.0;
+        this.controls.panSpeed = 0.3;
+        this.controls.staticMoving = true;
+        this.controls.dynamicDampingFactor = 0.3;
+        this.controls.addEventListener('change', () => {
+            this.handleInteractionActivity();
+            this.requestRender();
+        });
+        if (typeof options.configureControls === 'function') {
+            options.configureControls(this.controls);
+        }
+
+        window.addEventListener('resize', this.onWindowResize.bind(this), false);
+
+        this.isInitialized = true;
+        if (typeof options.afterInit === 'function') {
+            options.afterInit();
+        }
+        this.onWindowResize();
+        const shouldStartAnimation = Object.prototype.hasOwnProperty.call(options, 'startAnimation')
+            ? options.startAnimation !== false
+            : true;
+        if (shouldStartAnimation) {
+            this.animate();
+        }
+    }
+
+    clearIsosurfacePreviewCache() {
+        this.isosurfaceController.clearPreviewCache();
+    }
+
+    get isolevel() {
+        return this.isosurfaceState.level;
+    }
+
+    getIsolevel() {
+        return this.isosurfaceState.level;
+    }
+
+    hasManualIsolevel() {
+        return this.isosurfaceState.levelWasManuallySet;
+    }
+
+    setIsolevelState(level, { manual = this.hasManualIsolevel() } = {}) {
+        const numericLevel = Number(level);
+        if (!Number.isFinite(numericLevel)) {
+            return this.isosurfaceState.level;
+        }
+        this.isosurfaceState.level = numericLevel;
+        this.isosurfaceState.levelWasManuallySet = !!manual;
+        return numericLevel;
+    }
+
+    resetIsolevelState(level) {
+        return this.setIsolevelState(level, { manual: false });
+    }
+
+    setIsosurfaceRenderMode(mode) {
+        this.isosurfaceController.setMode(mode);
+        this.isosurfaceRenderMode = this.isosurfaceController.getMode();
+        this.updateRendererPixelRatio();
+        if (Array.isArray(this.values) && this.values.length) {
+            this.updateIsosurface();
+        }
+    }
+
+    getIsosurfaceRenderMode() {
+        return this.isosurfaceController.getMode();
+    }
+
+    getContainerDimensions() {
+        let width = this.container.width();
+        let height = this.container.height();
+
+        if (!width || !height) {
+            const rect = this.container.get(0).getBoundingClientRect();
+            width = rect.width;
+            height = rect.height;
+        }
+        if ((!width || !height) && this.container.get(0).parentElement) {
+            const rect = this.container.get(0).parentElement.getBoundingClientRect();
+            width = rect.width;
+            height = rect.height;
+        }
+        if (!width || !height) {
+            width = Math.max(window.innerWidth * 0.5, 300);
+            height = Math.max(window.innerHeight * 0.5, 300);
+        }
+
+        return { width, height, ratio: width / height };
+    }
+
+    getPreferredPixelRatio() {
+        const nativePixelRatio = window.devicePixelRatio || 1;
+        if (!this.getIsosurfaceRenderMode().startsWith('raymarch')) {
+            return nativePixelRatio;
+        }
+        const interpolation = this.getIsosurfaceRenderMode() === 'raymarch-tricubic' ? 'tricubic' : 'trilinear';
+        const profile = getRaymarchPerformanceProfile({
+            interacting: this.interactionActive,
+            selectedInterpolation: interpolation,
+            gridSizeMax: Math.max(this.sizex || 1, this.sizey || 1, this.sizez || 1),
+        });
+        return nativePixelRatio / profile.resolutionDivisor;
+    }
+
+    getRaymarchRenderConfig(baseInterpolation) {
+        return getRaymarchPerformanceProfile({
+            interacting: this.interactionActive,
+            selectedInterpolation: baseInterpolation,
+            gridSizeMax: Math.max(this.sizex || 1, this.sizey || 1, this.sizez || 1),
+        });
+    }
+
+    handleInteractionActivity() {
+        const wasActive = this.interactionActive;
+        this.interactionActive = true;
+        this.updateRendererPixelRatio();
+        if (!wasActive && this.getIsosurfaceRenderMode().startsWith('raymarch') && Array.isArray(this.values) && this.values.length) {
+            this.updateIsosurface();
+        }
+
+        if (this.interactionTimeoutId) {
+            window.clearTimeout(this.interactionTimeoutId);
+        }
+        this.interactionTimeoutId = window.setTimeout(() => {
+            this.interactionActive = false;
+            this.interactionTimeoutId = null;
+            this.updateRendererPixelRatio();
+            if (this.getIsosurfaceRenderMode().startsWith('raymarch') && Array.isArray(this.values) && this.values.length) {
+                this.updateIsosurface();
+            } else {
+                this.requestRender();
+            }
+        }, 140);
+    }
+
+    updateRendererPixelRatio() {
+        if (!this.renderer) {
+            return;
+        }
+        this.renderer.setPixelRatio(this.getPreferredPixelRatio());
+        if (this.dimensions && this.dimensions.width && this.dimensions.height) {
+            this.renderer.setSize(this.dimensions.width, this.dimensions.height, false);
+        }
+    }
+
+    setDisplayCombo(domCombo) {
+        this.domDisplaySelect = domCombo;
+        if (domCombo && domCombo.length) {
+            domCombo.val(this.display);
+            domCombo.on('change', () => {
+                this.display = domCombo.val() || this.display;
+                this.updateLightStyle();
+                this.refreshAppearanceControls();
+                this.updateStructure();
+            });
+        }
+    }
+
+    setAppearanceControls(
+        domAtomList,
+        domAtomColorInput,
+        domBondColorInput,
+        domBondColorByAtomCheckbox,
+        domAtomRadiusInput,
+        domBondRadiusInput,
+        domBondRulesList,
+        domBondAddAtomA,
+        domBondAddAtomB,
+        domBondAddCutoffInput,
+        domResetAtomButton,
+        domResetBondsButton,
+    ) {
+        this.domAppearanceAtomList = domAtomList;
+        this.domAtomColorInput = domAtomColorInput;
+        this.domBondColorInput = domBondColorInput;
+        this.domBondColorByAtomCheckbox = domBondColorByAtomCheckbox;
+        this.domAtomRadiusInput = domAtomRadiusInput;
+        this.domBondRadiusInput = domBondRadiusInput;
+        this.domBondRulesList = domBondRulesList;
+        this.domBondAddAtomA = domBondAddAtomA;
+        this.domBondAddAtomB = domBondAddAtomB;
+        this.domBondAddCutoffInput = domBondAddCutoffInput;
+        const updateBondColorInputState = createBondColorInputStateUpdater(this, domBondColorInput);
+
+        bindAppearanceAtomSelection(this, domAtomList, domAtomColorInput, domAtomRadiusInput);
+
+        const applyAppearanceSettings = () => {
+            const atomNumber = Number(this.getSelectedAppearanceAtomNumber());
+            if (Number.isFinite(atomNumber)) {
+                if (domAtomColorInput && domAtomColorInput.length) {
+                    const rawAtomColor = domAtomColorInput.val();
+                    if (rawAtomColor) {
+                        const defaultHex = this.getDefaultAtomColor(atomNumber);
+                        const selectedHex = this.normalizeColorHex(rawAtomColor, defaultHex);
+                        if (selectedHex === defaultHex) {
+                            this.clearAtomColorOverride(atomNumber);
+                        } else {
+                            this.atomColorOverrides[atomNumber] = selectedHex;
+                        }
+                    }
+                }
+
+                if (domAtomRadiusInput && domAtomRadiusInput.length) {
+                    const atomScale = Math.max(0.1, parseFloat(domAtomRadiusInput.val()) || this.defaultAtomRadiusScale);
+                    this.setAtomRadiusScaleOverride(atomNumber, atomScale);
+                    domAtomRadiusInput.val(atomScale);
+                }
+            }
+
+            if (!this.bondColorByAtom && domBondColorInput && domBondColorInput.length) {
+                this.bondscolor = this.normalizeColorHex(domBondColorInput.val(), this.bondscolor);
+            }
+            if (domBondColorByAtomCheckbox && domBondColorByAtomCheckbox.length) {
+                this.bondColorByAtom = !!domBondColorByAtomCheckbox.prop('checked');
+            }
+            updateBondColorInputState();
+
+            if (domBondRadiusInput && domBondRadiusInput.length) {
+                this.bondRadius = Math.max(0.01, parseFloat(domBondRadiusInput.val()) || this.bondRadius);
+                domBondRadiusInput.val(this.bondRadius);
+            }
+
+            this.updateStructure();
+        };
+
+        if (domAtomColorInput && domAtomColorInput.length) {
+            domAtomColorInput.on('change', applyAppearanceSettings);
+        }
+
+        if (domBondColorInput && domBondColorInput.length) {
+            domBondColorInput.val(this.colorToInputHex(this.bondscolor));
+            domBondColorInput.on('change', applyAppearanceSettings);
+        }
+
+        if (domBondColorByAtomCheckbox && domBondColorByAtomCheckbox.length) {
+            domBondColorByAtomCheckbox.prop('checked', this.bondColorByAtom);
+            domBondColorByAtomCheckbox.on('change', applyAppearanceSettings);
+        }
+
+        if (domAtomRadiusInput && domAtomRadiusInput.length) {
+            domAtomRadiusInput.attr('min', 0.1);
+            domAtomRadiusInput.attr('max', 5.0);
+            domAtomRadiusInput.attr('step', 0.05);
+        }
+
+        if (domBondRadiusInput && domBondRadiusInput.length) {
+            domBondRadiusInput.attr('min', 0.01);
+            domBondRadiusInput.attr('max', 1.0);
+            domBondRadiusInput.attr('step', 0.01);
+            domBondRadiusInput.val(this.bondRadius);
+        }
+
+        bindBondRuleControls(
+            this,
+            domBondRulesList,
+            domBondAddAtomA,
+            domBondAddAtomB,
+            domBondAddCutoffInput,
+            () => {
+                this.refreshAppearanceControls();
+                this.updateStructure();
+            },
+        );
+
+        bindEnterToApply([domAtomRadiusInput, domBondRadiusInput], applyAppearanceSettings);
+
+        if (domResetAtomButton && domResetAtomButton.length) {
+            domResetAtomButton.on('click', () => {
+                const atomNumber = this.getSelectedAppearanceAtomNumber();
+                if (Number.isFinite(atomNumber)) {
+                    this.clearAtomColorOverride(atomNumber);
+                    delete this.atomRadiusScaleOverrides[atomNumber];
+                }
+                this.refreshAppearanceControls();
+                this.updateStructure();
+            });
+        }
+
+        if (domResetBondsButton && domResetBondsButton.length) {
+            domResetBondsButton.on('click', () => {
+                this.bondscolor = this.defaultBondsColor;
+                this.bondColorByAtom = this.defaultBondColorByAtom;
+                this.bondRadius = this.defaultBondRadius;
+                this.initializeBondRulesFromAtoms();
+                this.refreshAppearanceControls();
+                this.updateStructure();
+            });
+        }
+
+        updateBondColorInputState();
+    }
+
+    refreshAppearanceControls() {
+        if (!this.atom_numbers || !this.atom_numbers.length) {
+            return;
+        }
+
+        const uniqueAtomNumbers = this.atom_numbers.filter((value, index, array) => array.indexOf(value) === index);
+        let selected = Number(this.getSelectedAppearanceAtomNumber());
+        if (!Number.isFinite(selected) || !uniqueAtomNumbers.includes(selected)) {
+            selected = uniqueAtomNumbers[0];
+        }
+
+        if (this.domAppearanceAtomList && this.domAppearanceAtomList.length) {
+            this.domAppearanceAtomList.empty();
+            for (let i = 0; i < uniqueAtomNumbers.length; i++) {
+                const atomNumber = uniqueAtomNumbers[i];
+                this.domAppearanceAtomList.append(
+                    `<button type="button" data-atom-number="${atomNumber}">${createAtomBadgeHtml(atomic_symbol$1[atomNumber], atomNumber, this.getAtomColorHex.bind(this))}</button>`
+                );
+            }
+        }
+
+        this.setSelectedAppearanceAtomNumber(selected);
+
+        if (this.domDisplaySelect && this.domDisplaySelect.length) {
+            this.domDisplaySelect.val(this.display);
+        }
+        if (this.domAtomColorInput && this.domAtomColorInput.length) {
+            this.domAtomColorInput.val(this.colorToInputHex(this.getAtomColorHex(selected)));
+        }
+        if (this.domAtomRadiusInput && this.domAtomRadiusInput.length) {
+            this.domAtomRadiusInput.val(this.getAtomRadiusScale(selected));
+        }
+        if (this.domBondColorInput && this.domBondColorInput.length) {
+            this.domBondColorInput.val(this.colorToInputHex(this.bondscolor));
+            this.domBondColorInput.prop('disabled', this.bondColorByAtom);
+        }
+        if (this.domBondColorByAtomCheckbox && this.domBondColorByAtomCheckbox.length) {
+            this.domBondColorByAtomCheckbox.prop('checked', this.bondColorByAtom);
+        }
+        if (this.domBondRadiusInput && this.domBondRadiusInput.length) {
+            this.domBondRadiusInput.val(this.bondRadius);
+        }
+        if (this.domBondAddAtomA && this.domBondAddAtomA.length) {
+            const previous = this.domBondAddAtomA.val();
+            this.domBondAddAtomA.empty();
+            for (let i = 0; i < uniqueAtomNumbers.length; i++) {
+                const atomNumber = uniqueAtomNumbers[i];
+                this.domBondAddAtomA.append(`<option value="${atomNumber}">${atomic_symbol$1[atomNumber]}</option>`);
+            }
+            if (previous !== null && uniqueAtomNumbers.includes(Number(previous))) {
+                this.domBondAddAtomA.val(previous);
+            }
+        }
+        if (this.domBondAddAtomB && this.domBondAddAtomB.length) {
+            const previous = this.domBondAddAtomB.val();
+            this.domBondAddAtomB.empty();
+            for (let i = 0; i < uniqueAtomNumbers.length; i++) {
+                const atomNumber = uniqueAtomNumbers[i];
+                this.domBondAddAtomB.append(`<option value="${atomNumber}">${atomic_symbol$1[atomNumber]}</option>`);
+            }
+            if (previous !== null && uniqueAtomNumbers.includes(Number(previous))) {
+                this.domBondAddAtomB.val(previous);
+            }
+        }
+        if (this.domBondAddCutoffInput && this.domBondAddCutoffInput.length && this.domBondAddAtomA && this.domBondAddAtomB) {
+            const a = Number(this.domBondAddAtomA.val());
+            const b = Number(this.domBondAddAtomB.val());
+            if (Number.isFinite(a) && Number.isFinite(b)) {
+                const key = this.getBondRuleKey(a, b);
+                const value = this.bondRules[key] ? this.bondRules[key].cutoff : this.getDefaultBondCutoff(a, b);
+                this.domBondAddCutoffInput.val(Number(value).toFixed(2));
+            }
+        }
+        this.refreshBondRulesUI();
+    }
+
+    getDefaultBondCutoff(atomNumberA, atomNumberB) {
+        return covalent_radii[atomNumberA] + covalent_radii[atomNumberB];
+    }
+
+    initializeBondRulesFromAtoms() {
+        this.bondRules = {};
+        if (!this.atoms || !this.atom_numbers) {
+            return;
+        }
+        const tmpAtoms = [];
+        for (let i = 0; i < this.atoms.length; i++) {
+            tmpAtoms.push({
+                atom_number: this.atom_numbers[this.atoms[i][0]],
+                position: new Vector3(this.atoms[i][1], this.atoms[i][2], this.atoms[i][3]),
+            });
+        }
+        const combinations = getCombinations(tmpAtoms);
+        for (let i = 0; i < combinations.length; i++) {
+            const a = combinations[i][0];
+            const b = combinations[i][1];
+            const length = a.position.distanceTo(b.position);
+            const cutoff = this.getDefaultBondCutoff(a.atom_number, b.atom_number);
+            if (length < cutoff) {
+                this.setBondRule(a.atom_number, b.atom_number, cutoff);
+            }
+        }
+    }
+
+    getAtomMaterials() {
+        this.materials = [];
+        for (let i = 0; i < this.atom_numbers.length; i++) {
+            const number = this.atom_numbers[i];
+            const atomColor = this.getAtomColor(number);
+            let material = this.createShadedMaterial({ blending: NormalBlending });
+            material.color.copy(atomColor);
+            this.materials.push(material);
+        }
+    }
+
+    updateViewParameters() {
+        if (!this.atoms || !this.atoms.length) {
+            return;
+        }
+
+        let maxRadius = 0;
+
+        for (let i = 0; i < this.atoms.length; i++) {
+            const atomI = this.atoms[i];
+            const posI = new Vector3(atomI[1], atomI[2], atomI[3]).sub(this.geometricCenter);
+            maxRadius = Math.max(maxRadius, posI.length());
+        }
+
+        const halfFov = (this.cameraViewAngle * Math.PI / 180) / 2;
+        this.cameraDistance = Math.max(45, (maxRadius / Math.tan(halfFov)) * 1.25);
+        this.setCameraDirection('z');
+    }
+
+    addStructure() {
+        this.atomobjects = [];
+        this.bondobjects = [];
+        this.bonds = [];
+
+        const sphereGeometries = new Map();
+
+        for (let i = 0; i < this.atoms.length; i++) {
+            const atomTypeIndex = this.atoms[i][0];
+            const atomNumber = this.atom_numbers[atomTypeIndex];
+            if (!sphereGeometries.has(atomTypeIndex)) {
+                const atomScale = this.getAtomRadiusScale(atomNumber);
+                const radius = getViewerAtomRadius(
+                    this.display,
+                    atomNumber,
+                    atomScale,
+                    this.sphereRadius,
+                    covalent_radii,
+                );
+                sphereGeometries.set(
+                    atomTypeIndex,
+                    createAtomSphereGeometry(radius, this.sphereLat, this.sphereLon),
+                );
+            }
+
+            const object = new Mesh(sphereGeometries.get(atomTypeIndex), this.materials[atomTypeIndex]);
+            const pos = new Vector3(this.atoms[i][1], this.atoms[i][2], this.atoms[i][3]);
+            pos.sub(this.geometricCenter);
+
+            object.position.copy(pos);
+            object.name = 'atom';
+            object.atom_number = this.atom_numbers[this.atoms[i][0]];
+
+            this.scene.add(object);
+            this.atomobjects.push(object);
+        }
+
+        this.bonds = buildBondList(
+            this.atomobjects,
+            this.bondRules,
+            this.getBondRuleKey.bind(this),
+            this.getDefaultBondCutoff.bind(this),
+            { requireRule: true },
+        );
+
+        for (let i = 0; i < this.bonds.length; i++) {
+            const bondEntry = this.bonds[i];
+            const bond = getBond$1(bondEntry.a, bondEntry.b);
+            const createBondSegment = (length, midpoint, colorHex) => {
+                const geometry = createBondCylinderGeometry(
+                    this.bondRadius,
+                    length,
+                    this.bondSegments,
+                    this.bondVertical,
+                );
+                let material = this.createShadedMaterial({ color: colorHex });
+                const object = new Mesh(geometry, material);
+                object.setRotationFromQuaternion(bond.quaternion);
+                object.position.copy(midpoint);
+                object.name = 'bond';
+                this.scene.add(object);
+                this.bondobjects.push(object);
+            };
+
+            if (this.bondColorByAtom) {
+                const direction = new Vector3().subVectors(bondEntry.b, bondEntry.a).normalize();
+                const halfLength = bondEntry.baseLength / 2;
+                const midpointA = bondEntry.a.clone().addScaledVector(direction, halfLength / 2);
+                const midpointB = bondEntry.b.clone().addScaledVector(direction, -halfLength / 2);
+                createBondSegment(halfLength, midpointA, this.getAtomColorHex(bondEntry.a_atom_number));
+                createBondSegment(halfLength, midpointB, this.getAtomColorHex(bondEntry.b_atom_number));
+            } else {
+                createBondSegment(bondEntry.baseLength, bond.midpoint, this.bondscolor);
+            }
+        }
+    }
+
+    removeStructure() {
+        if (!this.scene) {
+            return;
+        }
+
+        for (let i = this.scene.children.length - 1; i >= 0; i--) {
+            this.disposeSceneObject(this.scene.children[i]);
+            this.scene.remove(this.scene.children[i]);
+        }
+    }
+
+    getMarchingCubesOptions() {
+        return { insideIsAbove: true };
+    }
+
+    requestMarchingCubesUpdate() {
+        this.isosurfaceController.requestUpdate();
+    }
+
+    updateIsosurfaceSync() {
+        this.isosurfaceController.updateSync();
+    }
+
+    updateIsosurfacePreview() {
+        this.isosurfaceController.updatePreview();
+    }
+
+    updateIsosurface() {
+        this.requestMarchingCubesUpdate();
+    }
+
+    changeIsolevel(isolevel) {
+        this.setIsolevelState(isolevel, { manual: true });
+        this.updateIsosurfaceSync();
+    }
+
+    changeIsosurfaceOpacity(opacity) {
+        const numericOpacity = Number(opacity);
+        if (!Number.isFinite(numericOpacity)) {
+            return;
+        }
+
+        this.isosurfaceOpacity = Math.max(0, Math.min(1, numericOpacity));
+        this.forEachNamedSceneObject('isosurface', (mesh) => {
+            if (mesh.material) {
+                if (mesh.material.uniforms && mesh.material.uniforms.uOpacity) {
+                    mesh.material.uniforms.uOpacity.value = this.isosurfaceOpacity;
+                }
+                mesh.material.opacity = this.isosurfaceOpacity;
+                mesh.material.transparent = true;
+                mesh.material.depthWrite = this.isosurfaceOpacity >= 0.999;
+                mesh.material.needsUpdate = true;
+            }
+        });
+        this.render();
+    }
+
+    previewIsolevel(isolevel) {
+        this.setIsolevelState(isolevel, { manual: true });
+        this.updateIsosurfacePreview();
+    }
+
+    setCameraDirection(direction) {
+        if (!this.camera) {
+            return;
+        }
+
+        if (direction === 'x') {
+            this.camera.position.set(this.cameraDistance, 0, 0);
+            this.camera.up.set(0, 0, 1);
+        }
+        if (direction === 'y') {
+            this.camera.position.set(0, this.cameraDistance, 0);
+            this.camera.up.set(0, 0, 1);
+        }
+        if (direction === 'z') {
+            this.camera.position.set(0, 0, this.cameraDistance);
+            this.camera.up.set(0, 1, 0);
+        }
+    }
+
+    addMarchingCubes() {
+        this.requestMarchingCubesUpdate();
+    }
+
+    createIsosurfaceMaterial() {
+        return new MeshLambertMaterial({
+            color: 0xffff00,
+            side: DoubleSide,
+            transparent: true,
+            opacity: this.isosurfaceOpacity,
+            depthWrite: this.isosurfaceOpacity >= 0.999,
+        });
+    }
+
+    addMarchingCubesGeometry(geometry) {
+        const mesh = new Mesh(geometry, this.createIsosurfaceMaterial());
+        mesh.name = 'isosurface';
+        mesh.position.sub(this.geometricCenter);
+        this.scene.add(mesh);
+    }
+
+    addIsosurfaceObject(object) {
+        if (!object) {
+            return;
+        }
+        object.name = 'isosurface';
+        if (this.geometricCenter) {
+            object.position.copy(object.position.clone().sub(this.geometricCenter));
+        }
+        this.scene.add(object);
+    }
+
+    onWindowResize() {
+        if (!this.container || !this.camera || !this.renderer) {
+            return;
+        }
+
+        this.dimensions = this.getContainerDimensions();
+        if (!this.dimensions.width || !this.dimensions.height) {
+            return;
+        }
+        this.camera.aspect = this.dimensions.ratio;
+        this.camera.updateProjectionMatrix();
+        this.updateRendererPixelRatio();
+        this.controls.handleResize();
+        this.requestRender();
+    }
+
+    animate() {
+        requestAnimationFrame(this.animate.bind(this));
+        this.update();
+        if (this.continuousRender) {
+            this.render();
+        }
+    }
+
+    update() {
+        if (this.controls) {
+            this.controls.update();
+        }
+    }
+
+    render() {
+        if (this.renderer && this.scene && this.camera) {
+            this.renderer.render(this.scene, this.camera);
+        }
+    }
+
+    requestRender() {
+        if (!this.renderer || !this.scene || !this.camera) {
+            return;
+        }
+        if (this.continuousRender) {
+            this.render();
+            return;
+        }
+        if (this.renderQueued) {
+            return;
+        }
+        this.renderQueued = true;
+        requestAnimationFrame(() => {
+            this.renderQueued = false;
+            this.render();
+        });
+    }
+}
+
+Object.assign(StructureViewerBase.prototype, sharedViewerMethods);
+
+function getCovalentBondLength(atomNumberA, atomNumberB, covalentRadii) {
+    return (covalentRadii[atomNumberA] || 0) + (covalentRadii[atomNumberB] || 0);
+}
+
+function getChemicalBondLimit(atomNumberA, atomNumberB, covalentRadii) {
+    const covalent = getCovalentBondLength(atomNumberA, atomNumberB, covalentRadii);
+    return Math.max(0.4, covalent + 0.45);
+}
+
+function getBondSearchLimit(atomNumberA, atomNumberB, covalentRadii) {
+    const chemical = getChemicalBondLimit(atomNumberA, atomNumberB, covalentRadii);
+    return chemical + Math.max(0.5, chemical * 0.2);
+}
+
+function getEffectiveCoordinationCandidates(siteNeighbors) {
+    if (!siteNeighbors || !siteNeighbors.length) {
+        return [];
+    }
+
+    const sorted = siteNeighbors
+        .filter((neighbor) => Number.isFinite(neighbor.distance) && neighbor.distance >= 0.4)
+        .sort((a, b) => a.distance - b.distance);
+    if (!sorted.length) {
+        return [];
+    }
+
+    const shortest = sorted[0].distance;
+    const accepted = [];
+
+    for (let i = 0; i < sorted.length; i++) {
+        const neighbor = sorted[i];
+        if (neighbor.distance > shortest + Math.max(1.0, shortest * 0.6)) {
+            break;
+        }
+
+        const relative = neighbor.distance / shortest;
+        const weight = Math.exp(1.0 - Math.pow(relative, 6));
+        if (weight < 0.35) {
+            continue;
+        }
+
+        accepted.push({
+            index: neighbor.index,
+            atom_number: neighbor.atom_number,
+            distance: neighbor.distance,
+            weight,
+        });
+    }
+
+    return accepted;
+}
+
+function buildCrystalBondRules(atoms, atomNumbers, covalentRadii, getBondRuleKey) {
+    const rules = {};
+    if (!atoms || !atoms.length || !atomNumbers || !atomNumbers.length) {
+        return rules;
+    }
+
+    const probeAtoms = atoms.map((atom, index) => ({
+        index,
+        atom_number: atomNumbers[atom[0]],
+        position: new Vector3(atom[1], atom[2], atom[3]),
+    }));
+
+    const pairDistances = {};
+    const siteNeighbors = probeAtoms.map(() => []);
+    const combinations = getCombinations(probeAtoms);
+
+    for (let i = 0; i < combinations.length; i++) {
+        const a = combinations[i][0];
+        const b = combinations[i][1];
+        const length = a.position.distanceTo(b.position);
+        const searchLimit = getBondSearchLimit(a.atom_number, b.atom_number, covalentRadii);
+        if (length <= searchLimit && length >= 0.4) {
+            siteNeighbors[a.index].push({
+                index: b.index,
+                atom_number: b.atom_number,
+                distance: length,
+            });
+            siteNeighbors[b.index].push({
+                index: a.index,
+                atom_number: a.atom_number,
+                distance: length,
+            });
+        }
+    }
+
+    const acceptedNeighbors = siteNeighbors.map((neighbors) => getEffectiveCoordinationCandidates(neighbors));
+    const acceptedNeighborMaps = acceptedNeighbors.map((neighbors) => {
+        const lookup = {};
+        for (let i = 0; i < neighbors.length; i++) {
+            lookup[neighbors[i].index] = neighbors[i];
+        }
+        return lookup;
+    });
+
+    for (let i = 0; i < combinations.length; i++) {
+        const a = combinations[i][0];
+        const b = combinations[i][1];
+        const length = a.position.distanceTo(b.position);
+        const chemicalLimit = getChemicalBondLimit(a.atom_number, b.atom_number, covalentRadii);
+        const acceptedByA = acceptedNeighborMaps[a.index][b.index];
+        const acceptedByB = acceptedNeighborMaps[b.index][a.index];
+
+        if (!acceptedByA || !acceptedByB || length > chemicalLimit) {
+            continue;
+        }
+
+        const key = getBondRuleKey(a.atom_number, b.atom_number);
+        if (!pairDistances[key]) {
+            pairDistances[key] = {
+                a: Math.min(a.atom_number, b.atom_number),
+                b: Math.max(a.atom_number, b.atom_number),
+                distances: [],
+            };
+        }
+        pairDistances[key].distances.push(length);
+    }
+
+    const keys = Object.keys(pairDistances);
+    for (let i = 0; i < keys.length; i++) {
+        const pair = pairDistances[keys[i]];
+        if (!pair.distances.length) {
+            continue;
+        }
+
+        let cutoff = Math.max.apply(null, pair.distances) + 0.04;
+        cutoff = Math.min(cutoff, getChemicalBondLimit(pair.a, pair.b, covalentRadii));
+        if (Number.isFinite(cutoff) && cutoff >= 0.4) {
+            rules[keys[i]] = {
+                a: pair.a,
+                b: pair.b,
+                cutoff,
+            };
+        }
+    }
+
+    return rules;
 }
 
 const vec_y = new Vector3( 0, 1, 0 );
@@ -69097,12 +71939,13 @@ function getBond( point1, point2 ) {
              midpoint: point1.clone().add( direction.multiplyScalar(0.5) ) };
 }
 
-class VibCrystal {
+class VibCrystal extends StructureViewerBase {
     /*
     Class to show phonon vibrations using Three.js and WebGl
     */
 
     constructor(container) {
+        super();
 
         this.display = 'jmol'; //use jmol or vesta displaystyle
 
@@ -69112,7 +71955,6 @@ class VibCrystal {
         this.needsRender = true;
         this.arrows = false;
         this.cell = false;
-        this.shading = true;
         this.paused = false;
         this.initialized = false;
 
@@ -69121,11 +71963,6 @@ class VibCrystal {
         this.dimensions = this.getContainerDimensions();
 
         this.stats = null;
-        this.camera = null;
-        this.pointLight = null;
-        this.controls = null;
-        this.scene = null;
-        this.renderer = null;
         this.capturer = null;
         this.captureState = 'idle';
         this.vibrationComponents = [];
@@ -69182,19 +72019,13 @@ class VibCrystal {
         this.fps = 60;
 
         this.arrowcolor = 0xbbffbb;
-        this.bondscolor = 0xffffff;
         this.defaultArrowColor = this.arrowcolor;
         this.defaultBondsColor = this.bondscolor;
-        this.bondColorByAtom = true;
         this.defaultBondColorByAtom = this.bondColorByAtom;
         this.atomRadiusScale = 1.0;
         this.defaultAtomRadiusScale = this.atomRadiusScale;
         this.defaultBondRadius = this.bondRadius;
         this.defaultArrowRadius = this.arrowRadius;
-        this.atomColorOverrides = {};
-        this.atomRadiusScaleOverrides = {};
-        this.bondRules = {};
-        this.appearanceSelectedAtomNumber = null;
         this.arrowobjects = [];
         this.atomobjects = [];
         this.atommeshes = [];
@@ -69210,75 +72041,11 @@ class VibCrystal {
 		this.modified_covalent_radii = JSON.parse(JSON.stringify(covalent_radii));
     }
 
-    colorToInputHex(colorHex) {
-        return '#' + Number(colorHex).toString(16).padStart(6, '0');
-    }
-
-    normalizeColorHex(value, fallback) {
-        if (typeof value === 'number' && Number.isFinite(value)) {
-            return value;
-        }
-        if (typeof value === 'string') {
-            let normalized = value.trim();
-            if (!normalized) {
-                return fallback;
-            }
-            if (normalized.startsWith('#')) {
-                normalized = normalized.slice(1);
-            }
-            if (/^[0-9a-fA-F]{6}$/.test(normalized)) {
-                return parseInt(normalized, 16);
-            }
-        }
-        return fallback;
-    }
-
-    getDefaultAtomColor(atomNumber) {
-        let palette = this.display == 'vesta' ? vesta_colors : jmol_colors;
-        let rgb = palette[atomNumber] || [0.5, 0.5, 0.5];
-        return new Color(rgb[0], rgb[1], rgb[2]).getHex();
-    }
-
-    getAtomColorHex(atomNumber) {
-        if (Object.prototype.hasOwnProperty.call(this.atomColorOverrides, atomNumber)) {
-            return this.atomColorOverrides[atomNumber];
-        }
-        return this.getDefaultAtomColor(atomNumber);
-    }
-
-    getAtomColor(atomNumber) {
-        return new Color(this.getAtomColorHex(atomNumber));
-    }
-
     setAtomColorOverride(atomNumber, colorValue) {
         this.atomColorOverrides[atomNumber] = this.normalizeColorHex(
             colorValue,
             this.getDefaultAtomColor(atomNumber)
         );
-    }
-
-    clearAtomColorOverride(atomNumber) {
-        delete this.atomColorOverrides[atomNumber];
-    }
-
-    getAtomRadiusScale(atomNumber) {
-        if (Object.prototype.hasOwnProperty.call(this.atomRadiusScaleOverrides, atomNumber)) {
-            return this.atomRadiusScaleOverrides[atomNumber];
-        }
-        return this.defaultAtomRadiusScale;
-    }
-
-    setAtomRadiusScaleOverride(atomNumber, scale) {
-        if (!Number.isFinite(scale)) {
-            return;
-        }
-        this.atomRadiusScaleOverrides[atomNumber] = Math.max(0.1, scale);
-    }
-
-    getBondRuleKey(atomNumberA, atomNumberB) {
-        let a = Math.min(atomNumberA, atomNumberB);
-        let b = Math.max(atomNumberA, atomNumberB);
-        return a + '-' + b;
     }
 
     getCovalentRadius(atomNumber) {
@@ -69288,189 +72055,120 @@ class VibCrystal {
         return covalent_radii[atomNumber] || 0;
     }
 
-    getCovalentBondLength(atomNumberA, atomNumberB) {
-        return this.getCovalentRadius(atomNumberA) + this.getCovalentRadius(atomNumberB);
+    setCovalentRadius(atomNumber, radius) {
+        atomNumber = Number(atomNumber);
+        radius = Number(radius);
+        if (!Number.isFinite(atomNumber) || !Number.isFinite(radius) || radius <= 0) {
+            return;
+        }
+        this.modified_covalent_radii[atomNumber] = radius;
     }
 
-    getBondSearchLimit(atomNumberA, atomNumberB) {
-        let chemical = this.getChemicalBondLimit(atomNumberA, atomNumberB);
-        return chemical + Math.max(0.5, chemical * 0.2);
+    setCovalentRadii(radii) {
+        if (!radii || typeof radii !== 'object') {
+            return;
+        }
+        let nextRadii = JSON.parse(JSON.stringify(covalent_radii));
+        let keys = Object.keys(radii);
+        for (let i = 0; i < keys.length; i++) {
+            let atomNumber = Number(keys[i]);
+            let radius = Number(radii[keys[i]]);
+            if (Number.isFinite(atomNumber) && Number.isFinite(radius) && radius > 0) {
+                nextRadii[atomNumber] = radius;
+            }
+        }
+        this.modified_covalent_radii = nextRadii;
+    }
+
+    resetCovalentRadii() {
+        this.modified_covalent_radii = JSON.parse(JSON.stringify(covalent_radii));
+    }
+
+    adjustCovalentRadiiSelect() {
+        let unique_atom_numbers = this.atom_numbers.filter((v, i, a) => a.indexOf(v) === i);
+        if (!this.dom_appearance_atom_list || !this.dom_appearance_atom_list.length) {
+            return;
+        }
+
+        let selected = Number(this.getSelectedAppearanceAtomNumber());
+        if (!Number.isFinite(selected) || !unique_atom_numbers.includes(selected)) {
+            selected = unique_atom_numbers.length ? unique_atom_numbers[0] : null;
+        }
+
+        this.dom_appearance_atom_list.empty();
+        for (let i=0; i<unique_atom_numbers.length; i++) {
+            let atomNumber = unique_atom_numbers[i];
+            this.dom_appearance_atom_list.append(
+                '<button type="button" data-atom-number="' + atomNumber + '">' +
+                createAtomBadgeHtml(atomic_symbol$1[atomNumber], atomNumber, this.getAtomColorHex.bind(this)) +
+                '</button>'
+            );
+        }
+
+        if (Number.isFinite(selected)) {
+            this.setSelectedAppearanceAtomNumber(selected);
+        }
+
+        if (!Number.isFinite(selected)) {
+            return;
+        }
+        if (this.dom_atom_color_input && this.dom_atom_color_input.length) {
+            this.dom_atom_color_input.val(this.colorToInputHex(this.getAtomColorHex(selected)));
+        }
+        if (this.dom_atom_radius_input && this.dom_atom_radius_input.length) {
+            this.dom_atom_radius_input.val(this.getAtomRadiusScale(selected));
+        }
+
+        if (this.dom_bond_add_atom_a && this.dom_bond_add_atom_a.length) {
+            let previous = this.dom_bond_add_atom_a.val();
+            this.dom_bond_add_atom_a.empty();
+            for (let i=0; i<unique_atom_numbers.length; i++) {
+                let atomNumber = unique_atom_numbers[i];
+                this.dom_bond_add_atom_a.append('<option value="' + atomNumber + '">' + atomic_symbol$1[atomNumber] + '</option>');
+            }
+            if (previous !== null && unique_atom_numbers.includes(Number(previous))) {
+                this.dom_bond_add_atom_a.val(previous);
+            }
+        }
+        if (this.dom_bond_add_atom_b && this.dom_bond_add_atom_b.length) {
+            let previous = this.dom_bond_add_atom_b.val();
+            this.dom_bond_add_atom_b.empty();
+            for (let i=0; i<unique_atom_numbers.length; i++) {
+                let atomNumber = unique_atom_numbers[i];
+                this.dom_bond_add_atom_b.append('<option value="' + atomNumber + '">' + atomic_symbol$1[atomNumber] + '</option>');
+            }
+            if (previous !== null && unique_atom_numbers.includes(Number(previous))) {
+                this.dom_bond_add_atom_b.val(previous);
+            }
+        }
+        if (this.dom_bond_add_cutoff_input && this.dom_bond_add_cutoff_input.length &&
+            this.dom_bond_add_atom_a && this.dom_bond_add_atom_b) {
+            let a = Number(this.dom_bond_add_atom_a.val());
+            let b = Number(this.dom_bond_add_atom_b.val());
+            if (Number.isFinite(a) && Number.isFinite(b)) {
+                let key = this.getBondRuleKey(a, b);
+                let value = this.bondRules[key] ? this.bondRules[key].cutoff : this.getDefaultBondCutoff(a, b);
+                this.dom_bond_add_cutoff_input.val(Number(value).toFixed(2));
+            }
+        }
+        this.refreshBondRulesUI(unique_atom_numbers);
     }
 
     getChemicalBondLimit(atomNumberA, atomNumberB) {
-        let covalent = this.getCovalentBondLength(atomNumberA, atomNumberB);
-        // IsayevNN-style chemistry gate: keep a modest radius-based slack, but do not
-        // let long second-shell distances in crystals sneak in too easily.
-        return Math.max(0.4, covalent + 0.45);
+        return getChemicalBondLimit(atomNumberA, atomNumberB, this.modified_covalent_radii);
     }
 
     getDefaultBondCutoff(atomNumberA, atomNumberB) {
         return this.getChemicalBondLimit(atomNumberA, atomNumberB);
     }
 
-    getEffectiveCoordinationCandidates(siteNeighbors) {
-        if (!siteNeighbors || !siteNeighbors.length) {
-            return [];
-        }
-
-        let sorted = siteNeighbors
-            .filter((neighbor) => Number.isFinite(neighbor.distance) && neighbor.distance >= 0.4)
-            .sort((a, b) => a.distance - b.distance);
-        if (!sorted.length) {
-            return [];
-        }
-
-        let shortest = sorted[0].distance;
-        let accepted = [];
-
-        for (let i = 0; i < sorted.length; i++) {
-            let neighbor = sorted[i];
-            if (neighbor.distance > shortest + Math.max(1.0, shortest * 0.6)) {
-                break;
-            }
-
-            let relative = neighbor.distance / shortest;
-            let weight = Math.exp(1.0 - Math.pow(relative, 6));
-            if (weight < 0.35) {
-                continue;
-            }
-
-            accepted.push({
-                index: neighbor.index,
-                atom_number: neighbor.atom_number,
-                distance: neighbor.distance,
-                weight: weight
-            });
-        }
-
-        return accepted;
-    }
-
-    setBondRule(atomNumberA, atomNumberB, cutoff) {
-        let key = this.getBondRuleKey(atomNumberA, atomNumberB);
-        let a = Math.min(atomNumberA, atomNumberB);
-        let b = Math.max(atomNumberA, atomNumberB);
-        let c = Number.isFinite(cutoff) ? cutoff : this.getDefaultBondCutoff(a, b);
-        this.bondRules[key] = { a: a, b: b, cutoff: c };
-    }
-
-    removeBondRule(atomNumberA, atomNumberB) {
-        let key = this.getBondRuleKey(atomNumberA, atomNumberB);
-        delete this.bondRules[key];
-    }
-
-    hasBondRule(atomNumberA, atomNumberB) {
-        let key = this.getBondRuleKey(atomNumberA, atomNumberB);
-        return Object.prototype.hasOwnProperty.call(this.bondRules, key);
-    }
-
     initializeBondRulesFromAtoms(atoms, atom_numbers) {
-        this.bondRules = {};
-        let tmpAtoms = [];
-        for (let i=0; i<atoms.length; i++) {
-            tmpAtoms.push({
-                index: i,
-                atom_number: atom_numbers[atoms[i][0]],
-                position: new Vector3(atoms[i][1], atoms[i][2], atoms[i][3])
-            });
-        }
-
-        let pairDistances = {};
-        let siteNeighbors = tmpAtoms.map(() => []);
-        let combinations = getCombinations(tmpAtoms);
-        for (let i=0; i<combinations.length; i++) {
-            let a = combinations[i][0];
-            let b = combinations[i][1];
-            let length = a.position.distanceTo(b.position);
-            let searchLimit = this.getBondSearchLimit(a.atom_number, b.atom_number);
-            if (length <= searchLimit && length >= 0.4) {
-                siteNeighbors[a.index].push({
-                    index: b.index,
-                    atom_number: b.atom_number,
-                    distance: length
-                });
-                siteNeighbors[b.index].push({
-                    index: a.index,
-                    atom_number: a.atom_number,
-                    distance: length
-                });
-            }
-        }
-
-        let acceptedNeighbors = siteNeighbors.map((neighbors) => this.getEffectiveCoordinationCandidates(neighbors));
-        let acceptedNeighborMaps = acceptedNeighbors.map((neighbors) => {
-            let lookup = {};
-            for (let i=0; i<neighbors.length; i++) {
-                lookup[neighbors[i].index] = neighbors[i];
-            }
-            return lookup;
-        });
-
-        for (let i=0; i<combinations.length; i++) {
-            let a = combinations[i][0];
-            let b = combinations[i][1];
-            let length = a.position.distanceTo(b.position);
-            let chemicalLimit = this.getChemicalBondLimit(a.atom_number, b.atom_number);
-            let acceptedByA = acceptedNeighborMaps[a.index][b.index];
-            let acceptedByB = acceptedNeighborMaps[b.index][a.index];
-
-            if (!acceptedByA || !acceptedByB || length > chemicalLimit) {
-                continue;
-            }
-
-            let key = this.getBondRuleKey(a.atom_number, b.atom_number);
-            if (!pairDistances[key]) {
-                pairDistances[key] = {
-                    a: Math.min(a.atom_number, b.atom_number),
-                    b: Math.max(a.atom_number, b.atom_number),
-                    distances: []
-                };
-            }
-            pairDistances[key].distances.push(length);
-        }
-
-        let keys = Object.keys(pairDistances);
-        for (let i=0; i<keys.length; i++) {
-            let pair = pairDistances[keys[i]];
-            if (!pair.distances.length) {
-                continue;
-            }
-            let cutoff = Math.max.apply(null, pair.distances) + 0.04;
-            cutoff = Math.min(cutoff, this.getChemicalBondLimit(pair.a, pair.b));
-            if (Number.isFinite(cutoff) && cutoff >= 0.4) {
-                this.setBondRule(pair.a, pair.b, cutoff);
-            }
-        }
-    }
-
-    refreshBondRulesUI(unique_atom_numbers) {
-        if (!this.dom_bond_rules_list || !this.dom_bond_rules_list.length) {
-            return;
-        }
-        this.dom_bond_rules_list.empty();
-
-        let keys = Object.keys(this.bondRules).sort();
-        if (!keys.length) {
-            this.dom_bond_rules_list.append('<div>none</div>');
-            return;
-        }
-
-        for (let i=0; i<keys.length; i++) {
-            let rule = this.bondRules[keys[i]];
-            let label =
-                '<span class="atom-badge-pair">' +
-                createAtomBadgeHtml(atomic_symbol$1[rule.a], rule.a, this.getAtomColorHex.bind(this)) +
-                '<span class="atom-badge-separator">-</span>' +
-                createAtomBadgeHtml(atomic_symbol$1[rule.b], rule.b, this.getAtomColorHex.bind(this)) +
-                '</span>';
-            let cutoff = Number(rule.cutoff).toFixed(2);
-            this.dom_bond_rules_list.append(
-                '<div class="appearance-controls">' +
-                '<span>' + label + ' ' + cutoff + '</span>' +
-                '<button type="button" data-remove-key="' + keys[i] + '">remove</button>' +
-                '</div>'
-            );
-        }
+        this.bondRules = buildCrystalBondRules(
+            atoms,
+            atom_numbers,
+            this.modified_covalent_radii,
+            this.getBondRuleKey.bind(this),
+        );
     }
 
     //functions to link the DOM buttons with this class
@@ -69663,117 +72361,6 @@ class VibCrystal {
         });
     }
 
-    setCovalentRadiiSelect(dom_select,dom_input) {
-        // Legacy API kept for compatibility. Advanced appearance now owns these controls.
-        this.dom_covalent_radii_select = dom_select;
-        this.dom_covalent_radii_input = dom_input;
-    }
-
-    getSelectedAppearanceAtomNumber() {
-        if (Number.isFinite(this.appearanceSelectedAtomNumber)) {
-            return this.appearanceSelectedAtomNumber;
-        }
-        if (this.atom_numbers && this.atom_numbers.length) {
-            return this.atom_numbers[0];
-        }
-        return null;
-    }
-
-    setSelectedAppearanceAtomNumber(atomNumber) {
-        this.appearanceSelectedAtomNumber = atomNumber;
-        if (this.dom_appearance_atom_list && this.dom_appearance_atom_list.length) {
-            this.dom_appearance_atom_list.find('button').removeClass('active');
-            this.dom_appearance_atom_list.find('button[data-atom-number="' + atomNumber + '"]').addClass('active');
-        }
-    }
-
-    adjustCovalentRadiiSelect() {
-        let unique_atom_numbers = this.atom_numbers.filter((v, i, a) => a.indexOf(v) === i);
-        if (!this.dom_appearance_atom_list || !this.dom_appearance_atom_list.length) {
-            return;
-        }
-
-        let selected = Number(this.getSelectedAppearanceAtomNumber());
-        if (!Number.isFinite(selected) || !unique_atom_numbers.includes(selected)) {
-            selected = unique_atom_numbers.length ? unique_atom_numbers[0] : null;
-        }
-
-        this.dom_appearance_atom_list.empty();
-        for (let i=0; i<unique_atom_numbers.length; i++) {
-            let atomNumber = unique_atom_numbers[i];
-            this.dom_appearance_atom_list.append(
-                '<button type="button" data-atom-number="' + atomNumber + '">' +
-                createAtomBadgeHtml(atomic_symbol$1[atomNumber], atomNumber, this.getAtomColorHex.bind(this)) +
-                '</button>'
-            );
-        }
-
-        if (Number.isFinite(selected)) {
-            this.setSelectedAppearanceAtomNumber(selected);
-        }
-
-        if (!Number.isFinite(selected)) {
-            return;
-        }
-        if (this.dom_atom_color_input && this.dom_atom_color_input.length) {
-            this.dom_atom_color_input.val(this.colorToInputHex(this.getAtomColorHex(selected)));
-        }
-        if (this.dom_atom_radius_input && this.dom_atom_radius_input.length) {
-            this.dom_atom_radius_input.val(this.getAtomRadiusScale(selected));
-        }
-
-        if (this.dom_bond_add_atom_a && this.dom_bond_add_atom_a.length) {
-            let previous = this.dom_bond_add_atom_a.val();
-            this.dom_bond_add_atom_a.empty();
-            for (let i=0; i<unique_atom_numbers.length; i++) {
-                let atomNumber = unique_atom_numbers[i];
-                this.dom_bond_add_atom_a.append('<option value="' + atomNumber + '">' + atomic_symbol$1[atomNumber] + '</option>');
-            }
-            if (previous !== null && unique_atom_numbers.includes(Number(previous))) {
-                this.dom_bond_add_atom_a.val(previous);
-            }
-        }
-        if (this.dom_bond_add_atom_b && this.dom_bond_add_atom_b.length) {
-            let previous = this.dom_bond_add_atom_b.val();
-            this.dom_bond_add_atom_b.empty();
-            for (let i=0; i<unique_atom_numbers.length; i++) {
-                let atomNumber = unique_atom_numbers[i];
-                this.dom_bond_add_atom_b.append('<option value="' + atomNumber + '">' + atomic_symbol$1[atomNumber] + '</option>');
-            }
-            if (previous !== null && unique_atom_numbers.includes(Number(previous))) {
-                this.dom_bond_add_atom_b.val(previous);
-            }
-        }
-        if (this.dom_bond_add_cutoff_input && this.dom_bond_add_cutoff_input.length &&
-            this.dom_bond_add_atom_a && this.dom_bond_add_atom_b) {
-            let a = Number(this.dom_bond_add_atom_a.val());
-            let b = Number(this.dom_bond_add_atom_b.val());
-            if (Number.isFinite(a) && Number.isFinite(b)) {
-                let key = this.getBondRuleKey(a, b);
-                let value = this.bondRules[key] ? this.bondRules[key].cutoff : this.getDefaultBondCutoff(a, b);
-                this.dom_bond_add_cutoff_input.val(Number(value).toFixed(2));
-            }
-        }
-        this.refreshBondRulesUI(unique_atom_numbers);
-    }
-
-    setCovalentRadiiButton(dom_select,dom_input,dom_button) {
-        let self = this;
-        dom_button.click( function() {
-            self.modified_covalent_radii[dom_select.val()] = parseFloat(dom_input.val());
-            self.updatelocal();
-        });
-    }
-
-    setCovalentRadiiResetButton(dom_select,dom_input,dom_button) {
-        let self = this;
-        dom_button.click( function() {
-            self.modified_covalent_radii = JSON.parse(JSON.stringify(covalent_radii));
-            dom_input.val(self.modified_covalent_radii[dom_select.val()]);
-            self.updatelocal();
-        });
-    }
-
     setAdvancedAppearanceControls(
         domAtomList,
         domDisplaySelect,
@@ -69806,27 +72393,9 @@ class VibCrystal {
         this.dom_bond_add_atom_a = domBondAddAtomA;
         this.dom_bond_add_atom_b = domBondAddAtomB;
         this.dom_bond_add_cutoff_input = domBondAddCutoffInput;
-        const updateBondColorInputState = function() {
-            if (domBondColorInput && domBondColorInput.length) {
-                domBondColorInput.prop('disabled', self.bondColorByAtom);
-            }
-        };
+        const updateBondColorInputState = createBondColorInputStateUpdater(this, domBondColorInput);
 
-        if (domAtomList && domAtomList.length) {
-            domAtomList.on('click', 'button[data-atom-number]', function() {
-                let atomNumber = Number(this.getAttribute('data-atom-number'));
-                if (!Number.isFinite(atomNumber)) {
-                    return;
-                }
-                self.setSelectedAppearanceAtomNumber(atomNumber);
-                if (domAtomColorInput && domAtomColorInput.length) {
-                    domAtomColorInput.val(self.colorToInputHex(self.getAtomColorHex(atomNumber)));
-                }
-                if (domAtomRadiusInput && domAtomRadiusInput.length) {
-                    domAtomRadiusInput.val(self.getAtomRadiusScale(atomNumber));
-                }
-            });
-        }
+        bindAppearanceAtomSelection(this, domAtomList, domAtomColorInput, domAtomRadiusInput);
 
         const applyAppearanceSettings = function() {
             let atomNumber = Number(self.getSelectedAppearanceAtomNumber());
@@ -69988,64 +72557,17 @@ class VibCrystal {
             });
         }
 
-        if (domBondRulesList && domBondRulesList.length) {
-            domBondRulesList.on('click', 'button[data-remove-key]', function() {
-                let key = this.getAttribute('data-remove-key');
-                if (key && self.bondRules[key]) {
-                    delete self.bondRules[key];
-                    self.refreshBondRulesUI(self.atom_numbers || []);
-                    self.updatelocal();
-                }
-            });
-        }
-
-        const addBondRuleFromControls = function() {
-            let a = Number(domBondAddAtomA.val());
-            let b = Number(domBondAddAtomB.val());
-            if (!Number.isFinite(a) || !Number.isFinite(b)) {
-                return;
-            }
-            let defaultCutoff = self.getDefaultBondCutoff(a, b);
-            let cutoff = defaultCutoff;
-            if (domBondAddCutoffInput && domBondAddCutoffInput.length) {
-                let parsed = parseFloat(domBondAddCutoffInput.val());
-                if (Number.isFinite(parsed) && parsed > 0) {
-                    cutoff = parsed;
-                }
-                domBondAddCutoffInput.val(cutoff.toFixed(2));
-            }
-            self.setBondRule(a, b, cutoff);
-            self.refreshBondRulesUI(self.atom_numbers || []);
-            self.updatelocal();
-        };
-
-        const updateBondCutoffInput = function() {
-            if (!domBondAddCutoffInput || !domBondAddCutoffInput.length) {
-                return;
-            }
-            let a = Number(domBondAddAtomA.val());
-            let b = Number(domBondAddAtomB.val());
-            if (!Number.isFinite(a) || !Number.isFinite(b)) {
-                return;
-            }
-            let key = self.getBondRuleKey(a, b);
-            let value = self.bondRules[key] ? self.bondRules[key].cutoff : self.getDefaultBondCutoff(a, b);
-            domBondAddCutoffInput.val(Number(value).toFixed(2));
-        };
-        if (domBondAddAtomA && domBondAddAtomA.length) {
-            domBondAddAtomA.on('change', updateBondCutoffInput);
-        }
-        if (domBondAddAtomB && domBondAddAtomB.length) {
-            domBondAddAtomB.on('change', updateBondCutoffInput);
-        }
-        if (domBondAddCutoffInput && domBondAddCutoffInput.length) {
-            domBondAddCutoffInput.on('keydown', function(event) {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
-                    addBondRuleFromControls();
-                }
-            });
-        }
+        bindBondRuleControls(
+            this,
+            domBondRulesList,
+            domBondAddAtomA,
+            domBondAddAtomB,
+            domBondAddCutoffInput,
+            () => {
+                self.refreshBondRulesUI(self.atom_numbers || []);
+                self.updatelocal();
+            },
+        );
 
         if (domResetVectorsButton && domResetVectorsButton.length) {
             domResetVectorsButton.click(function() {
@@ -70070,93 +72592,32 @@ class VibCrystal {
             });
         }
 
-        // Enter in text/number fields applies the whole appearance form.
-        let enterToUpdateInputs = [
-            domAtomRadiusInput,
-            domBondRadiusInput,
-            domArrowRadiusInput
-        ];
-        for (let i = 0; i < enterToUpdateInputs.length; i++) {
-            let domInput = enterToUpdateInputs[i];
-            if (domInput && domInput.length) {
-                domInput.on('keydown', function(event) {
-                    if (event.key === 'Enter') {
-                        event.preventDefault();
-                        applyAppearanceSettings();
-                    }
-                });
-            }
-        }
+        bindEnterToApply([domAtomRadiusInput, domBondRadiusInput, domArrowRadiusInput], applyAppearanceSettings);
     }
 
-    init(phonon) {
+    init() {
         /*
         Initialize the phonon animation
         */
-
-
-        //add camera
-        this.camera = new PerspectiveCamera( this.cameraViewAngle, this.dimensions.ratio,
-                                                   this.cameraNear, this.cameraFar );
-        this.setCameraDirection('z');
-
-        //add lights to the camera
-        if (this.display == 'vesta') {
-            this.pointLight = new PointLight( 0xffffff, 1.2 );
-            this.pointLight.position.set(1, 1, 1);
-        } else {
-            this.pointLight = new PointLight( 0xdddddd );
-            this.pointLight.position.set(1, 1, 2);
-        }
-        this.pointLight.visible = true;
-        this.camera.add(this.pointLight);
-
-        //controls
-        this.controls = new TrackballControls( this.camera, this.container0 );
-        this.controls.rotateSpeed = 1.0;
-        this.controls.zoomSpeed = 1.0;
-        this.controls.panSpeed = 0.3;
-        this.controls.noZoom = false;
-        this.controls.noPan = false;
-        this.controls.staticMoving = true;
-        this.controls.dynamicDampingFactor = 0.3;
-        this.controls.addEventListener( 'change', function() {
-            this.needsRender = true;
-            if (this.paused) {
-                this.render();
-            }
-        }.bind(this) );
-
-        // world
-        this.scene = new Scene();
-
-        // renderer
-        this.renderer = new WebGLRenderer( { antialias: true } );
-        this.renderer.setClearColor( 0xffffff );
-        this.renderer.setPixelRatio( window.devicePixelRatio );
-        this.renderer.shadowMap.enabled = false;
-        this.renderer.setSize( this.dimensions.width , this.dimensions.height );
-        this.container0.appendChild( this.renderer.domElement );
-        this.canvas = this.renderer.domElement;
-        this.canvas.style.display = 'block';
-
-        // Ensure a visible drawing area even when CSS/flex layout reports 0 height.
-        if (!this.container0.clientHeight) {
-            this.container0.style.height = this.dimensions.height + 'px';
-        }
-        if (this.container0.parentElement && !this.container0.parentElement.clientHeight) {
-            this.container0.parentElement.style.height = this.dimensions.height + 'px';
-        }
-        //this.canvas.style.width = this.dimensions.width + "px";
-        //this.canvas.style.height = this.dimensions.height + "px";
-
-        //frame counter
-        this.stats = new Stats();
-        this.container0.appendChild( this.stats.domElement );
-
-        //resizer
-        window.addEventListener( 'resize', this.onWindowResize.bind(this), false );
-        this.onWindowResize();
+        super.init(this.container, {
+            controlsElement: this.container0,
+            startAnimation: false,
+            configureControls: (controls) => {
+                controls.noZoom = false;
+                controls.noPan = false;
+                controls.addEventListener('change', () => {
+                    this.needsRender = true;
+                    if (this.paused) {
+                        this.render();
+                    }
+                });
+            },
+            afterInit: () => {
+                this.renderer.shadowMap.enabled = false;
+                this.stats = new Stats();
+                this.container0.appendChild(this.stats.domElement);
+            },
+        });
     }
 
     captureend(format) {
@@ -70241,21 +72702,6 @@ class VibCrystal {
         return safe + suffix + '.' + format;
     }
 
-    setCameraDirection(direction) {
-        if (direction == 'x') {
-            this.camera.position.set( this.cameraDistance, 0, 0);
-            this.camera.up.set( 0, 0, 1 );
-        }
-        if (direction == 'y') {
-            this.camera.position.set( 0, this.cameraDistance, 0);
-            this.camera.up.set( 0, 0, 1 );
-        }
-        if (direction == 'z') {
-            this.camera.position.set( 0, 0, this.cameraDistance);
-            this.camera.up.set( 0, 1, 0 );
-        }
-    }
-
     getAtypes(atom_numbers) {
         this.materials = [];
         this.atom_numbers = atom_numbers;
@@ -70263,19 +72709,9 @@ class VibCrystal {
         for (let i=0; i < atom_numbers.length; i++) {
             let n = atom_numbers[i];
             let atomColor = this.getAtomColor(n);
-            if (!this.shading) {
-                let material = new MeshBasicMaterial( { blending: NormalBlending } );
-                material.color.copy(atomColor);
-                this.materials.push( material );
-            } else if (this.display == 'vesta') {
-                let material = new MeshPhongMaterial( {reflectivity:1, shininess: 80} );
-                material.color.copy(atomColor);
-                this.materials.push( material );
-            } else {
-                let material = new MeshLambertMaterial( { blending: NormalBlending } );
-                material.color.copy(atomColor);
-                this.materials.push( material );
-            }
+            let material = this.createShadedMaterial({ blending: NormalBlending });
+            material.color.copy(atomColor);
+            this.materials.push( material );
         }
     }
 
@@ -70356,7 +72792,6 @@ class VibCrystal {
         this.refreshAtomMeshColors();
         this.refreshBondMeshColors();
         this.refreshArrowColors();
-        this.adjustCovalentRadiiSelect();
         if (notifyAppearanceUpdate && typeof this.onAppearanceUpdated === 'function') {
             this.onAppearanceUpdated();
         }
@@ -70369,49 +72804,7 @@ class VibCrystal {
         Represent the unit cell
         */
         if (this.cell) {
-          let material = new LineBasicMaterial({ color: 0x000000 });
-          let points = [];
-
-          let o = this.geometricCenter;
-          let zero = new Vector3(0,0,0);
-          let c = new Vector3(0,0,0);
-          let x = new Vector3(lat[0][0], lat[0][1], lat[0][2]);
-          let y = new Vector3(lat[1][0], lat[1][1], lat[1][2]);
-          let z = new Vector3(lat[2][0], lat[2][1], lat[2][2]);
-
-          //lower part
-          c.copy(zero);
-          c.sub(o); points.push(c.clone());
-          c.add(x); points.push(c.clone());
-          c.add(y); points.push(c.clone());
-          c.sub(x); points.push(c.clone());
-          c.sub(y); points.push(c.clone());
-
-          //upper part
-          c.copy(zero); c.add(z);
-          c.sub(o); points.push(c.clone());
-          c.add(x); points.push(c.clone());
-          c.add(y); points.push(c.clone());
-          c.sub(x); points.push(c.clone());
-          c.sub(y); points.push(c.clone());
-
-          //vertical lines
-          c.copy(zero);
-          c.sub(o); points.push(c.clone());
-          c.add(z); points.push(c.clone());
-
-          c.add(x); points.push(c.clone());
-          c.sub(z); points.push(c.clone());
-
-          c.add(y); points.push(c.clone());
-          c.add(z); points.push(c.clone());
-
-          c.sub(x); points.push(c.clone());
-          c.sub(z); points.push(c.clone());
-
-          let geometry = new BufferGeometry().setFromPoints(points);
-          let line = new Line(geometry, material);
-          this.scene.add(line);
+          this.scene.add(createCellLineObject(lat, this.geometricCenter));
         }
 
     }
@@ -70455,19 +72848,11 @@ class VibCrystal {
             let sphereGeometry;
             let atomNumber = atom_numbers[typeIndex];
             let atomScale = this.getAtomRadiusScale(atomNumber);
-            if (this.display == 'vesta') {
-                sphereGeometry = new SphereGeometry(
-                    (covalent_radii[atomNumber]/2.3) * atomScale,
-                    this.sphereLat,
-                    this.sphereLon
-                );
-            } else {
-                sphereGeometry = new SphereGeometry(
-                    this.sphereRadius * atomScale,
-                    this.sphereLat,
-                    this.sphereLon
-                );
-            }
+            sphereGeometry = createAtomSphereGeometry(
+                getViewerAtomRadius(this.display, atomNumber, atomScale, this.sphereRadius, covalent_radii),
+                this.sphereLat,
+                this.sphereLon
+            );
 
             let instancedMesh = new InstancedMesh(sphereGeometry, this.materials[typeIndex], count);
             instancedMesh.name = "atoms-" + typeIndex;
@@ -70554,30 +72939,13 @@ class VibCrystal {
             }
         }
 
-        //obtain combinations two by two of all the atoms
-        let combinations = getCombinations( this.atomobjects );
-        let a, b, length;
-        //collect bonds first
-        for (let i=0; i<combinations.length; i++) {
-            a = combinations[i][0];
-            b = combinations[i][1];
-            let ad = a.position;
-            let bd = b.position;
-
-            // Draw bond only if the corresponding bond rule exists and cutoff is satisfied.
-            length = ad.distanceTo(bd);
-            let key = this.getBondRuleKey(a.atom_number, b.atom_number);
-            let rule = this.bondRules[key];
-            if (rule && length < rule.cutoff) {
-                this.bonds.push({
-                    a: ad,
-                    b: bd,
-                    a_atom_number: a.atom_number,
-                    b_atom_number: b.atom_number,
-                    baseLength: length
-                });
-            }
-        }
+        this.bonds = buildBondList(
+            this.atomobjects,
+            this.bondRules,
+            this.getBondRuleKey.bind(this),
+            this.getDefaultBondCutoff.bind(this),
+            { requireRule: true },
+        );
 
         const createBondMaterial = function(vertexColorsEnabled) {
             let bondMaterialConfig = {
@@ -70585,16 +72953,13 @@ class VibCrystal {
                 blending: NormalBlending,
                 vertexColors: vertexColorsEnabled
             };
-            if (this.shading) {
-                return new MeshLambertMaterial(bondMaterialConfig);
-            }
-            return new MeshBasicMaterial(bondMaterialConfig);
+            return this.createShadedMaterial(bondMaterialConfig);
         }.bind(this);
 
         //build bond meshes
         if (this.bonds.length > 0) {
-            let bondGeometry = new CylinderGeometry(
-                this.bondRadius, this.bondRadius, 1.0, this.bondSegments, this.bondVertical, true
+            let bondGeometry = createBondCylinderGeometry(
+                this.bondRadius, 1.0, this.bondSegments, this.bondVertical
             );
 
             if (this.bondColorByAtom) {
@@ -70686,15 +73051,6 @@ class VibCrystal {
         }
     }
 
-    addLights() {
-        this.scene.add(this.camera);
-        if (this.pointLight) {
-            this.pointLight.visible = true;
-        }
-        let light = new AmbientLight( 0x333333 );
-        this.scene.add( light );
-    }
-
     update(phononweb) {
         /*
         this is the entry point of the phononweb
@@ -70719,7 +73075,7 @@ class VibCrystal {
 
         //check if it is initialized
         if (!this.initialized) {
-            this.init(phononweb);
+            this.init();
             this.initialized = true;
         }
 
@@ -70736,7 +73092,6 @@ class VibCrystal {
         this.getAtypes(this.phonon.atom_numbers);
         this.addStructure(this.atoms,this.phonon.atom_numbers);
         this.addCell(this.phonon.lat);
-        this.adjustCovalentRadiiSelect();
         if (notifyAppearanceUpdate && typeof this.onAppearanceUpdated === 'function') {
             this.onAppearanceUpdated();
         }
@@ -70744,43 +73099,13 @@ class VibCrystal {
         this.startAnimationLoop();
     }
 
-    getContainerDimensions() {
-        let w = this.container.width();
-        let h = this.container.height();
-
-        // In module/deferred startup paths, initial flex layout can report 0x0.
-        // Fall back to actual DOM rects (container, parent, then window) so WebGL gets a real size.
-        if (!w || !h) {
-            let rect = this.container0.getBoundingClientRect();
-            w = rect.width;
-            h = rect.height;
-        }
-        if ((!w || !h) && this.container0.parentElement) {
-            let rect = this.container0.parentElement.getBoundingClientRect();
-            w = rect.width;
-            h = rect.height;
-        }
-        if (!w || !h) {
-            w = Math.max(window.innerWidth * 0.5, 300);
-            h = Math.max(window.innerHeight * 0.5, 300);
-        }
-
-        let dimensions = { width: w,
-                           height: h,
-                           ratio: ( w / h ) };
-        return dimensions;
+    onWindowResize() {
+        super.onWindowResize();
+        this.needsRender = true;
     }
 
-    onWindowResize() {
-        this.dimensions = this.getContainerDimensions();
-
-        this.camera.aspect = this.dimensions.ratio;
-        this.camera.updateProjectionMatrix();
-
-        this.renderer.setSize( this.dimensions.width, this.dimensions.height );
-        this.controls.handleResize();
-        this.needsRender = true;
-        this.render();
+    updateStructure() {
+        this.updatelocal();
     }
 
     playpause() {
@@ -70945,6 +73270,8 @@ class VibCrystal {
         this.needsRender = false;
     }
 }
+
+Object.assign(VibCrystal.prototype, sharedViewerMethods);
 
 class PhononHighcharts {
 
@@ -71791,6 +74118,100 @@ class MaterialsProjectDB {
 }
 
 MaterialsProjectDB.availabilityState = undefined;
+
+class LocalPhononDB {
+    /*
+    Interact with locally generated PhononDB materials stored in data/phonondb2017.
+    The visible list comes from the historical PhononDB 2018 catalog, but only
+    entries with locally generated files are exposed in the menu.
+    */
+
+    constructor() {
+        this.name = "phonondb";
+        this.author = "A. Togo";
+        this.year = 2018;
+        this.url = "https://github.com/atztogo/phonondb";
+        this.catalog = "phonondb2018/phonondb.json";
+        this.generated = "data/phonondb2017/models.json";
+        this.root = "data/phonondb2017";
+    }
+
+    get_materials(callback) {
+        let reference = this.author + ", " + "<a href=" + this.url + ">" + this.name + "</a> (" + this.year + ")";
+        let name = this.name;
+        let root = this.root;
+        let generated = this.generated;
+        let finishEmpty = function() {
+            callback([]);
+        };
+
+        function dothings(catalog) {
+            let request;
+            try {
+                request = $.get(generated, function(localEntries) {
+                let localById = {};
+                for (let i = 0; i < localEntries.length; i++) {
+                    let entry = localEntries[i];
+                    if (typeof entry === "string") {
+                        localById[String(entry)] = {
+                            id: String(entry),
+                            file: entry + ".json.gz"
+                        };
+                    } else if (entry && entry.id != null) {
+                        let id = String(entry.id);
+                        localById[id] = Object.assign({
+                            id: id,
+                            file: entry.file || (id + ".json.gz")
+                        }, entry);
+                    }
+                }
+
+                let materials = [];
+                for (let i = 0; i < catalog.length; i++) {
+                    let catalogEntry = catalog[i];
+                    let localEntry = localById[String(catalogEntry.id)];
+                    if (!localEntry) {
+                        continue;
+                    }
+
+                    let m = Object.assign({}, catalogEntry, localEntry);
+                    m.source = name;
+                    m.type = "json";
+                    m.reference = reference;
+                    m.url = root + "/" + m.file;
+                    m.link = catalogEntry.url || m.link || ("https://materialsproject.org/materials/mp-" + m.id);
+                    materials.push(m);
+                }
+
+                callback(materials);
+                });
+            } catch (error) {
+                finishEmpty();
+                return;
+            }
+
+            if (request && typeof request.fail === "function") {
+                request.fail(function() {
+                    finishEmpty();
+                });
+            }
+        }
+
+        let request;
+        try {
+            request = $.get(this.catalog, dothings);
+        } catch (error) {
+            finishEmpty();
+            return;
+        }
+
+        if (request && typeof request.fail === "function") {
+            request.fail(function() {
+                finishEmpty();
+            });
+        }
+    }
+}
 
 /*! pako 2.1.0 https://github.com/nodeca/pako @license (MIT AND Zlib) */
 // (C) 1995-2013 Jean-loup Gailly and Mark Adler
@@ -79689,6 +82110,7 @@ class PhononWebpage {
         this.showModeWeightsOnPlot = false;
         this.materialFilterQuery = '';
         this.materialsIndex = [];
+        this.disabledReferenceKeys = new Set();
         this.loadingState = null;
     }
 
@@ -80452,6 +82874,10 @@ class PhononWebpage {
         source = new ContribDB();
         source.get_materials(addMaterials);
 
+        //locally generated PhononDB subset
+        source = new LocalPhononDB();
+        source.get_materials(addMaterials);
+
         //materials project database
         source = new MaterialsProjectDB();
         source.checkAvailability(function(isAvailable) {
@@ -80470,6 +82896,25 @@ class PhononWebpage {
             .split(/[\s,]+/)
             .map(function(token) { return token.trim(); })
             .filter(function(token) { return token.length > 0; });
+    }
+
+    getMaterialReferenceKey(material) {
+        let source = material && material.source ? material.source : '';
+        let reference = material && material.reference ? material.reference : '';
+        return source + "::" + reference;
+    }
+
+    isReferenceEnabled(referenceKey) {
+        return !this.disabledReferenceKeys.has(referenceKey);
+    }
+
+    toggleReferenceEnabled(referenceKey) {
+        if (this.disabledReferenceKeys.has(referenceKey)) {
+            this.disabledReferenceKeys.delete(referenceKey);
+        } else {
+            this.disabledReferenceKeys.add(referenceKey);
+        }
+        this.renderMaterialsMenu();
     }
 
     getMaterialElements(materialName) {
@@ -80512,20 +82957,30 @@ class PhononWebpage {
         }
 
         let tokens = this.getMaterialFilterTokens();
-        let unique_references = {};
-        let filteredMaterials = this.materialsIndex.filter((material) => this.materialMatchesFilter(material, tokens));
+        let unique_references = new Map();
+        let baseFilteredMaterials = this.materialsIndex.filter((material) => this.materialMatchesFilter(material, tokens));
+        let filteredMaterials = baseFilteredMaterials.filter((material) => this.isReferenceEnabled(this.getMaterialReferenceKey(material)));
         let nreferences = 1;
+
+        for (let i=0; i<baseFilteredMaterials.length; i++) {
+            let m = baseFilteredMaterials[i];
+            let ref = m["reference"];
+            let refKey = this.getMaterialReferenceKey(m);
+            if (!unique_references.has(refKey)) {
+                unique_references.set(refKey, {
+                    index: nreferences,
+                    reference: ref
+                });
+                nreferences += 1;
+            }
+        }
 
         for (let i=0; i<filteredMaterials.length; i++) {
             let m = filteredMaterials[i];
-            let ref = m["reference"];
-            if (!unique_references.hasOwnProperty(ref)) {
-                unique_references[ref] = nreferences;
-                nreferences += 1;
-            }
-
+            let refKey = this.getMaterialReferenceKey(m);
+            let referenceEntry = unique_references.get(refKey);
             let name = format_formula_html(m.name);
-            let name_ref = name + " ["+unique_references[ref]+"]";
+            let name_ref = name + " ["+referenceEntry.index+"]";
 
             let li = document.createElement("LI");
             let a = document.createElement("A");
@@ -80542,10 +82997,28 @@ class PhononWebpage {
         }
 
         if (dom_ref) {
-            for (let ref in unique_references) {
-                let refIndex = unique_references[ref];
+            for (let [refKey, referenceEntry] of unique_references.entries()) {
+                let refIndex = referenceEntry.index;
+                let ref = referenceEntry.reference;
                 let li = document.createElement("LI");
-                li.innerHTML = "["+refIndex+"] "+ref;
+                li.className = "reference-filter-item";
+                if (!this.isReferenceEnabled(refKey)) {
+                    li.classList.add("reference-filter-disabled");
+                }
+                let toggle = document.createElement("button");
+                toggle.type = "button";
+                toggle.className = "reference-filter-toggle";
+                toggle.textContent = this.isReferenceEnabled(refKey) ? "on" : "off";
+                toggle.onclick = () => {
+                    this.toggleReferenceEnabled(refKey);
+                };
+
+                let text = document.createElement("span");
+                text.className = "reference-filter-text";
+                text.innerHTML = "["+refIndex+"] "+ref;
+
+                li.appendChild(toggle);
+                li.appendChild(text);
                 dom_ref.append(li);
             }
         }

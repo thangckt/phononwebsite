@@ -63655,6 +63655,114 @@ function createAtomBadgeHtml(label, atomNumber, getAtomColorHex) {
     return '<span class="atom-type-badge"' + style + '>' + label + '</span>';
 }
 
+function createBondColorInputStateUpdater(viewer, bondColorInput) {
+    return () => {
+        if (bondColorInput && bondColorInput.length) {
+            bondColorInput.prop('disabled', viewer.bondColorByAtom);
+        }
+    };
+}
+
+function bindAppearanceAtomSelection(viewer, atomList, atomColorInput, atomRadiusInput) {
+    if (!atomList || !atomList.length) {
+        return;
+    }
+
+    atomList.on('click', 'button[data-atom-number]', (event) => {
+        const atomNumber = Number(event.currentTarget.getAttribute('data-atom-number'));
+        if (!Number.isFinite(atomNumber)) {
+            return;
+        }
+        viewer.setSelectedAppearanceAtomNumber(atomNumber);
+        if (atomColorInput && atomColorInput.length) {
+            atomColorInput.val(viewer.colorToInputHex(viewer.getAtomColorHex(atomNumber)));
+        }
+        if (atomRadiusInput && atomRadiusInput.length) {
+            atomRadiusInput.val(viewer.getAtomRadiusScale(atomNumber));
+        }
+    });
+}
+
+function bindEnterToApply(inputs, apply) {
+    for (let i = 0; i < inputs.length; i++) {
+        const domInput = inputs[i];
+        if (domInput && domInput.length) {
+            domInput.on('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    apply();
+                }
+            });
+        }
+    }
+}
+
+function bindBondRuleControls(
+    viewer,
+    domBondRulesList,
+    domBondAddAtomA,
+    domBondAddAtomB,
+    domBondAddCutoffInput,
+    onRulesChanged,
+) {
+    if (domBondRulesList && domBondRulesList.length) {
+        domBondRulesList.on('click', 'button[data-remove-key]', (event) => {
+            const key = event.currentTarget.getAttribute('data-remove-key');
+            if (key && viewer.bondRules[key]) {
+                delete viewer.bondRules[key];
+                onRulesChanged();
+            }
+        });
+    }
+
+    const updateBondCutoffInput = () => {
+        if (!domBondAddCutoffInput || !domBondAddCutoffInput.length) {
+            return;
+        }
+        const a = Number(domBondAddAtomA.val());
+        const b = Number(domBondAddAtomB.val());
+        if (!Number.isFinite(a) || !Number.isFinite(b)) {
+            return;
+        }
+        const key = viewer.getBondRuleKey(a, b);
+        const value = viewer.bondRules[key] ? viewer.bondRules[key].cutoff : viewer.getDefaultBondCutoff(a, b);
+        domBondAddCutoffInput.val(Number(value).toFixed(2));
+    };
+
+    const addBondRuleFromControls = () => {
+        const a = Number(domBondAddAtomA.val());
+        const b = Number(domBondAddAtomB.val());
+        if (!Number.isFinite(a) || !Number.isFinite(b)) {
+            return;
+        }
+        let cutoff = viewer.getDefaultBondCutoff(a, b);
+        if (domBondAddCutoffInput && domBondAddCutoffInput.length) {
+            const parsed = parseFloat(domBondAddCutoffInput.val());
+            if (Number.isFinite(parsed) && parsed > 0) {
+                cutoff = parsed;
+            }
+            domBondAddCutoffInput.val(cutoff.toFixed(2));
+        }
+        viewer.setBondRule(a, b, cutoff);
+        onRulesChanged();
+    };
+
+    if (domBondAddAtomA && domBondAddAtomA.length) {
+        domBondAddAtomA.on('change', updateBondCutoffInput);
+    }
+    if (domBondAddAtomB && domBondAddAtomB.length) {
+        domBondAddAtomB.on('change', updateBondCutoffInput);
+    }
+    if (domBondAddCutoffInput && domBondAddCutoffInput.length) {
+        domBondAddCutoffInput.on('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                addBondRuleFromControls();
+            }
+        });
+    }
+}
+
 /**
  * @author alteredq / http://alteredqualia.com/
  *
@@ -64186,6 +64294,979 @@ function buildMarchingCubesGeometry(values, sizex, sizey, sizez, gridCell, isole
     return geometry;
 }
 
+function createVolumeTexture(values, sizex, sizey, sizez) {
+    const textureValues = values instanceof Float32Array ? values : Float32Array.from(values);
+    const texture = new DataTexture3D(textureValues, sizex, sizey, sizez);
+    texture.format = RedFormat;
+    texture.type = FloatType;
+    texture.minFilter = LinearFilter;
+    texture.magFilter = LinearFilter;
+    texture.unpackAlignment = 1;
+    texture.needsUpdate = true;
+    return texture;
+}
+
+function disposeVolumeTexture(texture) {
+    if (texture && typeof texture.dispose === 'function') {
+        texture.dispose();
+    }
+}
+
+const RAYMARCH_PERFORMANCE_SETTINGS = {
+    opacityCompensation: 1.7,
+    interactive: {
+        resolutionDivisor: 1,
+        interpolation: 'trilinear',
+        stepScale: 0.18,
+        minSteps: 16,
+        maxSteps: 64,
+        maxRayHits: 2,
+    },
+    settled: {
+        resolutionDivisor: 2,
+        interpolation: 'selected',
+        stepScale: 0.5,
+        minSteps: 56,
+        maxSteps: 224,
+        maxRayHits: 2,
+    },
+};
+
+function getRaymarchPerformanceProfile({ interacting, selectedInterpolation, gridSizeMax }) {
+    const profile = interacting
+        ? RAYMARCH_PERFORMANCE_SETTINGS.interactive
+        : RAYMARCH_PERFORMANCE_SETTINGS.settled;
+
+    const interpolation = profile.interpolation === 'selected'
+        ? selectedInterpolation
+        : profile.interpolation;
+
+    const rawSteps = Math.round(gridSizeMax * 2.0 * profile.stepScale);
+    const stepCount = Math.max(profile.minSteps, Math.min(profile.maxSteps, rawSteps));
+
+    return {
+        interpolation,
+        stepCount,
+        resolutionDivisor: Math.max(1, Math.round(profile.resolutionDivisor || 1)),
+        activeRayHits: Math.max(1, Math.min(2, Math.round(profile.maxRayHits || 1))),
+    };
+}
+
+const MAX_STEPS = 384;
+const MAX_REFINEMENT_STEPS = 2;
+const MAX_RAY_HITS = 2;
+const RAYMARCH_OPACITY_COMPENSATION = RAYMARCH_PERFORMANCE_SETTINGS.opacityCompensation;
+
+function createCellMatrix(gridCell) {
+    const a = gridCell[0];
+    const b = gridCell[1];
+    const c = gridCell[2];
+
+    return new Matrix4().set(
+        a[0], b[0], c[0], 0,
+        a[1], b[1], c[1], 0,
+        a[2], b[2], c[2], 0,
+        0, 0, 0, 1,
+    );
+}
+
+function createRaymarchGeometry(gridCell) {
+    const geometry = new BoxBufferGeometry(1, 1, 1);
+    geometry.translate(0.5, 0.5, 0.5);
+    geometry.setAttribute('texturePosition', geometry.attributes.position.clone());
+    geometry.applyMatrix4(createCellMatrix(gridCell));
+    return geometry;
+}
+
+function getInterpolationMode(interpolation) {
+    return interpolation === 'tricubic' ? 1 : 0;
+}
+
+function createMaterial({ texture, gridCell, isolevel, opacity, color, periodic, gridSize, interpolation, textureRepeat, stepCount, activeRayHits }) {
+    const cellMatrix4 = createCellMatrix(gridCell);
+    const objectToTextureMatrix = new Matrix4().copy(cellMatrix4).invert();
+    const gradientMatrix = new Matrix3().setFromMatrix4(objectToTextureMatrix).transpose();
+    const colorValue = new Color(color);
+
+    return new ShaderMaterial({
+        glslVersion: GLSL3,
+        side: DoubleSide,
+        transparent: true,
+        depthWrite: opacity >= 0.999,
+        uniforms: {
+            uVolume: { value: texture },
+            uIsolevel: { value: isolevel },
+            uOpacity: { value: opacity },
+            uColor: { value: colorValue },
+            uGridSize: { value: new Vector3(gridSize[0], gridSize[1], gridSize[2]) },
+            uPeriodic: { value: periodic ? 1 : 0 },
+            uGradientMatrix: { value: gradientMatrix },
+            uWorldToTexture: { value: new Matrix4() },
+            uTextureToWorld: { value: new Matrix4() },
+            uStepCount: { value: Math.max(24, Math.min(MAX_STEPS, Math.round(stepCount || (Math.max(...gridSize) * 2.0)))) },
+            uActiveRayHits: { value: Math.max(1, Math.min(MAX_RAY_HITS, Math.round(activeRayHits || MAX_RAY_HITS))) },
+            uInterpolationMode: { value: getInterpolationMode(interpolation) },
+            uTextureRepeat: { value: new Vector3(textureRepeat[0], textureRepeat[1], textureRepeat[2]) },
+        },
+        vertexShader: `
+            in vec3 texturePosition;
+
+            out vec3 vTexturePosition;
+            void main() {
+                vTexturePosition = texturePosition;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            precision highp float;
+            precision highp sampler3D;
+
+            uniform sampler3D uVolume;
+            uniform float uIsolevel;
+            uniform float uOpacity;
+            uniform vec3 uColor;
+            uniform vec3 uGridSize;
+            uniform int uPeriodic;
+            uniform mat3 uGradientMatrix;
+            uniform mat4 uWorldToTexture;
+            uniform mat4 uTextureToWorld;
+            uniform int uStepCount;
+            uniform int uActiveRayHits;
+            uniform int uInterpolationMode;
+            uniform vec3 uTextureRepeat;
+
+            in vec3 vTexturePosition;
+            out vec4 outColor;
+
+            vec3 wrapSamplePosition(vec3 coord) {
+                coord *= uTextureRepeat;
+                if (uPeriodic == 1) {
+                    return fract(coord);
+                }
+                return clamp(coord, vec3(0.0), vec3(1.0));
+            }
+
+            int wrapIndex(int index, int size) {
+                if (uPeriodic == 1) {
+                    int wrapped = index % size;
+                    return wrapped < 0 ? wrapped + size : wrapped;
+                }
+                return clamp(index, 0, size - 1);
+            }
+
+            float fetchVoxel(ivec3 index) {
+                ivec3 dims = ivec3(max(uGridSize, vec3(1.0)));
+                ivec3 wrapped = ivec3(
+                    wrapIndex(index.x, dims.x),
+                    wrapIndex(index.y, dims.y),
+                    wrapIndex(index.z, dims.z)
+                );
+                return texelFetch(uVolume, wrapped, 0).r;
+            }
+
+            float cubicCatmullRom(float p0, float p1, float p2, float p3, float t) {
+                float a = -0.5 * p0 + 1.5 * p1 - 1.5 * p2 + 0.5 * p3;
+                float b = p0 - 2.5 * p1 + 2.0 * p2 - 0.5 * p3;
+                float c = -0.5 * p0 + 0.5 * p2;
+                float d = p1;
+                float value = ((a * t + b) * t + c) * t + d;
+                float lower = min(min(p0, p1), min(p2, p3));
+                float upper = max(max(p0, p1), max(p2, p3));
+                return clamp(value, lower, upper);
+            }
+
+            float sampleVolumeTrilinear(vec3 coord) {
+                vec3 wrappedCoord = wrapSamplePosition(coord);
+                vec3 dims = max(uGridSize, vec3(2.0));
+                vec3 gridCoord = (uPeriodic == 1)
+                    ? wrappedCoord * dims
+                    : wrappedCoord * (dims - vec3(1.0));
+
+                vec3 baseCoord = floor(gridCoord);
+                vec3 fraction = fract(gridCoord);
+
+                if (uPeriodic != 1) {
+                    vec3 maxBase = dims - vec3(2.0);
+                    baseCoord = min(baseCoord, maxBase);
+                    fraction = gridCoord - baseCoord;
+                }
+
+                ivec3 base = ivec3(baseCoord);
+
+                float c000 = fetchVoxel(base + ivec3(0, 0, 0));
+                float c100 = fetchVoxel(base + ivec3(1, 0, 0));
+                float c010 = fetchVoxel(base + ivec3(0, 1, 0));
+                float c110 = fetchVoxel(base + ivec3(1, 1, 0));
+                float c001 = fetchVoxel(base + ivec3(0, 0, 1));
+                float c101 = fetchVoxel(base + ivec3(1, 0, 1));
+                float c011 = fetchVoxel(base + ivec3(0, 1, 1));
+                float c111 = fetchVoxel(base + ivec3(1, 1, 1));
+
+                float c00 = mix(c000, c100, fraction.x);
+                float c10 = mix(c010, c110, fraction.x);
+                float c01 = mix(c001, c101, fraction.x);
+                float c11 = mix(c011, c111, fraction.x);
+                float c0 = mix(c00, c10, fraction.y);
+                float c1 = mix(c01, c11, fraction.y);
+                return mix(c0, c1, fraction.z);
+            }
+
+            float sampleVolumeTricubic(vec3 coord) {
+                vec3 wrappedCoord = wrapSamplePosition(coord);
+                vec3 dims = max(uGridSize, vec3(2.0));
+                vec3 gridCoord = (uPeriodic == 1)
+                    ? wrappedCoord * dims
+                    : wrappedCoord * (dims - vec3(1.0));
+                vec3 baseCoord = floor(gridCoord);
+                vec3 fraction = fract(gridCoord);
+
+                if (uPeriodic != 1) {
+                    vec3 maxBase = dims - vec3(2.0);
+                    baseCoord = min(baseCoord, maxBase);
+                    fraction = gridCoord - baseCoord;
+                }
+
+                ivec3 base = ivec3(baseCoord);
+
+                float yzPlane[4];
+                for (int kz = 0; kz < 4; kz++) {
+                    float yLine[4];
+                    for (int ky = 0; ky < 4; ky++) {
+                        float xLine[4];
+                        for (int kx = 0; kx < 4; kx++) {
+                            ivec3 sampleIndex = base + ivec3(kx - 1, ky - 1, kz - 1);
+                            xLine[kx] = fetchVoxel(sampleIndex);
+                        }
+                        yLine[ky] = cubicCatmullRom(xLine[0], xLine[1], xLine[2], xLine[3], fraction.x);
+                    }
+                    yzPlane[kz] = cubicCatmullRom(yLine[0], yLine[1], yLine[2], yLine[3], fraction.y);
+                }
+
+                return cubicCatmullRom(yzPlane[0], yzPlane[1], yzPlane[2], yzPlane[3], fraction.z);
+            }
+
+            float sampleVolume(vec3 coord) {
+                if (uInterpolationMode == 1) {
+                    return sampleVolumeTricubic(coord);
+                }
+                return sampleVolumeTrilinear(coord);
+            }
+
+            bool intersectBox(vec3 rayOrigin, vec3 rayDirection, out float tMin, out float tMax) {
+                vec3 invDir = 1.0 / max(abs(rayDirection), vec3(1e-6)) * sign(rayDirection);
+                vec3 t0 = (vec3(0.0) - rayOrigin) * invDir;
+                vec3 t1 = (vec3(1.0) - rayOrigin) * invDir;
+                vec3 tSmall = min(t0, t1);
+                vec3 tLarge = max(t0, t1);
+                tMin = max(max(tSmall.x, tSmall.y), tSmall.z);
+                tMax = min(min(tLarge.x, tLarge.y), tLarge.z);
+                return tMax > max(tMin, 0.0);
+            }
+
+            vec3 computeTextureGradient3(vec3 coord) {
+                vec3 eps = 1.0 / max(uGridSize, vec3(2.0));
+                float dx = sampleVolume(coord + vec3(eps.x, 0.0, 0.0)) - sampleVolume(coord - vec3(eps.x, 0.0, 0.0));
+                float dy = sampleVolume(coord + vec3(0.0, eps.y, 0.0)) - sampleVolume(coord - vec3(0.0, eps.y, 0.0));
+                float dz = sampleVolume(coord + vec3(0.0, 0.0, eps.z)) - sampleVolume(coord - vec3(0.0, 0.0, eps.z));
+                return vec3(dx, dy, dz);
+            }
+
+            vec3 estimateNormal(vec3 coord) {
+                vec3 gradient = computeTextureGradient3(coord);
+                return normalize(uGradientMatrix * gradient);
+            }
+
+            vec3 refineZeroCrossing(vec3 lowPos, vec3 highPos, float lowValue, float highValue) {
+                vec3 bestPos = mix(lowPos, highPos, 0.5);
+
+                for (int refine = 0; refine < ${MAX_REFINEMENT_STEPS}; refine++) {
+                    float denom = highValue - lowValue;
+                    float secantWeight = 0.5;
+                    if (abs(denom) > 1e-7) {
+                        secantWeight = clamp(-lowValue / denom, 0.0, 1.0);
+                    }
+
+                    vec3 secantPos = mix(lowPos, highPos, secantWeight);
+                    float secantValue = sampleVolume(secantPos) - uIsolevel;
+                    bestPos = secantPos;
+
+                    if (abs(secantValue) < 1e-5) {
+                        return secantPos;
+                    }
+
+                    vec3 gradient = computeTextureGradient3(secantPos);
+                    float derivative = dot(gradient, normalize(highPos - lowPos));
+                    if (abs(derivative) > 1e-6) {
+                        float newtonStep = clamp(secantValue / derivative, -0.5, 0.5);
+                        vec3 newtonPos = secantPos - normalize(highPos - lowPos) * newtonStep * length(highPos - lowPos);
+                        newtonPos = clamp(newtonPos, min(lowPos, highPos), max(lowPos, highPos));
+                        float newtonValue = sampleVolume(newtonPos) - uIsolevel;
+                        if (abs(newtonValue) < abs(secantValue)) {
+                            bestPos = newtonPos;
+                            secantPos = newtonPos;
+                            secantValue = newtonValue;
+                        }
+                    }
+
+                    if ((lowValue <= 0.0 && secantValue <= 0.0) || (lowValue >= 0.0 && secantValue >= 0.0)) {
+                        lowPos = secantPos;
+                        lowValue = secantValue;
+                    } else {
+                        highPos = secantPos;
+                        highValue = secantValue;
+                    }
+                }
+
+                return bestPos;
+            }
+
+            vec4 shadeHit(vec3 hitPos, vec3 rayDirection) {
+                vec3 normal = estimateNormal(hitPos);
+                if (dot(normal, rayDirection) > 0.0) {
+                    normal = -normal;
+                }
+                vec3 lightDir = normalize(vec3(0.45, 0.55, 1.0));
+                vec3 hitWorld = (uTextureToWorld * vec4(hitPos, 1.0)).xyz;
+                vec3 viewDir = normalize(cameraPosition - hitWorld);
+                float diffuse = 0.28 + 0.72 * max(dot(normal, lightDir), 0.0);
+                vec3 halfVector = normalize(lightDir + viewDir);
+                float specular = pow(max(dot(normal, halfVector), 0.0), 24.0);
+                vec3 shadedColor = uColor * diffuse;
+                shadedColor += uColor * (0.035 * specular) + vec3(0.012 * specular);
+                shadedColor = min(shadedColor, vec3(1.0));
+                float clampedOpacity = clamp(uOpacity, 0.0, 0.9999);
+                float targetOpacity = min(0.9999, clampedOpacity * ${RAYMARCH_OPACITY_COMPENSATION.toFixed(2)});
+                float hitCount = float(max(uActiveRayHits, 1));
+                float effectiveOpacity = 1.0 - pow(max(1.0 - targetOpacity, 1e-4), 1.0 / hitCount);
+                return vec4(shadedColor, effectiveOpacity);
+            }
+
+            void main() {
+                vec3 cameraTex = (uWorldToTexture * vec4(cameraPosition, 1.0)).xyz;
+                vec3 rayDirection = normalize(vTexturePosition - cameraTex);
+
+                float tEnter;
+                float tExit;
+                if (!intersectBox(cameraTex, rayDirection, tEnter, tExit)) {
+                    discard;
+                }
+
+                float startT = max(tEnter, 0.0);
+                float endT = tExit;
+                float span = endT - startT;
+                if (span <= 0.0) {
+                    discard;
+                }
+
+                float stepSize = span / float(max(uStepCount, 1));
+                float currentStartT = startT;
+                vec4 accumulated = vec4(0.0);
+
+                for (int hitIndex = 0; hitIndex < ${MAX_RAY_HITS}; hitIndex++) {
+                    if (hitIndex >= uActiveRayHits) {
+                        break;
+                    }
+                    vec3 previousPos = cameraTex + rayDirection * currentStartT;
+                    float previousValue = sampleVolume(previousPos) - uIsolevel;
+                    bool foundHit = false;
+                    float nextStartT = endT;
+
+                    for (int stepIndex = 1; stepIndex <= ${MAX_STEPS}; stepIndex++) {
+                        if (stepIndex > uStepCount) {
+                            break;
+                        }
+
+                        float t = currentStartT + float(stepIndex) * stepSize;
+                        if (t > endT) {
+                            break;
+                        }
+
+                        vec3 currentPos = cameraTex + rayDirection * t;
+                        float currentValue = sampleVolume(currentPos) - uIsolevel;
+
+                        if ((previousValue <= 0.0 && currentValue >= 0.0) || (previousValue >= 0.0 && currentValue <= 0.0)) {
+                            vec3 hitPos = refineZeroCrossing(previousPos, currentPos, previousValue, currentValue);
+                            float hitT = dot(hitPos - cameraTex, rayDirection);
+                            vec4 hitColor = shadeHit(hitPos, rayDirection);
+                            accumulated.rgb += (1.0 - accumulated.a) * hitColor.a * hitColor.rgb;
+                            accumulated.a += (1.0 - accumulated.a) * hitColor.a;
+                            nextStartT = hitT + stepSize * 1.25;
+                            foundHit = true;
+                            break;
+                        }
+
+                        previousPos = currentPos;
+                        previousValue = currentValue;
+                    }
+
+                    if (!foundHit || accumulated.a >= 0.98 || nextStartT >= endT) {
+                        break;
+                    }
+
+                    currentStartT = nextStartT;
+                }
+
+                if (accumulated.a <= 0.0) {
+                    discard;
+                }
+                vec3 finalColor = accumulated.rgb / max(accumulated.a, 1e-5);
+                outColor = vec4(clamp(finalColor, vec3(0.0), vec3(1.0)), accumulated.a);
+            }
+        `,
+    });
+}
+
+function attachRaymarchUniformUpdater(mesh, gridCell) {
+    mesh.onBeforeRender = function() {
+        if (!this.material || !this.material.uniforms) {
+            return;
+        }
+        const activeGridCell = (this.userData && this.userData.gridCell) ? this.userData.gridCell : gridCell;
+        const textureRepeat = (this.userData && this.userData.textureRepeat) ? this.userData.textureRepeat : [1, 1, 1];
+        const cellMatrix = createCellMatrix(activeGridCell);
+        const textureToWorld = new Matrix4();
+        const worldToTexture = new Matrix4();
+        this.updateMatrixWorld();
+        textureToWorld.multiplyMatrices(this.matrixWorld, cellMatrix);
+        worldToTexture.copy(textureToWorld).invert();
+        this.material.uniforms.uTextureToWorld.value.copy(textureToWorld);
+        this.material.uniforms.uWorldToTexture.value.copy(worldToTexture);
+        if (this.material.uniforms.uTextureRepeat) {
+            this.material.uniforms.uTextureRepeat.value.set(textureRepeat[0], textureRepeat[1], textureRepeat[2]);
+        }
+    };
+}
+
+function createRaymarchedIsosurface({
+    texture,
+    gridCell,
+    isolevel,
+    opacity,
+    color = 0xffff00,
+    periodic = false,
+    gridSize = [1, 1, 1],
+    interpolation = 'trilinear',
+    textureRepeat = [1, 1, 1],
+    stepCount = null,
+    activeRayHits = MAX_RAY_HITS,
+}) {
+    if (!texture || !Array.isArray(gridCell) || gridCell.length !== 3) {
+        return null;
+    }
+
+    const geometry = createRaymarchGeometry(gridCell);
+    const material = createMaterial({
+        texture,
+        gridCell,
+        isolevel,
+        opacity,
+        color,
+        periodic,
+        gridSize,
+        interpolation,
+        textureRepeat,
+        stepCount,
+        activeRayHits,
+    });
+    const mesh = new Mesh(geometry, material);
+    mesh.name = 'isosurface';
+    mesh.frustumCulled = false;
+    mesh.userData.isRaymarchedIsosurface = true;
+    mesh.userData.gridCell = gridCell.map((vector) => vector.slice());
+    mesh.userData.textureRepeat = textureRepeat.slice();
+    attachRaymarchUniformUpdater(mesh, mesh.userData.gridCell);
+    return mesh;
+}
+
+function updateRaymarchedIsosurface(object, {
+    texture,
+    isolevel,
+    opacity,
+    color = 0xffff00,
+    periodic = false,
+    gridSize = [1, 1, 1],
+    interpolation = 'trilinear',
+    textureRepeat = [1, 1, 1],
+    stepCount = null,
+    activeRayHits = MAX_RAY_HITS,
+}) {
+    if (!object || !object.material || !object.material.uniforms) {
+        return false;
+    }
+
+    const uniforms = object.material.uniforms;
+    if (uniforms.uVolume) {
+        uniforms.uVolume.value = texture;
+    }
+    if (uniforms.uIsolevel) {
+        uniforms.uIsolevel.value = isolevel;
+    }
+    if (uniforms.uOpacity) {
+        uniforms.uOpacity.value = opacity;
+    }
+    if (uniforms.uColor) {
+        uniforms.uColor.value = new Color(color);
+    }
+    if (uniforms.uGridSize) {
+        uniforms.uGridSize.value.set(gridSize[0], gridSize[1], gridSize[2]);
+    }
+    if (uniforms.uPeriodic) {
+        uniforms.uPeriodic.value = periodic ? 1 : 0;
+    }
+    if (uniforms.uStepCount) {
+        uniforms.uStepCount.value = Math.max(24, Math.min(MAX_STEPS, Math.round(stepCount || (Math.max(...gridSize) * 2.0))));
+    }
+    if (uniforms.uActiveRayHits) {
+        uniforms.uActiveRayHits.value = Math.max(1, Math.min(MAX_RAY_HITS, Math.round(activeRayHits || MAX_RAY_HITS)));
+    }
+    if (uniforms.uInterpolationMode) {
+        uniforms.uInterpolationMode.value = getInterpolationMode(interpolation);
+    }
+    if (uniforms.uTextureRepeat) {
+        uniforms.uTextureRepeat.value.set(textureRepeat[0], textureRepeat[1], textureRepeat[2]);
+    }
+    object.material.opacity = opacity;
+    object.material.transparent = true;
+    object.material.depthWrite = opacity >= 0.999;
+    object.material.needsUpdate = true;
+    if (object.userData && object.userData.gridCell) {
+        attachRaymarchUniformUpdater(object, object.userData.gridCell);
+    }
+    return true;
+}
+
+function supportsRaymarchedIsosurface(renderer) {
+    return !!(renderer && renderer.capabilities && renderer.capabilities.isWebGL2);
+}
+
+class BaseIsosurfaceBackend {
+    constructor(controller) {
+        this.controller = controller;
+    }
+
+    get host() {
+        return this.controller.host;
+    }
+
+    clearCache() {}
+
+    dispose() {}
+
+    applyGeometry(geometry) {
+        this.host.removeNamedSceneObjects('isosurface');
+        this.host.addMarchingCubesGeometry(geometry);
+        this.host.render();
+    }
+}
+
+class MarchingCubesIsosurfaceBackend extends BaseIsosurfaceBackend {
+    constructor(controller) {
+        super(controller);
+        this.worker = null;
+        this.workerFailed = false;
+        this.requestId = 0;
+        this.workerBusy = false;
+        this.previewCache = null;
+    }
+
+    clearCache() {
+        this.previewCache = null;
+    }
+
+    dispose() {
+        this.resetWorker();
+        this.previewCache = null;
+    }
+
+    getPreviewStride() {
+        const { sizex = 1, sizey = 1, sizez = 1 } = this.host;
+        const voxelCount = sizex * sizey * sizez;
+        const minSize = Math.min(sizex, sizey, sizez);
+        if (minSize < 12) return 1;
+        if (voxelCount > 800000 && minSize >= 24) return 4;
+        if (voxelCount > 250000 && minSize >= 18) return 3;
+        if (voxelCount > 80000 && minSize >= 12) return 2;
+        return 1;
+    }
+
+    buildDownsampledField(values, sizex, sizey, sizez, stride, periodic) {
+        if (stride <= 1) {
+            return { values, sizex, sizey, sizez };
+        }
+
+        const reducedX = periodic ? Math.max(2, Math.floor(sizex / stride)) : Math.max(2, Math.floor((sizex - 1) / stride) + 1);
+        const reducedY = periodic ? Math.max(2, Math.floor(sizey / stride)) : Math.max(2, Math.floor((sizey - 1) / stride) + 1);
+        const reducedZ = periodic ? Math.max(2, Math.floor(sizez / stride)) : Math.max(2, Math.floor((sizez - 1) / stride) + 1);
+        const reducedValues = new Float32Array(reducedX * reducedY * reducedZ);
+        let writeIndex = 0;
+
+        for (let z = 0; z < reducedZ; z++) {
+            const sourceZ = periodic ? (z * stride) % sizez : Math.min(z * stride, sizez - 1);
+            for (let y = 0; y < reducedY; y++) {
+                const sourceY = periodic ? (y * stride) % sizey : Math.min(y * stride, sizey - 1);
+                for (let x = 0; x < reducedX; x++) {
+                    const sourceX = periodic ? (x * stride) % sizex : Math.min(x * stride, sizex - 1);
+                    reducedValues[writeIndex] = values[sourceX + sizex * sourceY + sizex * sizey * sourceZ];
+                    writeIndex += 1;
+                }
+            }
+        }
+
+        return { values: reducedValues, sizex: reducedX, sizey: reducedY, sizez: reducedZ };
+    }
+
+    getInteractiveInput() {
+        const stride = this.getPreviewStride();
+        const { values, sizex, sizey, sizez } = this.host;
+        if (stride <= 1) {
+            return { values, sizex, sizey, sizez };
+        }
+
+        const options = this.host.getMarchingCubesOptions();
+        const periodic = !!options.periodic;
+        const cacheKey = `${stride}:${sizex}:${sizey}:${sizez}:${periodic ? 'p' : 'n'}`;
+        if (!this.previewCache || this.previewCache.key !== cacheKey) {
+            this.previewCache = {
+                key: cacheKey,
+                data: this.buildDownsampledField(values, sizex, sizey, sizez, stride, periodic),
+            };
+        }
+
+        return this.previewCache.data;
+    }
+
+    getWorker() {
+        if (this.workerFailed || typeof Worker === 'undefined') {
+            return null;
+        }
+        if (this.worker) {
+            return this.worker;
+        }
+
+        try {
+            this.worker = new Worker(new URL('./marchingcubesworker.js', import.meta.url), { type: 'module' });
+            this.worker.onmessage = (event) => {
+                this.workerBusy = false;
+                const { requestId, positions, normals } = event.data;
+                this.applyBuffers(requestId, new Float32Array(positions), new Float32Array(normals));
+            };
+            this.worker.onerror = () => {
+                this.workerBusy = false;
+                this.workerFailed = true;
+                if (this.worker) {
+                    this.worker.terminate();
+                    this.worker = null;
+                }
+            };
+        } catch (error) {
+            this.workerFailed = true;
+            this.worker = null;
+        }
+
+        return this.worker;
+    }
+
+    resetWorker() {
+        this.workerBusy = false;
+        if (this.worker) {
+            this.worker.terminate();
+            this.worker = null;
+        }
+    }
+
+    createGeometryFromBuffers(positions, normals) {
+        const geometry = new BufferGeometry();
+        geometry.setAttribute('position', new BufferAttribute(positions, 3));
+        geometry.setAttribute('normal', new BufferAttribute(normals, 3));
+        return geometry;
+    }
+
+    applyBuffers(requestId, positions, normals) {
+        if (requestId !== this.requestId || !this.host.scene) {
+            return;
+        }
+        this.applyGeometry(this.createGeometryFromBuffers(positions, normals));
+    }
+
+    buildGeometry(values, sizex, sizey, sizez) {
+        return buildMarchingCubesGeometry(
+            values,
+            sizex,
+            sizey,
+            sizez,
+            this.host.gridCell,
+            this.host.isolevel,
+            this.host.getMarchingCubesOptions(),
+        );
+    }
+
+    requestUpdate() {
+        if (!Array.isArray(this.host.values) || !this.host.values.length || !this.host.scene) {
+            return;
+        }
+
+        const requestId = ++this.requestId;
+        const payload = {
+            requestId,
+            values: Float32Array.from(this.host.values),
+            sizex: this.host.sizex,
+            sizey: this.host.sizey,
+            sizez: this.host.sizez,
+            gridCell: this.host.gridCell,
+            isolevel: this.host.isolevel,
+            options: this.host.getMarchingCubesOptions(),
+        };
+
+        const worker = this.getWorker();
+        if (worker) {
+            if (this.workerBusy) {
+                this.resetWorker();
+            }
+            const activeWorker = this.getWorker();
+            if (activeWorker) {
+                this.workerBusy = true;
+                activeWorker.postMessage(payload, [payload.values.buffer]);
+                return;
+            }
+        }
+
+        this.applyGeometry(this.buildGeometry(
+            this.host.values,
+            this.host.sizex,
+            this.host.sizey,
+            this.host.sizez,
+        ));
+    }
+
+    updateSync() {
+        if (!this.host.scene || !Array.isArray(this.host.values) || !this.host.values.length) {
+            return;
+        }
+        this.requestId += 1;
+        if (this.workerBusy) {
+            this.resetWorker();
+        }
+        this.applyGeometry(this.buildGeometry(
+            this.host.values,
+            this.host.sizex,
+            this.host.sizey,
+            this.host.sizez,
+        ));
+    }
+
+    updatePreview() {
+        if (!this.host.scene || !Array.isArray(this.host.values) || !this.host.values.length) {
+            return;
+        }
+        this.requestId += 1;
+        if (this.workerBusy) {
+            this.resetWorker();
+        }
+        const preview = this.getInteractiveInput();
+        this.applyGeometry(this.buildGeometry(
+            preview.values,
+            preview.sizex,
+            preview.sizey,
+            preview.sizez,
+        ));
+    }
+}
+
+class RaymarchIsosurfaceBackend extends BaseIsosurfaceBackend {
+    constructor(controller, interpolation = 'trilinear') {
+        super(controller);
+        this.interpolation = interpolation;
+        this.volumeTexture = null;
+        this.fallbackBackend = new MarchingCubesIsosurfaceBackend(controller);
+        this.warned = false;
+        this.volumeTextureKey = null;
+    }
+
+    clearCache() {
+        this.fallbackBackend.clearCache();
+    }
+
+    dispose() {
+        disposeVolumeTexture(this.volumeTexture);
+        this.volumeTexture = null;
+        this.volumeTextureKey = null;
+        this.fallbackBackend.dispose();
+    }
+
+    ensureVolumeTexture() {
+        const nextKey = [
+            this.host.values,
+            this.host.sizex,
+            this.host.sizey,
+            this.host.sizez,
+        ];
+        if (
+            this.volumeTexture &&
+            this.volumeTextureKey &&
+            this.volumeTextureKey[0] === nextKey[0] &&
+            this.volumeTextureKey[1] === nextKey[1] &&
+            this.volumeTextureKey[2] === nextKey[2] &&
+            this.volumeTextureKey[3] === nextKey[3]
+        ) {
+            return;
+        }
+        disposeVolumeTexture(this.volumeTexture);
+        this.volumeTexture = createVolumeTexture(
+            this.host.values,
+            this.host.sizex,
+            this.host.sizey,
+            this.host.sizez,
+        );
+        this.volumeTextureKey = nextKey;
+    }
+
+    useFallback() {
+        if (!this.warned) {
+            console.warn('Raymarched isosurface backend is unavailable here; falling back to marching cubes.');
+            this.warned = true;
+        }
+        return true;
+    }
+
+    hasIsosurfaceObjects() {
+        if (!this.host.scene) {
+            return false;
+        }
+        for (let i = 0; i < this.host.scene.children.length; i++) {
+            if (this.host.scene.children[i] && this.host.scene.children[i].name === 'isosurface') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    getRenderConfig() {
+        if (typeof this.host.getRaymarchRenderConfig === 'function') {
+            return this.host.getRaymarchRenderConfig(this.interpolation);
+        }
+        return {
+            interpolation: this.interpolation,
+            stepCount: Math.max(96, Math.min(384, Math.round(Math.max(this.host.sizex, this.host.sizey, this.host.sizez) * 2.0))),
+        };
+    }
+
+    updateExistingObjects() {
+        if (!this.hasIsosurfaceObjects()) {
+            return false;
+        }
+
+        const renderConfig = this.getRenderConfig();
+        let updated = false;
+        this.host.forEachNamedSceneObject('isosurface', (object) => {
+            updated = updateRaymarchedIsosurface(object, {
+                texture: this.volumeTexture,
+                isolevel: this.host.isolevel,
+                opacity: this.host.isosurfaceOpacity,
+                color: 0xffff00,
+                periodic: !!this.host.getMarchingCubesOptions().periodic,
+                gridSize: [this.host.sizex, this.host.sizey, this.host.sizez],
+                interpolation: renderConfig.interpolation,
+                textureRepeat: object.userData && object.userData.textureRepeat ? object.userData.textureRepeat : [1, 1, 1],
+                stepCount: renderConfig.stepCount,
+                activeRayHits: renderConfig.activeRayHits,
+            }) || updated;
+        });
+
+        if (updated) {
+            this.host.render();
+        }
+        return updated;
+    }
+
+    requestUpdate() {
+        if (!Array.isArray(this.host.values) || !this.host.values.length || !this.host.scene) {
+            return;
+        }
+        this.ensureVolumeTexture();
+        if (!this.volumeTexture || !supportsRaymarchedIsosurface(this.host.renderer)) {
+            this.useFallback();
+            this.fallbackBackend.requestUpdate();
+            return;
+        }
+        if (this.updateExistingObjects()) {
+            return;
+        }
+        const renderConfig = this.getRenderConfig();
+        const object = createRaymarchedIsosurface({
+            texture: this.volumeTexture,
+            gridCell: this.host.gridCell,
+            isolevel: this.host.isolevel,
+            opacity: this.host.isosurfaceOpacity,
+            color: 0xffff00,
+            periodic: !!this.host.getMarchingCubesOptions().periodic,
+            gridSize: [this.host.sizex, this.host.sizey, this.host.sizez],
+            interpolation: renderConfig.interpolation,
+            textureRepeat: [1, 1, 1],
+            stepCount: renderConfig.stepCount,
+            activeRayHits: renderConfig.activeRayHits,
+        });
+        if (!object) {
+            this.useFallback();
+            this.fallbackBackend.requestUpdate();
+            return;
+        }
+        this.host.removeNamedSceneObjects('isosurface');
+        this.host.addIsosurfaceObject(object);
+        this.host.render();
+    }
+
+    updateSync() {
+        this.requestUpdate();
+    }
+
+    updatePreview() {
+        this.requestUpdate();
+    }
+}
+
+class IsosurfaceController {
+    constructor(host) {
+        this.host = host;
+        this.mode = 'marching-cubes';
+        this.backends = {
+            'marching-cubes': new MarchingCubesIsosurfaceBackend(this),
+            'raymarch-trilinear': new RaymarchIsosurfaceBackend(this, 'trilinear'),
+            'raymarch-tricubic': new RaymarchIsosurfaceBackend(this, 'tricubic'),
+        };
+        this.backend = this.backends[this.mode];
+    }
+
+    clearPreviewCache() {
+        this.backend.clearCache();
+    }
+
+    setMode(mode) {
+        const normalizedMode = mode === 'raymarch' ? 'raymarch-trilinear' : mode;
+        const nextMode = this.backends[normalizedMode] ? normalizedMode : 'marching-cubes';
+        if (nextMode === this.mode) {
+            return;
+        }
+        if (this.backend) {
+            this.backend.dispose();
+        }
+        this.mode = nextMode;
+        this.backend = this.backends[this.mode];
+        this.host.removeNamedSceneObjects('isosurface');
+    }
+
+    getMode() {
+        return this.mode;
+    }
+
+    getAvailableModes() {
+        return Object.keys(this.backends);
+    }
+
+    requestUpdate() { this.backend.requestUpdate(); }
+    updateSync() { this.backend.updateSync(); }
+    updatePreview() { this.backend.updatePreview(); }
+}
+
 function matrix_inverse(a)
 {
     var det = matrix_determinant(a);
@@ -64306,6 +65387,319 @@ function format_formula_html(value) {
     return subscript_numbers(normalize_formula_string(value));
 }
 
+function createAtomSphereGeometry(radius, sphereLat, sphereLon) {
+    return new SphereGeometry(radius, sphereLat, sphereLon);
+}
+
+function createBondCylinderGeometry(radius, length, bondSegments, bondVertical) {
+    return new CylinderGeometry(
+        radius,
+        radius,
+        length,
+        bondSegments,
+        bondVertical,
+        true,
+    );
+}
+
+function createCellLineObject(lat, shift, color = 0x000000) {
+    const material = new LineBasicMaterial({ color });
+    const points = [];
+    const zero = new Vector3(0, 0, 0);
+    const cursor = new Vector3(0, 0, 0);
+    const x = new Vector3(lat[0][0], lat[0][1], lat[0][2]);
+    const y = new Vector3(lat[1][0], lat[1][1], lat[1][2]);
+    const z = new Vector3(lat[2][0], lat[2][1], lat[2][2]);
+
+    cursor.copy(zero);
+    cursor.sub(shift); points.push(cursor.clone());
+    cursor.add(x); points.push(cursor.clone());
+    cursor.add(y); points.push(cursor.clone());
+    cursor.sub(x); points.push(cursor.clone());
+    cursor.sub(y); points.push(cursor.clone());
+
+    cursor.copy(zero).add(z);
+    cursor.sub(shift); points.push(cursor.clone());
+    cursor.add(x); points.push(cursor.clone());
+    cursor.add(y); points.push(cursor.clone());
+    cursor.sub(x); points.push(cursor.clone());
+    cursor.sub(y); points.push(cursor.clone());
+
+    cursor.copy(zero);
+    cursor.sub(shift); points.push(cursor.clone());
+    cursor.add(z); points.push(cursor.clone());
+
+    cursor.add(x); points.push(cursor.clone());
+    cursor.sub(z); points.push(cursor.clone());
+
+    cursor.add(y); points.push(cursor.clone());
+    cursor.add(z); points.push(cursor.clone());
+
+    cursor.sub(x); points.push(cursor.clone());
+    cursor.sub(z); points.push(cursor.clone());
+
+    const geometry = new BufferGeometry().setFromPoints(points);
+    return new Line(geometry, material);
+}
+
+function getViewerAtomRadius(display, atomNumber, atomScale, sphereRadius, covalentRadii) {
+    if (display === 'vesta') {
+        return ((covalentRadii[atomNumber] || 0) / 2.3) * atomScale;
+    }
+    return sphereRadius * atomScale;
+}
+
+function buildBondList(atomobjects, bondRules, getBondRuleKey, getDefaultBondCutoff, options = {}) {
+    const bonds = [];
+    const requireRule = !!options.requireRule;
+
+    for (let i = 0; i < atomobjects.length; i++) {
+        const atomA = atomobjects[i];
+        for (let j = i + 1; j < atomobjects.length; j++) {
+            const atomB = atomobjects[j];
+            const distance = atomA.position.distanceTo(atomB.position);
+            const key = getBondRuleKey(atomA.atom_number, atomB.atom_number);
+            const rule = bondRules[key];
+            if (requireRule && !rule) {
+                continue;
+            }
+            const cutoff = rule ? rule.cutoff : getDefaultBondCutoff(atomA.atom_number, atomB.atom_number);
+            if (distance < cutoff) {
+                bonds.push({
+                    a: atomA.position,
+                    b: atomB.position,
+                    a_atom_number: atomA.atom_number,
+                    b_atom_number: atomB.atom_number,
+                    baseLength: distance,
+                });
+            }
+        }
+    }
+
+    return bonds;
+}
+
+function getSharedLightConfig() {
+    return {
+        color: 0xdddddd,
+        intensity: 1.0,
+        position: [1, 1, 2],
+        ambient: 0x333333,
+    };
+}
+
+const sharedViewerMethods = {
+    colorToInputHex(colorHex) {
+        return `#${Number(colorHex).toString(16).padStart(6, '0')}`;
+    },
+
+    normalizeColorHex(value, fallback) {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            return value;
+        }
+        if (typeof value === 'string') {
+            let normalized = value.trim();
+            if (!normalized) {
+                return fallback;
+            }
+            if (normalized.startsWith('#')) {
+                normalized = normalized.slice(1);
+            }
+            if (/^[0-9a-fA-F]{6}$/.test(normalized)) {
+                return parseInt(normalized, 16);
+            }
+        }
+        return fallback;
+    },
+
+    getDefaultAtomColor(atomNumber) {
+        const palette = this.display === 'vesta' ? vesta_colors : jmol_colors;
+        const rgb = palette[atomNumber] || [0.5, 0.5, 0.5];
+        return new Color(rgb[0], rgb[1], rgb[2]).getHex();
+    },
+
+    getAtomColorHex(atomNumber) {
+        if (Object.prototype.hasOwnProperty.call(this.atomColorOverrides, atomNumber)) {
+            return this.atomColorOverrides[atomNumber];
+        }
+        return this.getDefaultAtomColor(atomNumber);
+    },
+
+    getAtomColor(atomNumber) {
+        return new Color(this.getAtomColorHex(atomNumber));
+    },
+
+    clearAtomColorOverride(atomNumber) {
+        delete this.atomColorOverrides[atomNumber];
+    },
+
+    getAtomRadiusScale(atomNumber) {
+        if (Object.prototype.hasOwnProperty.call(this.atomRadiusScaleOverrides, atomNumber)) {
+            return this.atomRadiusScaleOverrides[atomNumber];
+        }
+        return this.defaultAtomRadiusScale;
+    },
+
+    setAtomRadiusScaleOverride(atomNumber, scale) {
+        if (!Number.isFinite(scale)) {
+            return;
+        }
+        this.atomRadiusScaleOverrides[atomNumber] = Math.max(0.1, scale);
+    },
+
+    getSelectedAppearanceAtomNumber() {
+        if (Number.isFinite(this.appearanceSelectedAtomNumber)) {
+            return this.appearanceSelectedAtomNumber;
+        }
+        if (this.atom_numbers && this.atom_numbers.length) {
+            return this.atom_numbers[0];
+        }
+        return null;
+    },
+
+    setSelectedAppearanceAtomNumber(atomNumber) {
+        this.appearanceSelectedAtomNumber = atomNumber;
+        const atomList = this.domAppearanceAtomList || this.dom_appearance_atom_list;
+        if (atomList && atomList.length) {
+            atomList.find('button').removeClass('active');
+            atomList.find(`button[data-atom-number="${atomNumber}"]`).addClass('active');
+        }
+    },
+
+    getBondRuleKey(atomNumberA, atomNumberB) {
+        const a = Math.min(atomNumberA, atomNumberB);
+        const b = Math.max(atomNumberA, atomNumberB);
+        return `${a}-${b}`;
+    },
+
+    setBondRule(atomNumberA, atomNumberB, cutoff) {
+        const key = this.getBondRuleKey(atomNumberA, atomNumberB);
+        const a = Math.min(atomNumberA, atomNumberB);
+        const b = Math.max(atomNumberA, atomNumberB);
+        this.bondRules[key] = {
+            a,
+            b,
+            cutoff: Number.isFinite(cutoff) ? cutoff : this.getDefaultBondCutoff(a, b),
+        };
+    },
+
+    removeBondRule(atomNumberA, atomNumberB) {
+        const key = this.getBondRuleKey(atomNumberA, atomNumberB);
+        delete this.bondRules[key];
+    },
+
+    hasBondRule(atomNumberA, atomNumberB) {
+        const key = this.getBondRuleKey(atomNumberA, atomNumberB);
+        return Object.prototype.hasOwnProperty.call(this.bondRules, key);
+    },
+
+    refreshBondRulesUI() {
+        const domBondRulesList = this.domBondRulesList || this.dom_bond_rules_list;
+        if (!domBondRulesList || !domBondRulesList.length) {
+            return;
+        }
+
+        domBondRulesList.empty();
+        const keys = Object.keys(this.bondRules).sort();
+        if (!keys.length) {
+            domBondRulesList.append('<div>none</div>');
+            return;
+        }
+
+        for (let i = 0; i < keys.length; i++) {
+            const rule = this.bondRules[keys[i]];
+            const label =
+                '<span class="atom-badge-pair">' +
+                createAtomBadgeHtml(atomic_symbol[rule.a], rule.a, this.getAtomColorHex.bind(this)) +
+                '<span class="atom-badge-separator">-</span>' +
+                createAtomBadgeHtml(atomic_symbol[rule.b], rule.b, this.getAtomColorHex.bind(this)) +
+                '</span>';
+            const cutoff = Number(rule.cutoff).toFixed(2);
+            domBondRulesList.append(
+                '<div class="appearance-controls">' +
+                '<span>' + label + ' ' + cutoff + '</span>' +
+                '<button type="button" data-remove-key="' + keys[i] + '">remove</button>' +
+                '</div>'
+            );
+        }
+    },
+
+    addLights() {
+        this.scene.add(this.camera);
+        if (this.pointLight) {
+            this.pointLight.visible = true;
+        }
+        this.scene.add(new AmbientLight(getSharedLightConfig().ambient));
+    },
+
+    updateLightStyle() {
+        if (!this.pointLight) {
+            return;
+        }
+        const lightConfig = getSharedLightConfig();
+        this.pointLight.color.setHex(lightConfig.color);
+        this.pointLight.intensity = lightConfig.intensity;
+        this.pointLight.position.set(...lightConfig.position);
+    },
+
+    createShadedMaterial(config = {}) {
+        if (!this.shading) {
+            return new MeshBasicMaterial(config);
+        }
+        return new MeshLambertMaterial({
+            blending: NormalBlending,
+            ...config,
+        });
+    },
+
+    disposeSceneObject(object) {
+        if (!object) {
+            return;
+        }
+        if (object.geometry) {
+            object.geometry.dispose();
+        }
+        if (object.material) {
+            if (Array.isArray(object.material)) {
+                for (let i = 0; i < object.material.length; i++) {
+                    if (object.material[i] && object.material[i].dispose) {
+                        object.material[i].dispose();
+                    }
+                }
+            } else if (object.material.dispose) {
+                object.material.dispose();
+            }
+        }
+    },
+
+    removeNamedSceneObjects(name) {
+        if (!this.scene) {
+            return;
+        }
+
+        for (let i = this.scene.children.length - 1; i >= 0; i--) {
+            const child = this.scene.children[i];
+            if (child && child.name === name) {
+                this.disposeSceneObject(child);
+                this.scene.remove(child);
+            }
+        }
+    },
+
+    forEachNamedSceneObject(name, callback) {
+        if (!this.scene || typeof callback !== 'function') {
+            return;
+        }
+
+        for (let i = 0; i < this.scene.children.length; i++) {
+            const child = this.scene.children[i];
+            if (child && child.name === name) {
+                callback(child);
+            }
+        }
+    },
+};
+
 const vecY = new Vector3(0, 1, 0);
 
 function getBond(point1, point2) {
@@ -64317,7 +65711,7 @@ function getBond(point1, point2) {
     };
 }
 
-class ExcitonWf {
+class StructureViewerBase {
 
     constructor() {
         this.display = 'jmol';
@@ -64332,10 +65726,17 @@ class ExcitonWf {
         this.sizey = 1;
         this.sizez = 1;
         this.cell = null;
-        this.isolevel = 0.02;
+        this.isosurfaceState = {
+            level: 0.02,
+            levelWasManuallySet: false,
+        };
         this.isosurfaceOpacity = 0.18;
-        this.excitonIndex = 0;
+        this.isosurfaceRenderMode = 'marching-cubes';
         this.isInitialized = false;
+        this.continuousRender = false;
+        this.renderQueued = false;
+        this.interactionActive = false;
+        this.interactionTimeoutId = null;
 
         this.cameraViewAngle = 18;
         this.cameraNear = 0.1;
@@ -64359,15 +65760,12 @@ class ExcitonWf {
         this.defaultAtomRadiusScale = 1.0;
         this.appearanceSelectedAtomNumber = null;
         this.bondRules = {};
-        this.marchingCubesWorker = null;
-        this.marchingCubesWorkerFailed = false;
-        this.marchingCubesRequestId = 0;
-        this.marchingCubesWorkerBusy = false;
-        this.isosurfacePreviewCache = null;
+        this.isosurfaceController = new IsosurfaceController(this);
     }
 
-    init(container) {
+    init(container = this.container, options = {}) {
         this.container = container;
+        this.continuousRender = options.continuousRender === true;
         const containerElement = container.get(0);
         this.dimensions = this.getContainerDimensions();
 
@@ -64381,14 +65779,15 @@ class ExcitonWf {
         this.camera.position.set(0, 0, this.cameraDistance);
         this.camera.lookAt(this.scene.position);
 
-        this.pointLight = new PointLight(0xdddddd);
-        this.pointLight.position.set(1, 1, 2);
+        const lightConfig = getSharedLightConfig();
+        this.pointLight = new PointLight(lightConfig.color, lightConfig.intensity);
+        this.pointLight.position.set(...lightConfig.position);
         this.pointLight.visible = true;
         this.camera.add(this.pointLight);
 
         this.renderer = new WebGLRenderer({ antialias: true });
         this.renderer.setClearColor(0xffffff);
-        this.renderer.setPixelRatio(window.devicePixelRatio || 1);
+        this.renderer.setPixelRatio(this.getPreferredPixelRatio());
         this.renderer.setSize(this.dimensions.width, this.dimensions.height, false);
         containerElement.appendChild(this.renderer.domElement);
         this.canvas = this.renderer.domElement;
@@ -64401,94 +65800,77 @@ class ExcitonWf {
             containerElement.parentElement.style.height = `${this.dimensions.height}px`;
         }
 
-        this.controls = new TrackballControls(this.camera, this.renderer.domElement);
+        const controlsElement = options.controlsElement || this.renderer.domElement;
+        this.controls = new TrackballControls(this.camera, controlsElement);
         this.controls.rotateSpeed = 1.0;
         this.controls.zoomSpeed = 1.0;
         this.controls.panSpeed = 0.3;
         this.controls.staticMoving = true;
         this.controls.dynamicDampingFactor = 0.3;
+        this.controls.addEventListener('change', () => {
+            this.handleInteractionActivity();
+            this.requestRender();
+        });
+        if (typeof options.configureControls === 'function') {
+            options.configureControls(this.controls);
+        }
 
         window.addEventListener('resize', this.onWindowResize.bind(this), false);
 
         this.isInitialized = true;
-        this.onWindowResize();
-        this.animate();
-    }
-
-    setData(absorption) {
-        this.excitons = absorption.excitons;
-        this.excitonIndex = absorption.excitonIndex;
-        this.values = absorption.excitons[this.excitonIndex].datagrid;
-        this.sizex = absorption.sizex;
-        this.sizey = absorption.sizey;
-        this.sizez = absorption.sizez;
-        this.cell = absorption.cell;
-        this.gridCell = absorption.gridCell || absorption.cell;
-        this.atoms = absorption.atoms;
-        this.natoms = absorption.atoms.length;
-        this.atom_numbers = absorption.atom_numbers;
-        this.clearIsosurfacePreviewCache();
-        this.updateRecommendedIsolevel();
-
-        this.geometricCenter = new Vector3(0, 0, 0);
-        for (let i = 0; i < this.atoms.length; i++) {
-            const pos = new Vector3(this.atoms[i][1], this.atoms[i][2], this.atoms[i][3]);
-            this.geometricCenter.add(pos);
+        if (typeof options.afterInit === 'function') {
+            options.afterInit();
         }
-        this.geometricCenter.multiplyScalar(1.0 / this.atoms.length);
-
-        this.updateViewParameters();
-        this.initializeBondRulesFromAtoms();
-        this.refreshAppearanceControls();
-    }
-
-    setExcitonIndex(index) {
-        this.excitonIndex = index;
-        if (this.excitons && this.excitons[index]) {
-            this.values = this.excitons[index].datagrid;
-            this.clearIsosurfacePreviewCache();
-            this.updateRecommendedIsolevel();
+        this.onWindowResize();
+        const shouldStartAnimation = Object.prototype.hasOwnProperty.call(options, 'startAnimation')
+            ? options.startAnimation !== false
+            : true;
+        if (shouldStartAnimation) {
+            this.animate();
         }
     }
 
     clearIsosurfacePreviewCache() {
-        this.isosurfacePreviewCache = null;
+        this.isosurfaceController.clearPreviewCache();
     }
 
-    updateRecommendedIsolevel(force = false) {
-        if (!Array.isArray(this.values) || !this.values.length) {
-            return;
-        }
+    get isolevel() {
+        return this.isosurfaceState.level;
+    }
 
-        const positiveValues = this.values.filter((value) => Number.isFinite(value) && value > 0).sort((a, b) => a - b);
-        if (!positiveValues.length) {
-            return;
-        }
+    getIsolevel() {
+        return this.isosurfaceState.level;
+    }
 
-        const quantile = (fraction) => {
-            const position = Math.max(0, Math.min(1, fraction)) * (positiveValues.length - 1);
-            const lower = Math.floor(position);
-            const upper = Math.ceil(position);
-            const weight = position - lower;
-            if (lower === upper) {
-                return positiveValues[lower];
-            }
-            return positiveValues[lower] * (1 - weight) + positiveValues[upper] * weight;
-        };
+    hasManualIsolevel() {
+        return this.isosurfaceState.levelWasManuallySet;
+    }
 
-        const recommended = Math.min(Math.max(quantile(0.99), positiveValues[positiveValues.length - 1] * 0.02), 0.9);
-        if (force || !Number.isFinite(this.isolevel) || this.isolevel <= 0 || this.isolevel === 0.02) {
-            this.isolevel = recommended;
+    setIsolevelState(level, { manual = this.hasManualIsolevel() } = {}) {
+        const numericLevel = Number(level);
+        if (!Number.isFinite(numericLevel)) {
+            return this.isosurfaceState.level;
         }
+        this.isosurfaceState.level = numericLevel;
+        this.isosurfaceState.levelWasManuallySet = !!manual;
+        return numericLevel;
+    }
 
-        if (this.onIsolevelRangeChanged) {
-            this.onIsolevelRangeChanged({
-                min: 0,
-                max: Math.max(quantile(0.999), positiveValues[positiveValues.length - 1] * 0.1),
-                step: Math.max(1e-4, positiveValues[positiveValues.length - 1] / 500),
-                value: this.isolevel,
-            });
+    resetIsolevelState(level) {
+        return this.setIsolevelState(level, { manual: false });
+    }
+
+    setIsosurfaceRenderMode(mode) {
+        this.isosurfaceController.setMode(mode);
+        this.isosurfaceRenderMode = this.isosurfaceController.getMode();
+        this.updateRendererPixelRatio();
+        if (Array.isArray(this.values) && this.values.length) {
+            this.updateIsosurface();
         }
+    }
+
+    getIsosurfaceRenderMode() {
+        return this.isosurfaceController.getMode();
     }
 
     getContainerDimensions() {
@@ -64510,86 +65892,61 @@ class ExcitonWf {
             height = Math.max(window.innerHeight * 0.5, 300);
         }
 
-        return {
-            width,
-            height,
-            ratio: width / height,
-        };
+        return { width, height, ratio: width / height };
     }
 
-    colorToInputHex(colorHex) {
-        return `#${Number(colorHex).toString(16).padStart(6, '0')}`;
-    }
-
-    normalizeColorHex(value, fallback) {
-        if (typeof value === 'number' && Number.isFinite(value)) {
-            return value;
+    getPreferredPixelRatio() {
+        const nativePixelRatio = window.devicePixelRatio || 1;
+        if (!this.getIsosurfaceRenderMode().startsWith('raymarch')) {
+            return nativePixelRatio;
         }
-        if (typeof value === 'string') {
-            let normalized = value.trim();
-            if (!normalized) {
-                return fallback;
+        const interpolation = this.getIsosurfaceRenderMode() === 'raymarch-tricubic' ? 'tricubic' : 'trilinear';
+        const profile = getRaymarchPerformanceProfile({
+            interacting: this.interactionActive,
+            selectedInterpolation: interpolation,
+            gridSizeMax: Math.max(this.sizex || 1, this.sizey || 1, this.sizez || 1),
+        });
+        return nativePixelRatio / profile.resolutionDivisor;
+    }
+
+    getRaymarchRenderConfig(baseInterpolation) {
+        return getRaymarchPerformanceProfile({
+            interacting: this.interactionActive,
+            selectedInterpolation: baseInterpolation,
+            gridSizeMax: Math.max(this.sizex || 1, this.sizey || 1, this.sizez || 1),
+        });
+    }
+
+    handleInteractionActivity() {
+        const wasActive = this.interactionActive;
+        this.interactionActive = true;
+        this.updateRendererPixelRatio();
+        if (!wasActive && this.getIsosurfaceRenderMode().startsWith('raymarch') && Array.isArray(this.values) && this.values.length) {
+            this.updateIsosurface();
+        }
+
+        if (this.interactionTimeoutId) {
+            window.clearTimeout(this.interactionTimeoutId);
+        }
+        this.interactionTimeoutId = window.setTimeout(() => {
+            this.interactionActive = false;
+            this.interactionTimeoutId = null;
+            this.updateRendererPixelRatio();
+            if (this.getIsosurfaceRenderMode().startsWith('raymarch') && Array.isArray(this.values) && this.values.length) {
+                this.updateIsosurface();
+            } else {
+                this.requestRender();
             }
-            if (normalized.startsWith('#')) {
-                normalized = normalized.slice(1);
-            }
-            if (/^[0-9a-fA-F]{6}$/.test(normalized)) {
-                return parseInt(normalized, 16);
-            }
-        }
-        return fallback;
+        }, 140);
     }
 
-    getDefaultAtomColor(atomNumber) {
-        const palette = this.display === 'vesta' ? vesta_colors : jmol_colors;
-        const rgb = palette[atomNumber] || [0.5, 0.5, 0.5];
-        return new Color(rgb[0], rgb[1], rgb[2]).getHex();
-    }
-
-    getAtomColorHex(atomNumber) {
-        if (Object.prototype.hasOwnProperty.call(this.atomColorOverrides, atomNumber)) {
-            return this.atomColorOverrides[atomNumber];
-        }
-        return this.getDefaultAtomColor(atomNumber);
-    }
-
-    getAtomColor(atomNumber) {
-        return new Color(this.getAtomColorHex(atomNumber));
-    }
-
-    clearAtomColorOverride(atomNumber) {
-        delete this.atomColorOverrides[atomNumber];
-    }
-
-    getAtomRadiusScale(atomNumber) {
-        if (Object.prototype.hasOwnProperty.call(this.atomRadiusScaleOverrides, atomNumber)) {
-            return this.atomRadiusScaleOverrides[atomNumber];
-        }
-        return this.defaultAtomRadiusScale;
-    }
-
-    setAtomRadiusScaleOverride(atomNumber, scale) {
-        if (!Number.isFinite(scale)) {
+    updateRendererPixelRatio() {
+        if (!this.renderer) {
             return;
         }
-        this.atomRadiusScaleOverrides[atomNumber] = Math.max(0.1, scale);
-    }
-
-    getSelectedAppearanceAtomNumber() {
-        if (Number.isFinite(this.appearanceSelectedAtomNumber)) {
-            return this.appearanceSelectedAtomNumber;
-        }
-        if (this.atom_numbers && this.atom_numbers.length) {
-            return this.atom_numbers[0];
-        }
-        return null;
-    }
-
-    setSelectedAppearanceAtomNumber(atomNumber) {
-        this.appearanceSelectedAtomNumber = atomNumber;
-        if (this.domAppearanceAtomList && this.domAppearanceAtomList.length) {
-            this.domAppearanceAtomList.find('button').removeClass('active');
-            this.domAppearanceAtomList.find(`button[data-atom-number="${atomNumber}"]`).addClass('active');
+        this.renderer.setPixelRatio(this.getPreferredPixelRatio());
+        if (this.dimensions && this.dimensions.width && this.dimensions.height) {
+            this.renderer.setSize(this.dimensions.width, this.dimensions.height, false);
         }
     }
 
@@ -64630,28 +65987,9 @@ class ExcitonWf {
         this.domBondAddAtomA = domBondAddAtomA;
         this.domBondAddAtomB = domBondAddAtomB;
         this.domBondAddCutoffInput = domBondAddCutoffInput;
+        const updateBondColorInputState = createBondColorInputStateUpdater(this, domBondColorInput);
 
-        const updateBondColorInputState = () => {
-            if (domBondColorInput && domBondColorInput.length) {
-                domBondColorInput.prop('disabled', this.bondColorByAtom);
-            }
-        };
-
-        if (domAtomList && domAtomList.length) {
-            domAtomList.on('click', 'button[data-atom-number]', (event) => {
-                const atomNumber = Number(event.currentTarget.getAttribute('data-atom-number'));
-                if (!Number.isFinite(atomNumber)) {
-                    return;
-                }
-                this.setSelectedAppearanceAtomNumber(atomNumber);
-                if (domAtomColorInput && domAtomColorInput.length) {
-                    domAtomColorInput.val(this.colorToInputHex(this.getAtomColorHex(atomNumber)));
-                }
-                if (domAtomRadiusInput && domAtomRadiusInput.length) {
-                    domAtomRadiusInput.val(this.getAtomRadiusScale(atomNumber));
-                }
-            });
-        }
+        bindAppearanceAtomSelection(this, domAtomList, domAtomColorInput, domAtomRadiusInput);
 
         const applyAppearanceSettings = () => {
             const atomNumber = Number(this.getSelectedAppearanceAtomNumber());
@@ -64710,12 +66048,6 @@ class ExcitonWf {
             domAtomRadiusInput.attr('min', 0.1);
             domAtomRadiusInput.attr('max', 5.0);
             domAtomRadiusInput.attr('step', 0.05);
-            domAtomRadiusInput.on('keydown', (event) => {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
-                    applyAppearanceSettings();
-                }
-            });
         }
 
         if (domBondRadiusInput && domBondRadiusInput.length) {
@@ -64723,72 +66055,21 @@ class ExcitonWf {
             domBondRadiusInput.attr('max', 1.0);
             domBondRadiusInput.attr('step', 0.01);
             domBondRadiusInput.val(this.bondRadius);
-            domBondRadiusInput.on('keydown', (event) => {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
-                    applyAppearanceSettings();
-                }
-            });
         }
 
-        if (domBondRulesList && domBondRulesList.length) {
-            domBondRulesList.on('click', 'button[data-remove-key]', (event) => {
-                const key = event.currentTarget.getAttribute('data-remove-key');
-                if (key && this.bondRules[key]) {
-                    delete this.bondRules[key];
-                    this.refreshAppearanceControls();
-                    this.updateStructure();
-                }
-            });
-        }
+        bindBondRuleControls(
+            this,
+            domBondRulesList,
+            domBondAddAtomA,
+            domBondAddAtomB,
+            domBondAddCutoffInput,
+            () => {
+                this.refreshAppearanceControls();
+                this.updateStructure();
+            },
+        );
 
-        const updateBondCutoffInput = () => {
-            if (!domBondAddCutoffInput || !domBondAddCutoffInput.length) {
-                return;
-            }
-            const a = Number(domBondAddAtomA.val());
-            const b = Number(domBondAddAtomB.val());
-            if (!Number.isFinite(a) || !Number.isFinite(b)) {
-                return;
-            }
-            const key = this.getBondRuleKey(a, b);
-            const value = this.bondRules[key] ? this.bondRules[key].cutoff : this.getDefaultBondCutoff(a, b);
-            domBondAddCutoffInput.val(Number(value).toFixed(2));
-        };
-
-        const addBondRuleFromControls = () => {
-            const a = Number(domBondAddAtomA.val());
-            const b = Number(domBondAddAtomB.val());
-            if (!Number.isFinite(a) || !Number.isFinite(b)) {
-                return;
-            }
-            let cutoff = this.getDefaultBondCutoff(a, b);
-            if (domBondAddCutoffInput && domBondAddCutoffInput.length) {
-                const parsed = parseFloat(domBondAddCutoffInput.val());
-                if (Number.isFinite(parsed) && parsed > 0) {
-                    cutoff = parsed;
-                }
-                domBondAddCutoffInput.val(cutoff.toFixed(2));
-            }
-            this.setBondRule(a, b, cutoff);
-            this.refreshAppearanceControls();
-            this.updateStructure();
-        };
-
-        if (domBondAddAtomA && domBondAddAtomA.length) {
-            domBondAddAtomA.on('change', updateBondCutoffInput);
-        }
-        if (domBondAddAtomB && domBondAddAtomB.length) {
-            domBondAddAtomB.on('change', updateBondCutoffInput);
-        }
-        if (domBondAddCutoffInput && domBondAddCutoffInput.length) {
-            domBondAddCutoffInput.on('keydown', (event) => {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
-                    addBondRuleFromControls();
-                }
-            });
-        }
+        bindEnterToApply([domAtomRadiusInput, domBondRadiusInput], applyAppearanceSettings);
 
         if (domResetAtomButton && domResetAtomButton.length) {
             domResetAtomButton.on('click', () => {
@@ -64892,25 +66173,8 @@ class ExcitonWf {
         this.refreshBondRulesUI();
     }
 
-    getBondRuleKey(atomNumberA, atomNumberB) {
-        const a = Math.min(atomNumberA, atomNumberB);
-        const b = Math.max(atomNumberA, atomNumberB);
-        return `${a}-${b}`;
-    }
-
     getDefaultBondCutoff(atomNumberA, atomNumberB) {
         return covalent_radii[atomNumberA] + covalent_radii[atomNumberB];
-    }
-
-    setBondRule(atomNumberA, atomNumberB, cutoff) {
-        const key = this.getBondRuleKey(atomNumberA, atomNumberB);
-        const a = Math.min(atomNumberA, atomNumberB);
-        const b = Math.max(atomNumberA, atomNumberB);
-        this.bondRules[key] = {
-            a,
-            b,
-            cutoff: Number.isFinite(cutoff) ? cutoff : this.getDefaultBondCutoff(a, b),
-        };
     }
 
     initializeBondRulesFromAtoms() {
@@ -64937,45 +66201,12 @@ class ExcitonWf {
         }
     }
 
-    refreshBondRulesUI() {
-        if (!this.domBondRulesList || !this.domBondRulesList.length) {
-            return;
-        }
-        this.domBondRulesList.empty();
-        const keys = Object.keys(this.bondRules).sort();
-        if (!keys.length) {
-            this.domBondRulesList.append('<div>none</div>');
-            return;
-        }
-        for (let i = 0; i < keys.length; i++) {
-            const rule = this.bondRules[keys[i]];
-            const label =
-                `<span class="atom-badge-pair">` +
-                `${createAtomBadgeHtml(atomic_symbol[rule.a], rule.a, this.getAtomColorHex.bind(this))}` +
-                `<span class="atom-badge-separator">-</span>` +
-                `${createAtomBadgeHtml(atomic_symbol[rule.b], rule.b, this.getAtomColorHex.bind(this))}` +
-                `</span>`;
-            const cutoff = Number(rule.cutoff).toFixed(2);
-            this.domBondRulesList.append(
-                `<div class="appearance-controls"><span>${label} ${cutoff}</span><button type="button" data-remove-key="${keys[i]}">remove</button></div>`
-            );
-        }
-    }
-
     getAtomMaterials() {
         this.materials = [];
         for (let i = 0; i < this.atom_numbers.length; i++) {
             const number = this.atom_numbers[i];
             const atomColor = this.getAtomColor(number);
-            let material;
-
-            if (!this.shading) {
-                material = new MeshBasicMaterial({ blending: NormalBlending });
-            } else if (this.display === 'vesta') {
-                material = new MeshPhongMaterial({ reflectivity: 1, shininess: 80 });
-            } else {
-                material = new MeshLambertMaterial({ blending: NormalBlending });
-            }
+            let material = this.createShadedMaterial({ blending: NormalBlending });
             material.color.copy(atomColor);
             this.materials.push(material);
         }
@@ -65011,12 +66242,16 @@ class ExcitonWf {
             const atomNumber = this.atom_numbers[atomTypeIndex];
             if (!sphereGeometries.has(atomTypeIndex)) {
                 const atomScale = this.getAtomRadiusScale(atomNumber);
-                const radius = this.display === 'vesta'
-                    ? (covalent_radii[atomNumber] / 2.3) * atomScale
-                    : this.sphereRadius * atomScale;
+                const radius = getViewerAtomRadius(
+                    this.display,
+                    atomNumber,
+                    atomScale,
+                    this.sphereRadius,
+                    covalent_radii,
+                );
                 sphereGeometries.set(
                     atomTypeIndex,
-                    new SphereGeometry(radius, this.sphereLat, this.sphereLon),
+                    createAtomSphereGeometry(radius, this.sphereLat, this.sphereLon),
                 );
             }
 
@@ -65032,72 +66267,43 @@ class ExcitonWf {
             this.atomobjects.push(object);
         }
 
-        const combinations = getCombinations(this.atomobjects);
-        for (let i = 0; i < combinations.length; i++) {
-            const atomA = combinations[i][0];
-            const atomB = combinations[i][1];
-            const distance = atomA.position.distanceTo(atomB.position);
-            const key = this.getBondRuleKey(atomA.atom_number, atomB.atom_number);
-            const cutoff = this.bondRules[key] ? this.bondRules[key].cutoff : this.getDefaultBondCutoff(atomA.atom_number, atomB.atom_number);
-            if (distance < cutoff) {
-                const bond = getBond(atomA.position, atomB.position);
-                const createBondSegment = (length, midpoint, colorHex) => {
-                    const geometry = new CylinderGeometry(
-                        this.bondRadius,
-                        this.bondRadius,
-                        length,
-                        this.bondSegments,
-                        this.bondVertical,
-                        true,
-                    );
-                    let material;
-                    if (!this.shading) {
-                        material = new MeshBasicMaterial({ color: colorHex });
-                    } else if (this.display === 'vesta') {
-                        material = new MeshPhongMaterial({ color: colorHex, reflectivity: 1, shininess: 50 });
-                    } else {
-                        material = new MeshLambertMaterial({ color: colorHex });
-                    }
-                    const object = new Mesh(geometry, material);
-                    object.setRotationFromQuaternion(bond.quaternion);
-                    object.position.copy(midpoint);
-                    object.name = 'bond';
-                    this.scene.add(object);
-                    this.bondobjects.push(object);
-                };
+        this.bonds = buildBondList(
+            this.atomobjects,
+            this.bondRules,
+            this.getBondRuleKey.bind(this),
+            this.getDefaultBondCutoff.bind(this),
+            { requireRule: true },
+        );
 
-                if (this.bondColorByAtom) {
-                    const direction = new Vector3().subVectors(atomB.position, atomA.position).normalize();
-                    const halfLength = distance / 2;
-                    const midpointA = atomA.position.clone().addScaledVector(direction, halfLength / 2);
-                    const midpointB = atomB.position.clone().addScaledVector(direction, -halfLength / 2);
-                    createBondSegment(halfLength, midpointA, this.getAtomColorHex(atomA.atom_number));
-                    createBondSegment(halfLength, midpointB, this.getAtomColorHex(atomB.atom_number));
-                } else {
-                    createBondSegment(distance, bond.midpoint, this.bondscolor);
-                }
+        for (let i = 0; i < this.bonds.length; i++) {
+            const bondEntry = this.bonds[i];
+            const bond = getBond(bondEntry.a, bondEntry.b);
+            const createBondSegment = (length, midpoint, colorHex) => {
+                const geometry = createBondCylinderGeometry(
+                    this.bondRadius,
+                    length,
+                    this.bondSegments,
+                    this.bondVertical,
+                );
+                let material = this.createShadedMaterial({ color: colorHex });
+                const object = new Mesh(geometry, material);
+                object.setRotationFromQuaternion(bond.quaternion);
+                object.position.copy(midpoint);
+                object.name = 'bond';
+                this.scene.add(object);
+                this.bondobjects.push(object);
+            };
+
+            if (this.bondColorByAtom) {
+                const direction = new Vector3().subVectors(bondEntry.b, bondEntry.a).normalize();
+                const halfLength = bondEntry.baseLength / 2;
+                const midpointA = bondEntry.a.clone().addScaledVector(direction, halfLength / 2);
+                const midpointB = bondEntry.b.clone().addScaledVector(direction, -halfLength / 2);
+                createBondSegment(halfLength, midpointA, this.getAtomColorHex(bondEntry.a_atom_number));
+                createBondSegment(halfLength, midpointB, this.getAtomColorHex(bondEntry.b_atom_number));
+            } else {
+                createBondSegment(bondEntry.baseLength, bond.midpoint, this.bondscolor);
             }
-        }
-    }
-
-    addLights() {
-        this.scene.add(this.camera);
-        this.scene.add(new AmbientLight(0x333333));
-    }
-
-    updateLightStyle() {
-        if (!this.pointLight) {
-            return;
-        }
-
-        if (this.display === 'vesta') {
-            this.pointLight.color.setHex(0xffffff);
-            this.pointLight.intensity = 1.2;
-            this.pointLight.position.set(1, 1, 1);
-        } else {
-            this.pointLight.color.setHex(0xdddddd);
-            this.pointLight.intensity = 1.0;
-            this.pointLight.position.set(1, 1, 2);
         }
     }
 
@@ -65112,293 +66318,20 @@ class ExcitonWf {
         }
     }
 
-    disposeSceneObject(object) {
-        if (!object) {
-            return;
-        }
-        if (object.geometry) {
-            object.geometry.dispose();
-        }
-        if (object.material) {
-            if (Array.isArray(object.material)) {
-                for (let i = 0; i < object.material.length; i++) {
-                    if (object.material[i] && object.material[i].dispose) {
-                        object.material[i].dispose();
-                    }
-                }
-            } else if (object.material.dispose) {
-                object.material.dispose();
-            }
-        }
-    }
-
-    removeNamedSceneObjects(name) {
-        if (!this.scene) {
-            return;
-        }
-
-        for (let i = this.scene.children.length - 1; i >= 0; i--) {
-            const child = this.scene.children[i];
-            if (child && child.name === name) {
-                this.disposeSceneObject(child);
-                this.scene.remove(child);
-            }
-        }
-    }
-
-    forEachNamedSceneObject(name, callback) {
-        if (!this.scene || typeof callback !== 'function') {
-            return;
-        }
-
-        for (let i = 0; i < this.scene.children.length; i++) {
-            const child = this.scene.children[i];
-            if (child && child.name === name) {
-                callback(child);
-            }
-        }
-    }
-
     getMarchingCubesOptions() {
         return { insideIsAbove: true };
     }
 
-    getPreviewStride() {
-        const voxelCount = (this.sizex || 1) * (this.sizey || 1) * (this.sizez || 1);
-        const minSize = Math.min(this.sizex || 1, this.sizey || 1, this.sizez || 1);
-        if (minSize < 12) {
-            return 1;
-        }
-        if (voxelCount > 800000 && minSize >= 24) {
-            return 4;
-        }
-        if (voxelCount > 250000 && minSize >= 18) {
-            return 3;
-        }
-        if (voxelCount > 80000 && minSize >= 12) {
-            return 2;
-        }
-        return 1;
-    }
-
-    buildDownsampledField(values, sizex, sizey, sizez, stride, periodic) {
-        if (stride <= 1) {
-            return {
-                values,
-                sizex,
-                sizey,
-                sizez,
-            };
-        }
-
-        const reducedX = periodic ? Math.max(2, Math.floor(sizex / stride)) : Math.max(2, Math.floor((sizex - 1) / stride) + 1);
-        const reducedY = periodic ? Math.max(2, Math.floor(sizey / stride)) : Math.max(2, Math.floor((sizey - 1) / stride) + 1);
-        const reducedZ = periodic ? Math.max(2, Math.floor((sizez) / stride)) : Math.max(2, Math.floor((sizez - 1) / stride) + 1);
-        const reducedValues = new Float32Array(reducedX * reducedY * reducedZ);
-        let writeIndex = 0;
-
-        for (let z = 0; z < reducedZ; z++) {
-            const sourceZ = periodic ? (z * stride) % sizez : Math.min(z * stride, sizez - 1);
-            for (let y = 0; y < reducedY; y++) {
-                const sourceY = periodic ? (y * stride) % sizey : Math.min(y * stride, sizey - 1);
-                for (let x = 0; x < reducedX; x++) {
-                    const sourceX = periodic ? (x * stride) % sizex : Math.min(x * stride, sizex - 1);
-                    reducedValues[writeIndex] = values[sourceX + sizex * sourceY + sizex * sizey * sourceZ];
-                    writeIndex += 1;
-                }
-            }
-        }
-
-        return {
-            values: reducedValues,
-            sizex: reducedX,
-            sizey: reducedY,
-            sizez: reducedZ,
-        };
-    }
-
-    getInteractiveMarchingCubesInput() {
-        const stride = this.getPreviewStride();
-        if (stride <= 1) {
-            return {
-                values: this.values,
-                sizex: this.sizex,
-                sizey: this.sizey,
-                sizez: this.sizez,
-            };
-        }
-
-        const options = this.getMarchingCubesOptions();
-        const periodic = !!options.periodic;
-        const cacheKey = `${stride}:${this.sizex}:${this.sizey}:${this.sizez}:${periodic ? 'p' : 'n'}`;
-        if (!this.isosurfacePreviewCache || this.isosurfacePreviewCache.key !== cacheKey) {
-            this.isosurfacePreviewCache = {
-                key: cacheKey,
-                data: this.buildDownsampledField(this.values, this.sizex, this.sizey, this.sizez, stride, periodic),
-            };
-        }
-
-        return this.isosurfacePreviewCache.data;
-    }
-
-    getMarchingCubesWorker() {
-        if (this.marchingCubesWorkerFailed || typeof Worker === 'undefined') {
-            return null;
-        }
-        if (this.marchingCubesWorker) {
-            return this.marchingCubesWorker;
-        }
-
-        try {
-            this.marchingCubesWorker = new Worker(
-                new URL('./marchingcubesworker.js', import.meta.url),
-                { type: 'module' },
-            );
-            this.marchingCubesWorker.onmessage = (event) => {
-                this.marchingCubesWorkerBusy = false;
-                const { requestId, positions, normals } = event.data;
-                this.applyMarchingCubesBuffers(
-                    requestId,
-                    new Float32Array(positions),
-                    new Float32Array(normals),
-                );
-            };
-            this.marchingCubesWorker.onerror = () => {
-                this.marchingCubesWorkerBusy = false;
-                this.marchingCubesWorkerFailed = true;
-                if (this.marchingCubesWorker) {
-                    this.marchingCubesWorker.terminate();
-                    this.marchingCubesWorker = null;
-                }
-            };
-        } catch (error) {
-            this.marchingCubesWorkerFailed = true;
-            this.marchingCubesWorker = null;
-        }
-
-        return this.marchingCubesWorker;
-    }
-
-    resetMarchingCubesWorker() {
-        this.marchingCubesWorkerBusy = false;
-        if (this.marchingCubesWorker) {
-            this.marchingCubesWorker.terminate();
-            this.marchingCubesWorker = null;
-        }
-    }
-
-    createMarchingCubesGeometry(positions, normals) {
-        const geometry = new BufferGeometry();
-        geometry.setAttribute('position', new BufferAttribute(positions, 3));
-        geometry.setAttribute('normal', new BufferAttribute(normals, 3));
-        return geometry;
-    }
-
-    applyMarchingCubesBuffers(requestId, positions, normals) {
-        if (requestId !== this.marchingCubesRequestId || !this.scene) {
-            return;
-        }
-
-        this.removeNamedSceneObjects('isosurface');
-        const geometry = this.createMarchingCubesGeometry(positions, normals);
-        this.addMarchingCubesGeometry(geometry);
-        this.render();
-    }
-
     requestMarchingCubesUpdate() {
-        if (!Array.isArray(this.values) || !this.values.length || !this.scene) {
-            return;
-        }
-
-        const requestId = ++this.marchingCubesRequestId;
-        const payload = {
-            requestId,
-            values: Float32Array.from(this.values),
-            sizex: this.sizex,
-            sizey: this.sizey,
-            sizez: this.sizez,
-            gridCell: this.gridCell,
-            isolevel: this.isolevel,
-            options: this.getMarchingCubesOptions(),
-        };
-
-        const worker = this.getMarchingCubesWorker();
-        if (worker) {
-            if (this.marchingCubesWorkerBusy) {
-                this.resetMarchingCubesWorker();
-            }
-            const activeWorker = this.getMarchingCubesWorker();
-            if (activeWorker) {
-                this.marchingCubesWorkerBusy = true;
-                activeWorker.postMessage(
-                    payload,
-                    [payload.values.buffer],
-                );
-                return;
-            }
-        }
-
-        const geometry = buildMarchingCubesGeometry(
-            this.values,
-            this.sizex,
-            this.sizey,
-            this.sizez,
-            this.gridCell,
-            this.isolevel,
-            this.getMarchingCubesOptions(),
-        );
-        this.removeNamedSceneObjects('isosurface');
-        this.addMarchingCubesGeometry(geometry);
-        this.render();
+        this.isosurfaceController.requestUpdate();
     }
 
     updateIsosurfaceSync() {
-        if (!this.scene || !Array.isArray(this.values) || !this.values.length) {
-            return;
-        }
-
-        this.marchingCubesRequestId += 1;
-        if (this.marchingCubesWorkerBusy) {
-            this.resetMarchingCubesWorker();
-        }
-
-        const geometry = buildMarchingCubesGeometry(
-            this.values,
-            this.sizex,
-            this.sizey,
-            this.sizez,
-            this.gridCell,
-            this.isolevel,
-            this.getMarchingCubesOptions(),
-        );
-        this.removeNamedSceneObjects('isosurface');
-        this.addMarchingCubesGeometry(geometry);
-        this.render();
+        this.isosurfaceController.updateSync();
     }
 
     updateIsosurfacePreview() {
-        if (!this.scene || !Array.isArray(this.values) || !this.values.length) {
-            return;
-        }
-
-        this.marchingCubesRequestId += 1;
-        if (this.marchingCubesWorkerBusy) {
-            this.resetMarchingCubesWorker();
-        }
-
-        const preview = this.getInteractiveMarchingCubesInput();
-        const geometry = buildMarchingCubesGeometry(
-            preview.values,
-            preview.sizex,
-            preview.sizey,
-            preview.sizez,
-            this.gridCell,
-            this.isolevel,
-            this.getMarchingCubesOptions(),
-        );
-        this.removeNamedSceneObjects('isosurface');
-        this.addMarchingCubesGeometry(geometry);
-        this.render();
+        this.isosurfaceController.updatePreview();
     }
 
     updateIsosurface() {
@@ -65406,7 +66339,7 @@ class ExcitonWf {
     }
 
     changeIsolevel(isolevel) {
-        this.isolevel = Number(isolevel);
+        this.setIsolevelState(isolevel, { manual: true });
         this.updateIsosurfaceSync();
     }
 
@@ -65419,8 +66352,12 @@ class ExcitonWf {
         this.isosurfaceOpacity = Math.max(0, Math.min(1, numericOpacity));
         this.forEachNamedSceneObject('isosurface', (mesh) => {
             if (mesh.material) {
+                if (mesh.material.uniforms && mesh.material.uniforms.uOpacity) {
+                    mesh.material.uniforms.uOpacity.value = this.isosurfaceOpacity;
+                }
                 mesh.material.opacity = this.isosurfaceOpacity;
-                mesh.material.transparent = this.isosurfaceOpacity < 1;
+                mesh.material.transparent = true;
+                mesh.material.depthWrite = this.isosurfaceOpacity >= 0.999;
                 mesh.material.needsUpdate = true;
             }
         });
@@ -65428,7 +66365,7 @@ class ExcitonWf {
     }
 
     previewIsolevel(isolevel) {
-        this.isolevel = Number(isolevel);
+        this.setIsolevelState(isolevel, { manual: true });
         this.updateIsosurfacePreview();
     }
 
@@ -65451,40 +66388,36 @@ class ExcitonWf {
         }
     }
 
-    updateStructure() {
-        if (!this.scene || !this.excitons || !this.excitons.length) {
-            return;
-        }
-
-        this.values = this.excitons[this.excitonIndex].datagrid;
-        this.marchingCubesRequestId += 1;
-        this.removeStructure();
-
-        this.addLights();
-        this.addMarchingCubes();
-        this.getAtomMaterials();
-        this.addStructure();
-        this.render();
-    }
-
     addMarchingCubes() {
         this.requestMarchingCubesUpdate();
     }
 
+    createIsosurfaceMaterial() {
+        return new MeshLambertMaterial({
+            color: 0xffff00,
+            side: DoubleSide,
+            transparent: true,
+            opacity: this.isosurfaceOpacity,
+            depthWrite: this.isosurfaceOpacity >= 0.999,
+        });
+    }
+
     addMarchingCubesGeometry(geometry) {
-        const mesh = new Mesh(
-            geometry,
-            new MeshLambertMaterial({
-                color: 0xffff00,
-                side: DoubleSide,
-                transparent: this.isosurfaceOpacity < 1,
-                opacity: this.isosurfaceOpacity,
-                depthWrite: false,
-            }),
-        );
+        const mesh = new Mesh(geometry, this.createIsosurfaceMaterial());
         mesh.name = 'isosurface';
         mesh.position.sub(this.geometricCenter);
         this.scene.add(mesh);
+    }
+
+    addIsosurfaceObject(object) {
+        if (!object) {
+            return;
+        }
+        object.name = 'isosurface';
+        if (this.geometricCenter) {
+            object.position.copy(object.position.clone().sub(this.geometricCenter));
+        }
+        this.scene.add(object);
     }
 
     onWindowResize() {
@@ -65498,15 +66431,17 @@ class ExcitonWf {
         }
         this.camera.aspect = this.dimensions.ratio;
         this.camera.updateProjectionMatrix();
-        this.renderer.setSize(this.dimensions.width, this.dimensions.height, false);
+        this.updateRendererPixelRatio();
         this.controls.handleResize();
-        this.render();
+        this.requestRender();
     }
 
     animate() {
         requestAnimationFrame(this.animate.bind(this));
-        this.render();
         this.update();
+        if (this.continuousRender) {
+            this.render();
+        }
     }
 
     update() {
@@ -65520,9 +66455,169 @@ class ExcitonWf {
             this.renderer.render(this.scene, this.camera);
         }
     }
+
+    requestRender() {
+        if (!this.renderer || !this.scene || !this.camera) {
+            return;
+        }
+        if (this.continuousRender) {
+            this.render();
+            return;
+        }
+        if (this.renderQueued) {
+            return;
+        }
+        this.renderQueued = true;
+        requestAnimationFrame(() => {
+            this.renderQueued = false;
+            this.render();
+        });
+    }
 }
 
-class StructureViewer extends ExcitonWf {
+Object.assign(StructureViewerBase.prototype, sharedViewerMethods);
+
+function getCovalentBondLength(atomNumberA, atomNumberB, covalentRadii) {
+    return (covalentRadii[atomNumberA] || 0) + (covalentRadii[atomNumberB] || 0);
+}
+
+function getChemicalBondLimit(atomNumberA, atomNumberB, covalentRadii) {
+    const covalent = getCovalentBondLength(atomNumberA, atomNumberB, covalentRadii);
+    return Math.max(0.4, covalent + 0.45);
+}
+
+function getBondSearchLimit(atomNumberA, atomNumberB, covalentRadii) {
+    const chemical = getChemicalBondLimit(atomNumberA, atomNumberB, covalentRadii);
+    return chemical + Math.max(0.5, chemical * 0.2);
+}
+
+function getEffectiveCoordinationCandidates(siteNeighbors) {
+    if (!siteNeighbors || !siteNeighbors.length) {
+        return [];
+    }
+
+    const sorted = siteNeighbors
+        .filter((neighbor) => Number.isFinite(neighbor.distance) && neighbor.distance >= 0.4)
+        .sort((a, b) => a.distance - b.distance);
+    if (!sorted.length) {
+        return [];
+    }
+
+    const shortest = sorted[0].distance;
+    const accepted = [];
+
+    for (let i = 0; i < sorted.length; i++) {
+        const neighbor = sorted[i];
+        if (neighbor.distance > shortest + Math.max(1.0, shortest * 0.6)) {
+            break;
+        }
+
+        const relative = neighbor.distance / shortest;
+        const weight = Math.exp(1.0 - Math.pow(relative, 6));
+        if (weight < 0.35) {
+            continue;
+        }
+
+        accepted.push({
+            index: neighbor.index,
+            atom_number: neighbor.atom_number,
+            distance: neighbor.distance,
+            weight,
+        });
+    }
+
+    return accepted;
+}
+
+function buildCrystalBondRules(atoms, atomNumbers, covalentRadii, getBondRuleKey) {
+    const rules = {};
+    if (!atoms || !atoms.length || !atomNumbers || !atomNumbers.length) {
+        return rules;
+    }
+
+    const probeAtoms = atoms.map((atom, index) => ({
+        index,
+        atom_number: atomNumbers[atom[0]],
+        position: new Vector3(atom[1], atom[2], atom[3]),
+    }));
+
+    const pairDistances = {};
+    const siteNeighbors = probeAtoms.map(() => []);
+    const combinations = getCombinations(probeAtoms);
+
+    for (let i = 0; i < combinations.length; i++) {
+        const a = combinations[i][0];
+        const b = combinations[i][1];
+        const length = a.position.distanceTo(b.position);
+        const searchLimit = getBondSearchLimit(a.atom_number, b.atom_number, covalentRadii);
+        if (length <= searchLimit && length >= 0.4) {
+            siteNeighbors[a.index].push({
+                index: b.index,
+                atom_number: b.atom_number,
+                distance: length,
+            });
+            siteNeighbors[b.index].push({
+                index: a.index,
+                atom_number: a.atom_number,
+                distance: length,
+            });
+        }
+    }
+
+    const acceptedNeighbors = siteNeighbors.map((neighbors) => getEffectiveCoordinationCandidates(neighbors));
+    const acceptedNeighborMaps = acceptedNeighbors.map((neighbors) => {
+        const lookup = {};
+        for (let i = 0; i < neighbors.length; i++) {
+            lookup[neighbors[i].index] = neighbors[i];
+        }
+        return lookup;
+    });
+
+    for (let i = 0; i < combinations.length; i++) {
+        const a = combinations[i][0];
+        const b = combinations[i][1];
+        const length = a.position.distanceTo(b.position);
+        const chemicalLimit = getChemicalBondLimit(a.atom_number, b.atom_number, covalentRadii);
+        const acceptedByA = acceptedNeighborMaps[a.index][b.index];
+        const acceptedByB = acceptedNeighborMaps[b.index][a.index];
+
+        if (!acceptedByA || !acceptedByB || length > chemicalLimit) {
+            continue;
+        }
+
+        const key = getBondRuleKey(a.atom_number, b.atom_number);
+        if (!pairDistances[key]) {
+            pairDistances[key] = {
+                a: Math.min(a.atom_number, b.atom_number),
+                b: Math.max(a.atom_number, b.atom_number),
+                distances: [],
+            };
+        }
+        pairDistances[key].distances.push(length);
+    }
+
+    const keys = Object.keys(pairDistances);
+    for (let i = 0; i < keys.length; i++) {
+        const pair = pairDistances[keys[i]];
+        if (!pair.distances.length) {
+            continue;
+        }
+
+        let cutoff = Math.max.apply(null, pair.distances) + 0.04;
+        cutoff = Math.min(cutoff, getChemicalBondLimit(pair.a, pair.b, covalentRadii));
+        if (Number.isFinite(cutoff) && cutoff >= 0.4) {
+            rules[keys[i]] = {
+                a: pair.a,
+                b: pair.b,
+                cutoff,
+            };
+        }
+    }
+
+    return rules;
+}
+
+class StructureViewer extends StructureViewerBase {
 
     constructor() {
         super();
@@ -65549,7 +66644,7 @@ class StructureViewer extends ExcitonWf {
         this.sizex = data.sizex || 1;
         this.sizey = data.sizey || 1;
         this.sizez = data.sizez || 1;
-        this.isolevel = Number.isFinite(data.isolevel) ? data.isolevel : this.isolevel;
+        this.resetIsolevelState(Number.isFinite(data.isolevel) ? data.isolevel : this.getIsolevel());
         this.clearIsosurfacePreviewCache();
         this.initializeBondRulesFromAtoms();
         this.refreshAppearanceControls();
@@ -65590,60 +66685,8 @@ class StructureViewer extends ExcitonWf {
         });
     }
 
-    getCovalentBondLength(atomNumberA, atomNumberB) {
-        return (covalent_radii[atomNumberA] || 0) + (covalent_radii[atomNumberB] || 0);
-    }
-
-    getBondSearchLimit(atomNumberA, atomNumberB) {
-        const chemical = this.getChemicalBondLimit(atomNumberA, atomNumberB);
-        return chemical + Math.max(0.5, chemical * 0.2);
-    }
-
-    getChemicalBondLimit(atomNumberA, atomNumberB) {
-        const covalent = this.getCovalentBondLength(atomNumberA, atomNumberB);
-        return Math.max(0.4, covalent + 0.45);
-    }
-
     getDefaultBondCutoff(atomNumberA, atomNumberB) {
-        return this.getChemicalBondLimit(atomNumberA, atomNumberB);
-    }
-
-    getEffectiveCoordinationCandidates(siteNeighbors) {
-        if (!siteNeighbors || !siteNeighbors.length) {
-            return [];
-        }
-
-        const sorted = siteNeighbors
-            .filter((neighbor) => Number.isFinite(neighbor.distance) && neighbor.distance >= 0.4)
-            .sort((a, b) => a.distance - b.distance);
-        if (!sorted.length) {
-            return [];
-        }
-
-        const shortest = sorted[0].distance;
-        const accepted = [];
-
-        for (let i = 0; i < sorted.length; i++) {
-            const neighbor = sorted[i];
-            if (neighbor.distance > shortest + Math.max(1.0, shortest * 0.6)) {
-                break;
-            }
-
-            const relative = neighbor.distance / shortest;
-            const weight = Math.exp(1.0 - Math.pow(relative, 6));
-            if (weight < 0.35) {
-                continue;
-            }
-
-            accepted.push({
-                index: neighbor.index,
-                atom_number: neighbor.atom_number,
-                distance: neighbor.distance,
-                weight,
-            });
-        }
-
-        return accepted;
+        return getChemicalBondLimit(atomNumberA, atomNumberB, covalent_radii);
     }
 
     getReplicatedAtoms(nx, ny, nz) {
@@ -65672,84 +66715,17 @@ class StructureViewer extends ExcitonWf {
     }
 
     initializeBondRulesFromAtoms() {
-        this.bondRules = {};
         if (!this.baseAtoms || !this.baseAtoms.length || !this.atom_numbers || !this.atom_numbers.length) {
+            this.bondRules = {};
             return;
         }
 
-        const probeAtoms = this.getReplicatedAtoms(2, 2, 2).map((atom, index) => ({
-            index,
-            atom_number: this.atom_numbers[atom[0]],
-            position: new Vector3(atom[1], atom[2], atom[3]),
-        }));
-
-        const pairDistances = {};
-        const siteNeighbors = probeAtoms.map(() => []);
-        const combinations = getCombinations(probeAtoms);
-
-        for (let i = 0; i < combinations.length; i++) {
-            const a = combinations[i][0];
-            const b = combinations[i][1];
-            const length = a.position.distanceTo(b.position);
-            const searchLimit = this.getBondSearchLimit(a.atom_number, b.atom_number);
-            if (length <= searchLimit && length >= 0.4) {
-                siteNeighbors[a.index].push({
-                    index: b.index,
-                    atom_number: b.atom_number,
-                    distance: length,
-                });
-                siteNeighbors[b.index].push({
-                    index: a.index,
-                    atom_number: a.atom_number,
-                    distance: length,
-                });
-            }
-        }
-
-        const acceptedNeighbors = siteNeighbors.map((neighbors) => this.getEffectiveCoordinationCandidates(neighbors));
-        const acceptedNeighborMaps = acceptedNeighbors.map((neighbors) => {
-            const lookup = {};
-            for (let i = 0; i < neighbors.length; i++) {
-                lookup[neighbors[i].index] = neighbors[i];
-            }
-            return lookup;
-        });
-
-        for (let i = 0; i < combinations.length; i++) {
-            const a = combinations[i][0];
-            const b = combinations[i][1];
-            const length = a.position.distanceTo(b.position);
-            const chemicalLimit = this.getChemicalBondLimit(a.atom_number, b.atom_number);
-            const acceptedByA = acceptedNeighborMaps[a.index][b.index];
-            const acceptedByB = acceptedNeighborMaps[b.index][a.index];
-
-            if (!acceptedByA || !acceptedByB || length > chemicalLimit) {
-                continue;
-            }
-
-            const key = this.getBondRuleKey(a.atom_number, b.atom_number);
-            if (!pairDistances[key]) {
-                pairDistances[key] = {
-                    a: Math.min(a.atom_number, b.atom_number),
-                    b: Math.max(a.atom_number, b.atom_number),
-                    distances: [],
-                };
-            }
-            pairDistances[key].distances.push(length);
-        }
-
-        const keys = Object.keys(pairDistances);
-        for (let i = 0; i < keys.length; i++) {
-            const pair = pairDistances[keys[i]];
-            if (!pair.distances.length) {
-                continue;
-            }
-            let cutoff = Math.max.apply(null, pair.distances) + 0.04;
-            cutoff = Math.min(cutoff, this.getChemicalBondLimit(pair.a, pair.b));
-            if (Number.isFinite(cutoff) && cutoff >= 0.4) {
-                this.setBondRule(pair.a, pair.b, cutoff);
-            }
-        }
+        this.bondRules = buildCrystalBondRules(
+            this.getReplicatedAtoms(2, 2, 2),
+            this.atom_numbers,
+            covalent_radii,
+            this.getBondRuleKey.bind(this),
+        );
     }
 
     getSupercellLattice() {
@@ -65784,45 +66760,7 @@ class StructureViewer extends ExcitonWf {
         if (!this.cell || !lat) {
             return;
         }
-
-        const material = new LineBasicMaterial({ color: 0x000000 });
-        const points = [];
-        const zero = new Vector3(0, 0, 0);
-        const cursor = new Vector3(0, 0, 0);
-        const shift = this.geometricCenter;
-        const x = new Vector3(lat[0][0], lat[0][1], lat[0][2]);
-        const y = new Vector3(lat[1][0], lat[1][1], lat[1][2]);
-        const z = new Vector3(lat[2][0], lat[2][1], lat[2][2]);
-
-        cursor.copy(zero);
-        cursor.sub(shift); points.push(cursor.clone());
-        cursor.add(x); points.push(cursor.clone());
-        cursor.add(y); points.push(cursor.clone());
-        cursor.sub(x); points.push(cursor.clone());
-        cursor.sub(y); points.push(cursor.clone());
-
-        cursor.copy(zero).add(z);
-        cursor.sub(shift); points.push(cursor.clone());
-        cursor.add(x); points.push(cursor.clone());
-        cursor.add(y); points.push(cursor.clone());
-        cursor.sub(x); points.push(cursor.clone());
-        cursor.sub(y); points.push(cursor.clone());
-
-        cursor.copy(zero);
-        cursor.sub(shift); points.push(cursor.clone());
-        cursor.add(z); points.push(cursor.clone());
-
-        cursor.add(x); points.push(cursor.clone());
-        cursor.sub(z); points.push(cursor.clone());
-
-        cursor.add(y); points.push(cursor.clone());
-        cursor.add(z); points.push(cursor.clone());
-
-        cursor.sub(x); points.push(cursor.clone());
-        cursor.sub(z); points.push(cursor.clone());
-
-        const geometry = new BufferGeometry().setFromPoints(points);
-        this.scene.add(new Line(geometry, material));
+        this.scene.add(createCellLineObject(lat, this.geometricCenter));
     }
 
     getMarchingCubesOptions() {
@@ -65841,19 +66779,68 @@ class StructureViewer extends ExcitonWf {
     }
 
     addMarchingCubesGeometry(geometry) {
-        const material = new MeshLambertMaterial({
-            color: 0xffff00,
-            side: DoubleSide,
-            transparent: true,
-            opacity: 0.18,
-            depthWrite: false,
-        });
+        const material = this.createIsosurfaceMaterial();
 
         for (let ix = 0; ix < this.nx; ix++) {
             for (let iy = 0; iy < this.ny; iy++) {
                 for (let iz = 0; iz < this.nz; iz++) {
                     const mesh = new Mesh(geometry, material);
-                        mesh.name = 'isosurface';
+                    mesh.name = 'isosurface';
+                    mesh.position.set(
+                        ix * this.baseLattice[0][0] + iy * this.baseLattice[1][0] + iz * this.baseLattice[2][0] - this.geometricCenter.x,
+                        ix * this.baseLattice[0][1] + iy * this.baseLattice[1][1] + iz * this.baseLattice[2][1] - this.geometricCenter.y,
+                        ix * this.baseLattice[0][2] + iy * this.baseLattice[1][2] + iz * this.baseLattice[2][2] - this.geometricCenter.z,
+                    );
+                    this.scene.add(mesh);
+                }
+            }
+        }
+    }
+
+    addIsosurfaceObject(object) {
+        if (!object) {
+            return;
+        }
+
+        if (object.userData && object.userData.isRaymarchedIsosurface) {
+            const baseMatrix = new Matrix4().set(
+                this.baseLattice[0][0], this.baseLattice[1][0], this.baseLattice[2][0], 0,
+                this.baseLattice[0][1], this.baseLattice[1][1], this.baseLattice[2][1], 0,
+                this.baseLattice[0][2], this.baseLattice[1][2], this.baseLattice[2][2], 0,
+                0, 0, 0, 1,
+            );
+            const superLattice = this.getSupercellLattice();
+            const superMatrix = new Matrix4().set(
+                superLattice[0][0], superLattice[1][0], superLattice[2][0], 0,
+                superLattice[0][1], superLattice[1][1], superLattice[2][1], 0,
+                superLattice[0][2], superLattice[1][2], superLattice[2][2], 0,
+                0, 0, 0, 1,
+            );
+            const transform = new Matrix4().copy(superMatrix).multiply(new Matrix4().copy(baseMatrix).invert());
+            const mesh = object.clone();
+            mesh.geometry = object.geometry.clone();
+            mesh.material = object.material.clone();
+            mesh.onBeforeRender = object.onBeforeRender;
+            mesh.geometry.applyMatrix4(transform);
+            mesh.name = 'isosurface';
+            mesh.position.set(-this.geometricCenter.x, -this.geometricCenter.y, -this.geometricCenter.z);
+            mesh.userData = {
+                ...object.userData,
+                gridCell: superLattice.map((vector) => vector.slice()),
+                textureRepeat: [this.nx, this.ny, this.nz],
+            };
+            if (mesh.material && mesh.material.uniforms && mesh.material.uniforms.uTextureRepeat) {
+                mesh.material.uniforms.uTextureRepeat.value.set(this.nx, this.ny, this.nz);
+            }
+            this.scene.add(mesh);
+            return;
+        }
+
+        for (let ix = 0; ix < this.nx; ix++) {
+            for (let iy = 0; iy < this.ny; iy++) {
+                for (let iz = 0; iz < this.nz; iz++) {
+                    const mesh = object.clone();
+                    mesh.name = 'isosurface';
                     mesh.position.set(
                         ix * this.baseLattice[0][0] + iy * this.baseLattice[1][0] + iz * this.baseLattice[2][0] - this.geometricCenter.x,
                         ix * this.baseLattice[0][1] + iy * this.baseLattice[1][1] + iz * this.baseLattice[2][1] - this.geometricCenter.y,
@@ -66307,10 +67294,24 @@ class StructureWebpage {
         this.domAtompos = domAtompos;
     }
 
-    setIsolevelInput(domInput, domValue = null, domContainer = null) {
+    setIsosurfaceSection(domSection) {
+        this.domIsosurfaceSection = domSection;
+    }
+
+    setIsosurfaceModeInput(domInput) {
+        this.domIsosurfaceModeInput = domInput;
+        if (!domInput || !domInput.length) {
+            return;
+        }
+        domInput.val(this.viewer.getIsosurfaceRenderMode());
+        domInput.on('change', () => {
+            this.viewer.setIsosurfaceRenderMode(domInput.val());
+        });
+    }
+
+    setIsolevelInput(domInput, domValue = null) {
         this.domIsolevelInput = domInput;
         this.domIsolevelValue = domValue;
-        this.domIsolevelContainer = domContainer;
 
         const updateLabel = () => {
             const value = Number(domInput.val());
@@ -66332,13 +67333,12 @@ class StructureWebpage {
 
         domInput.on('input', previewHandler);
         domInput.on('change', finalHandler);
-        finalHandler();
+        updateLabel();
     }
 
-    setIsosurfaceOpacityInput(domInput, domValue = null, domContainer = null) {
+    setIsosurfaceOpacityInput(domInput, domValue = null) {
         this.domOpacityInput = domInput;
         this.domOpacityValue = domValue;
-        this.domOpacityContainer = domContainer;
 
         const handler = () => {
             const value = Number(domInput.val());
@@ -66393,14 +67393,18 @@ class StructureWebpage {
         reader.onloadend = () => {
             try {
                 const data = parseStructureFile(file.name, reader.result);
+                if (data.values) {
+                    this.configureChargeDensityRange(data);
+                }
                 this.currentData = data;
                 this.viewer.setData(data);
                 this.applyDefaultRepetitions(data.repetitions || [1, 1, 1]);
                 this.setChargeDensityVisibility(!!data.values);
                 if (this.domIsolevelInput && data.values) {
-                    this.configureChargeDensityRange(data);
-                    this.domIsolevelInput.val(Number.isFinite(data.isolevel) ? data.isolevel : Number(this.domIsolevelInput.attr('value')));
-                    this.domIsolevelInput.trigger('input');
+                    this.domIsolevelInput.val(this.viewer.getIsolevel());
+                    if (this.domIsolevelValue) {
+                        this.domIsolevelValue.text(formatIsolevelValue(this.viewer.getIsolevel()));
+                    }
                 }
                 this.setTitleText(data.formula || getFilenameStem(file.name));
                 this.updateStructureInfo(data);
@@ -66428,11 +67432,8 @@ class StructureWebpage {
     }
 
     setChargeDensityVisibility(isVisible) {
-        if (this.domIsolevelContainer) {
-            this.domIsolevelContainer.toggle(!!isVisible);
-        }
-        if (this.domOpacityContainer) {
-            this.domOpacityContainer.toggle(!!isVisible);
+        if (this.domIsosurfaceSection) {
+            this.domIsosurfaceSection.toggle(!!isVisible);
         }
     }
 
@@ -66502,8 +67503,10 @@ page.setTitle($('#name'));
 page.setLattice($('#lattice'));
 page.setAtomPositions($('#atompos'));
 page.setFileInput($('#file-input'));
-page.setIsolevelInput($('#isolevel_range'), $('#isolevel_value'), $('#isolevel_section'));
-page.setIsosurfaceOpacityInput($('#isosurface_opacity_range'), $('#isosurface_opacity_value'), $('#isosurface_opacity_section'));
+page.setIsosurfaceModeInput($('#isosurface_mode'));
+page.setIsolevelInput($('#isolevel_range'), $('#isolevel_value'));
+page.setIsosurfaceOpacityInput($('#isosurface_opacity_range'), $('#isosurface_opacity_value'));
+page.setIsosurfaceSection($('#isosurface_section'));
 page.setRepetitionControls($('#nx'), $('#ny'), $('#nz'), $('#update_replications'));
 page.setCameraDirectionButton($('#camerax'), 'x');
 page.setCameraDirectionButton($('#cameray'), 'y');
