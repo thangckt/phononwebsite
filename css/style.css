@@ -315,31 +315,11 @@ ap {
     margin-bottom: 0.22rem;
 }
 
-#ref .reference-filter-item:hover .reference-filter-text {
-    color: deepskyblue;
-}
-
-#ref .reference-filter-item.reference-filter-disabled {
-    opacity: 0.4;
-}
-
 #ref .reference-filter-toggle {
-    border: 1px solid #94a3b8;
-    background: #f8fafc;
-    color: #0f172a;
-    border-radius: 999px;
-    font: inherit;
-    font-size: 0.78em;
-    line-height: 1;
-    padding: 0.18rem 0.45rem;
+    margin: 0.18rem 0 0;
+    width: 0.95rem;
+    height: 0.95rem;
     cursor: pointer;
-    min-width: 2.5rem;
-    text-transform: lowercase;
-}
-
-#ref .reference-filter-item.reference-filter-disabled .reference-filter-toggle {
-    background: #e2e8f0;
-    color: #64748b;
 }
 
 #ref .reference-filter-text {

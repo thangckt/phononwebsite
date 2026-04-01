@@ -6,9 +6,9 @@ export class MaterialsProjectDB {
 
     constructor() {
         this.name = "mpdb";
-        this.year = 2025;
+        this.year = 2018;
         this.author = "G. Petretto et al.";
-        this.url = "https://materialsproject-parsed.s3.amazonaws.com/index.html#ph-bandstructures/dfpt/";
+        this.url = "https://www.nature.com/articles/sdata201865";
         this.probeUrl = "https://materialsproject-parsed.s3.amazonaws.com/ph-bandstructures/dfpt/mp-1000.json.gz";
     }
 

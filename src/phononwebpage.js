@@ -933,11 +933,12 @@ export class PhononWebpage {
                 if (!this.isReferenceEnabled(refKey)) {
                     li.classList.add("reference-filter-disabled");
                 }
-                let toggle = document.createElement("button");
-                toggle.type = "button";
+                let toggle = document.createElement("input");
+                toggle.type = "checkbox";
                 toggle.className = "reference-filter-toggle";
-                toggle.textContent = this.isReferenceEnabled(refKey) ? "on" : "off";
-                toggle.onclick = () => {
+                toggle.checked = this.isReferenceEnabled(refKey);
+                toggle.title = "Show materials from this source";
+                toggle.onchange = () => {
                     this.toggleReferenceEnabled(refKey);
                 };
 
