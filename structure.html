@@ -49,17 +49,22 @@
                             </div>
                         </div>
 
-                        <div class="isosurface-controls-row">
-                            <div id="isolevel_section">
-                                <h3>Isosurface level:</h3>
-                                <input id="isolevel_range" class="input-isolevel" type="range" min="0.001" max="1.0" step="0.001" value="0.02">
-                                <div id="isolevel_value">0.020</div>
+                        <div class="isosurface-section">
+                            <h3>Isosurface:</h3>
+                            <div id="isolevel_section" class="appearance-row">
+                                <label for="isolevel_range">level</label>
+                                <div class="isosurface-control-field">
+                                    <input id="isolevel_range" class="input-isolevel" type="range" min="0.001" max="1.0" step="0.001" value="0.02">
+                                    <div id="isolevel_value" class="isosurface-control-value">0.020</div>
+                                </div>
                             </div>
 
-                            <div id="isosurface_opacity_section">
-                                <h3>Isosurface opacity:</h3>
-                                <input id="isosurface_opacity_range" class="input-isolevel" type="range" min="0" max="1" step="0.01" value="0.18">
-                                <div id="isosurface_opacity_value">0.18</div>
+                            <div id="isosurface_opacity_section" class="appearance-row">
+                                <label for="isosurface_opacity_range">opacity</label>
+                                <div class="isosurface-control-field">
+                                    <input id="isosurface_opacity_range" class="input-isolevel" type="range" min="0" max="1" step="0.01" value="0.18">
+                                    <div id="isosurface_opacity_value" class="isosurface-control-value">0.18</div>
+                                </div>
                             </div>
                         </div>
 
