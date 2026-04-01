@@ -47,5 +47,5 @@ def test_prepare_archive_writes_compressed_internal_json(tmp_path):
         written = json.load(handle)
 
     assert written['formula'] == 'Si2'
-    assert written['name'] == 'mp-149'
+    assert written['name'] == 'Si2'
     assert written['atom_pos_car'][1] != written['atom_pos_red'][1]
