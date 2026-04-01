@@ -1119,7 +1119,8 @@ export class ExcitonWf {
         this.forEachNamedSceneObject('isosurface', (mesh) => {
             if (mesh.material) {
                 mesh.material.opacity = this.isosurfaceOpacity;
-                mesh.material.transparent = this.isosurfaceOpacity < 1;
+                mesh.material.transparent = true;
+                mesh.material.depthWrite = this.isosurfaceOpacity >= 0.999;
                 mesh.material.needsUpdate = true;
             }
         });
@@ -1170,16 +1171,20 @@ export class ExcitonWf {
         this.requestMarchingCubesUpdate();
     }
 
+    createIsosurfaceMaterial() {
+        return new THREE.MeshLambertMaterial({
+            color: 0xffff00,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: this.isosurfaceOpacity,
+            depthWrite: this.isosurfaceOpacity >= 0.999,
+        });
+    }
+
     addMarchingCubesGeometry(geometry) {
         const mesh = new THREE.Mesh(
             geometry,
-            new THREE.MeshLambertMaterial({
-                color: 0xffff00,
-                side: THREE.DoubleSide,
-                transparent: this.isosurfaceOpacity < 1,
-                opacity: this.isosurfaceOpacity,
-                depthWrite: false,
-            }),
+            this.createIsosurfaceMaterial(),
         );
         mesh.name = 'isosurface';
         mesh.position.sub(this.geometricCenter);

@@ -323,19 +323,13 @@ export class StructureViewer extends ExcitonWf {
     }
 
     addMarchingCubesGeometry(geometry) {
-        const material = new THREE.MeshLambertMaterial({
-            color: 0xffff00,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.18,
-            depthWrite: false,
-        });
+        const material = this.createIsosurfaceMaterial();
 
         for (let ix = 0; ix < this.nx; ix++) {
             for (let iy = 0; iy < this.ny; iy++) {
                 for (let iz = 0; iz < this.nz; iz++) {
                     const mesh = new THREE.Mesh(geometry, material);
-                        mesh.name = 'isosurface';
+                    mesh.name = 'isosurface';
                     mesh.position.set(
                         ix * this.baseLattice[0][0] + iy * this.baseLattice[1][0] + iz * this.baseLattice[2][0] - this.geometricCenter.x,
                         ix * this.baseLattice[0][1] + iy * this.baseLattice[1][1] + iz * this.baseLattice[2][1] - this.geometricCenter.y,
