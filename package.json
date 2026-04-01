@@ -40,7 +40,7 @@
     "test:browser": "PLAYWRIGHT_SMOKE=1 mocha test/browser-smoke.test.cjs --timeout 30000",
     "test:py": "python3 -m pytest python/phononweb/tests -q",
     "prepare:phonondb": "python3 python/phononweb/scripts/prepare_phonondb.py",
-    "prepare:phonondb:local": "python3 python/phononweb/scripts/prepare_phonondb.py --output-dir data/phonondb2017 --manifest data/phonondb2017/models.json --band-points 11"
+    "prepare:phonondb:local": "python3 python/phononweb/scripts/prepare_phonondb.py --output-dir data/phonondb2017 --manifest data/phonondb2017/models.json --band-points 15 --skip-existing"
   },
   "repository": {
     "type": "git",

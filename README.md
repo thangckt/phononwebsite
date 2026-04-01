@@ -37,19 +37,25 @@ After installing the Python package:
 
 You can convert one archive or a full directory with:
 
-    $ prepare_phonondb /path/to/phonondb2017 --output-dir data/phonondb2017 --band-points 11
+    $ prepare_phonondb /path/to/phonondb2017 --output-dir data/phonondb2017 --band-points 15
 
 or directly from the repository checkout with:
 
-    $ python3 python/phononweb/scripts/prepare_phonondb.py /path/to/phonondb2017 --output-dir data/phonondb2017 --band-points 11
+    $ python3 python/phononweb/scripts/prepare_phonondb.py /path/to/phonondb2017 --output-dir data/phonondb2017 --band-points 15
 
 There is also an npm wrapper for local use. This writes the generated files into `data/phonondb2017`, updates `data/phonondb2017/models.json`, and makes the converted materials appear in the website menu:
 
     $ npm run prepare:phonondb:local -- /path/to/phonondb2017 --limit 10
 
+The local npm command is resumable by default and skips archives whose `.json.gz` output already exists.
+
 You can also use the generic passthrough command if you want full control over the output location:
 
-    $ npm run prepare:phonondb -- /path/to/phonondb2017 --output-dir data/phonondb2017 --manifest data/phonondb2017/models.json --band-points 11 --limit 10
+    $ npm run prepare:phonondb -- /path/to/phonondb2017 --output-dir data/phonondb2017 --manifest data/phonondb2017/models.json --band-points 15 --limit 10
+
+To control parallelism, pass `--jobs`:
+
+    $ npm run prepare:phonondb:local -- /path/to/phonondb2017 --limit 10 --jobs 4
 
 The converter uses a seekpath high-symmetry path with:
 

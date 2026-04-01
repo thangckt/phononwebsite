@@ -7,6 +7,7 @@
 """Prepare ready-to-serve compressed JSON files from raw PhononDB archives."""
 
 import argparse
+import concurrent.futures
 import gzip
 import json
 import sys
@@ -51,7 +52,7 @@ def parse_args():
     parser.add_argument(
         "--band-points",
         type=int,
-        default=11,
+        default=15,
         help="Number of points per high-symmetry segment.",
     )
     parser.add_argument(
@@ -86,6 +87,12 @@ def parse_args():
         "--skip-existing",
         action="store_true",
         help="Skip archives whose output .json.gz already exists.",
+    )
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        help="Number of archives to convert in parallel. Use 1 for serial execution.",
     )
     return parser.parse_args()
 
@@ -419,6 +426,31 @@ def prepare_archive(archive_path: Path, output_dir: Path, repetitions, band_poin
         return payload, output_path
 
 
+def prepare_archive_task(task):
+    archive_path = Path(task["archive_path"])
+    output_dir = Path(task["output_dir"])
+    repetitions = task["repetitions"]
+    band_points = task["band_points"]
+    name_mode = task["name_mode"]
+    started_at = time.perf_counter()
+    payload, output_path = prepare_archive(
+        archive_path,
+        output_dir=output_dir,
+        repetitions=repetitions,
+        band_points=band_points,
+        name_mode=name_mode,
+    )
+    elapsed = time.perf_counter() - started_at
+    return {
+        "index": task["index"],
+        "total": task["total"],
+        "archive_name": archive_path.name,
+        "payload": payload,
+        "output_path": str(output_path),
+        "elapsed": elapsed,
+    }
+
+
 def main():
     args = parse_args()
     repetitions = parse_repetitions(args.repetitions)
@@ -433,6 +465,7 @@ def main():
 
     manifest = []
     total_archives = len(archives)
+    pending_tasks = []
     for index, archive in enumerate(archives, start=1):
         if args.max_atoms is not None:
             natoms = get_archive_primitive_natoms(archive)
@@ -452,18 +485,52 @@ def main():
                 print(f"[{index}/{total_archives}] Skipping {archive.name}: {output_path.name} already exists", flush=True)
                 continue
 
-        print(f"[{index}/{total_archives}] Processing {archive.name}...", flush=True)
-        started_at = time.perf_counter()
-        payload, output_path = prepare_archive(
-            archive,
-            output_dir=output_dir,
-            repetitions=repetitions,
-            band_points=args.band_points,
-            name_mode=args.name_from,
-        )
-        manifest.append(build_manifest_entry(payload, output_path))
-        elapsed = time.perf_counter() - started_at
-        print(f"[{index}/{total_archives}] Wrote {output_path} in {elapsed:.1f}s", flush=True)
+        print(f"[{index}/{total_archives}] Queued {archive.name}...", flush=True)
+        pending_tasks.append({
+            "index": index,
+            "total": total_archives,
+            "archive_path": str(archive),
+            "output_dir": str(output_dir),
+            "repetitions": repetitions,
+            "band_points": args.band_points,
+            "name_mode": args.name_from,
+        })
+
+    jobs = max(1, int(args.jobs))
+    if jobs == 1:
+        for task in pending_tasks:
+            print(f"[{task['index']}/{task['total']}] Processing {Path(task['archive_path']).name}...", flush=True)
+            result = prepare_archive_task(task)
+            output_path = Path(result["output_path"])
+            manifest.append(build_manifest_entry(result["payload"], output_path))
+            print(
+                f"[{result['index']}/{result['total']}] Wrote {output_path} in {result['elapsed']:.1f}s",
+                flush=True,
+            )
+    else:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=jobs) as executor:
+            future_map = {}
+            for task in pending_tasks:
+                print(
+                    f"[{task['index']}/{task['total']}] Processing {Path(task['archive_path']).name} "
+                    f"(worker pool, jobs={jobs})...",
+                    flush=True,
+                )
+                future = executor.submit(prepare_archive_task, task)
+                future_map[future] = task
+
+            results = []
+            for future in concurrent.futures.as_completed(future_map):
+                result = future.result()
+                output_path = Path(result["output_path"])
+                results.append((result["index"], build_manifest_entry(result["payload"], output_path)))
+                print(
+                    f"[{result['index']}/{result['total']}] Wrote {output_path} in {result['elapsed']:.1f}s",
+                    flush=True,
+                )
+
+            for _, manifest_entry in sorted(results, key=lambda item: item[0]):
+                manifest.append(manifest_entry)
 
     if args.manifest:
         manifest_path = Path(args.manifest).expanduser().resolve()
