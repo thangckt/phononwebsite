@@ -1,24 +1,16 @@
 import * as THREE from 'three';
-import { TrackballControls } from './static_libs/TrackballControls.js';
 import { Stats } from './static_libs/stats.min.js';
 import * as atomic_data from './atomic_data.js';
 import * as utils from './utils.js';
 import * as mat from './mat.js';
 import { createAtomBadgeHtml } from './atomcolors.js';
+import { sharedViewerMethods } from './viewercommon.js';
+import { StructureViewerBase } from './structureviewerbase.js';
 
 const vec_y = new THREE.Vector3( 0, 1, 0 );
 const vec_0 = new THREE.Vector3( 0, 0, 0 );
 const direction = new THREE.Vector3( 0, 0, 0 );
 const quaternion = new THREE.Quaternion();
-
-function getSharedLightConfig() {
-    return {
-        color: 0xdddddd,
-        intensity: 1.0,
-        position: [1, 1, 2],
-        ambient: 0x333333,
-    };
-}
 
 function getComplexParts(z) {
     if (z && z.__rawComplex) {
@@ -56,12 +48,13 @@ function getBond( point1, point2 ) {
              midpoint: point1.clone().add( direction.multiplyScalar(0.5) ) };
 }
 
-export class VibCrystal {
+export class VibCrystal extends StructureViewerBase {
     /*
     Class to show phonon vibrations using Three.js and WebGl
     */
 
     constructor(container) {
+        super();
 
         this.display = 'jmol'; //use jmol or vesta displaystyle
 
@@ -71,7 +64,6 @@ export class VibCrystal {
         this.needsRender = true;
         this.arrows = false;
         this.cell = false;
-        this.shading = true;
         this.paused = false;
         this.initialized = false;
 
@@ -80,11 +72,6 @@ export class VibCrystal {
         this.dimensions = this.getContainerDimensions();
 
         this.stats = null;
-        this.camera = null;
-        this.pointLight = null;
-        this.controls = null;
-        this.scene = null;
-        this.renderer = null;
         this.capturer = null;
         this.captureState = 'idle';
         this.vibrationComponents = [];
@@ -141,19 +128,13 @@ export class VibCrystal {
         this.fps = 60;
 
         this.arrowcolor = 0xbbffbb;
-        this.bondscolor = 0xffffff;
         this.defaultArrowColor = this.arrowcolor;
         this.defaultBondsColor = this.bondscolor;
-        this.bondColorByAtom = true;
         this.defaultBondColorByAtom = this.bondColorByAtom;
         this.atomRadiusScale = 1.0;
         this.defaultAtomRadiusScale = this.atomRadiusScale;
         this.defaultBondRadius = this.bondRadius;
         this.defaultArrowRadius = this.arrowRadius;
-        this.atomColorOverrides = {};
-        this.atomRadiusScaleOverrides = {};
-        this.bondRules = {};
-        this.appearanceSelectedAtomNumber = null;
         this.arrowobjects = [];
         this.atomobjects = [];
         this.atommeshes = [];
@@ -169,75 +150,11 @@ export class VibCrystal {
 		this.modified_covalent_radii = JSON.parse(JSON.stringify(atomic_data.covalent_radii));
     }
 
-    colorToInputHex(colorHex) {
-        return '#' + Number(colorHex).toString(16).padStart(6, '0');
-    }
-
-    normalizeColorHex(value, fallback) {
-        if (typeof value === 'number' && Number.isFinite(value)) {
-            return value;
-        }
-        if (typeof value === 'string') {
-            let normalized = value.trim();
-            if (!normalized) {
-                return fallback;
-            }
-            if (normalized.startsWith('#')) {
-                normalized = normalized.slice(1);
-            }
-            if (/^[0-9a-fA-F]{6}$/.test(normalized)) {
-                return parseInt(normalized, 16);
-            }
-        }
-        return fallback;
-    }
-
-    getDefaultAtomColor(atomNumber) {
-        let palette = this.display == 'vesta' ? atomic_data.vesta_colors : atomic_data.jmol_colors;
-        let rgb = palette[atomNumber] || [0.5, 0.5, 0.5];
-        return new THREE.Color(rgb[0], rgb[1], rgb[2]).getHex();
-    }
-
-    getAtomColorHex(atomNumber) {
-        if (Object.prototype.hasOwnProperty.call(this.atomColorOverrides, atomNumber)) {
-            return this.atomColorOverrides[atomNumber];
-        }
-        return this.getDefaultAtomColor(atomNumber);
-    }
-
-    getAtomColor(atomNumber) {
-        return new THREE.Color(this.getAtomColorHex(atomNumber));
-    }
-
     setAtomColorOverride(atomNumber, colorValue) {
         this.atomColorOverrides[atomNumber] = this.normalizeColorHex(
             colorValue,
             this.getDefaultAtomColor(atomNumber)
         );
-    }
-
-    clearAtomColorOverride(atomNumber) {
-        delete this.atomColorOverrides[atomNumber];
-    }
-
-    getAtomRadiusScale(atomNumber) {
-        if (Object.prototype.hasOwnProperty.call(this.atomRadiusScaleOverrides, atomNumber)) {
-            return this.atomRadiusScaleOverrides[atomNumber];
-        }
-        return this.defaultAtomRadiusScale;
-    }
-
-    setAtomRadiusScaleOverride(atomNumber, scale) {
-        if (!Number.isFinite(scale)) {
-            return;
-        }
-        this.atomRadiusScaleOverrides[atomNumber] = Math.max(0.1, scale);
-    }
-
-    getBondRuleKey(atomNumberA, atomNumberB) {
-        let a = Math.min(atomNumberA, atomNumberB);
-        let b = Math.max(atomNumberA, atomNumberB);
-        return a + '-' + b;
     }
 
     getCovalentRadius(atomNumber) {
@@ -303,24 +220,6 @@ export class VibCrystal {
         }
 
         return accepted;
-    }
-
-    setBondRule(atomNumberA, atomNumberB, cutoff) {
-        let key = this.getBondRuleKey(atomNumberA, atomNumberB);
-        let a = Math.min(atomNumberA, atomNumberB);
-        let b = Math.max(atomNumberA, atomNumberB);
-        let c = Number.isFinite(cutoff) ? cutoff : this.getDefaultBondCutoff(a, b);
-        this.bondRules[key] = { a: a, b: b, cutoff: c };
-    }
-
-    removeBondRule(atomNumberA, atomNumberB) {
-        let key = this.getBondRuleKey(atomNumberA, atomNumberB);
-        delete this.bondRules[key];
-    }
-
-    hasBondRule(atomNumberA, atomNumberB) {
-        let key = this.getBondRuleKey(atomNumberA, atomNumberB);
-        return Object.prototype.hasOwnProperty.call(this.bondRules, key);
     }
 
     initializeBondRulesFromAtoms(atoms, atom_numbers) {
@@ -399,36 +298,6 @@ export class VibCrystal {
             if (Number.isFinite(cutoff) && cutoff >= 0.4) {
                 this.setBondRule(pair.a, pair.b, cutoff);
             }
-        }
-    }
-
-    refreshBondRulesUI(unique_atom_numbers) {
-        if (!this.dom_bond_rules_list || !this.dom_bond_rules_list.length) {
-            return;
-        }
-        this.dom_bond_rules_list.empty();
-
-        let keys = Object.keys(this.bondRules).sort();
-        if (!keys.length) {
-            this.dom_bond_rules_list.append('<div>none</div>');
-            return;
-        }
-
-        for (let i=0; i<keys.length; i++) {
-            let rule = this.bondRules[keys[i]];
-            let label =
-                '<span class="atom-badge-pair">' +
-                createAtomBadgeHtml(atomic_data.atomic_symbol[rule.a], rule.a, this.getAtomColorHex.bind(this)) +
-                '<span class="atom-badge-separator">-</span>' +
-                createAtomBadgeHtml(atomic_data.atomic_symbol[rule.b], rule.b, this.getAtomColorHex.bind(this)) +
-                '</span>';
-            let cutoff = Number(rule.cutoff).toFixed(2);
-            this.dom_bond_rules_list.append(
-                '<div class="appearance-controls">' +
-                '<span>' + label + ' ' + cutoff + '</span>' +
-                '<button type="button" data-remove-key="' + keys[i] + '">remove</button>' +
-                '</div>'
-            );
         }
     }
 
@@ -626,24 +495,6 @@ export class VibCrystal {
         // Legacy API kept for compatibility. Advanced appearance now owns these controls.
         this.dom_covalent_radii_select = dom_select;
         this.dom_covalent_radii_input = dom_input;
-    }
-
-    getSelectedAppearanceAtomNumber() {
-        if (Number.isFinite(this.appearanceSelectedAtomNumber)) {
-            return this.appearanceSelectedAtomNumber;
-        }
-        if (this.atom_numbers && this.atom_numbers.length) {
-            return this.atom_numbers[0];
-        }
-        return null;
-    }
-
-    setSelectedAppearanceAtomNumber(atomNumber) {
-        this.appearanceSelectedAtomNumber = atomNumber;
-        if (this.dom_appearance_atom_list && this.dom_appearance_atom_list.length) {
-            this.dom_appearance_atom_list.find('button').removeClass('active');
-            this.dom_appearance_atom_list.find('button[data-atom-number="' + atomNumber + '"]').addClass('active');
-        }
     }
 
     adjustCovalentRadiiSelect() {
@@ -1048,70 +899,29 @@ export class VibCrystal {
         }
     }
 
-    init(phonon) {
+    init() {
         /*
         Initialize the phonon animation
         */
-
-
-        //add camera
-        this.camera = new THREE.PerspectiveCamera( this.cameraViewAngle, this.dimensions.ratio,
-                                                   this.cameraNear, this.cameraFar );
-        this.setCameraDirection('z');
-
-        //add lights to the camera
-        let lightConfig = getSharedLightConfig();
-        this.pointLight = new THREE.PointLight( lightConfig.color, lightConfig.intensity );
-        this.pointLight.position.set(...lightConfig.position);
-        this.pointLight.visible = true;
-        this.camera.add(this.pointLight);
-
-        //controls
-        this.controls = new TrackballControls( this.camera, this.container0 );
-        this.controls.rotateSpeed = 1.0;
-        this.controls.zoomSpeed = 1.0;
-        this.controls.panSpeed = 0.3;
-        this.controls.noZoom = false;
-        this.controls.noPan = false;
-        this.controls.staticMoving = true;
-        this.controls.dynamicDampingFactor = 0.3;
-        this.controls.addEventListener( 'change', function() {
-            this.needsRender = true;
-            if (this.paused) {
-                this.render();
-            }
-        }.bind(this) );
-
-        // world
-        this.scene = new THREE.Scene();
-
-        // renderer
-        this.renderer = new THREE.WebGLRenderer( { antialias: true } );
-        this.renderer.setClearColor( 0xffffff );
-        this.renderer.setPixelRatio( window.devicePixelRatio );
-        this.renderer.shadowMap.enabled = false;
-        this.renderer.setSize( this.dimensions.width , this.dimensions.height );
-        this.container0.appendChild( this.renderer.domElement );
-        this.canvas = this.renderer.domElement;
-        this.canvas.style.display = 'block';
-
-        // Ensure a visible drawing area even when CSS/flex layout reports 0 height.
-        if (!this.container0.clientHeight) {
-            this.container0.style.height = this.dimensions.height + 'px';
-        }
-        if (this.container0.parentElement && !this.container0.parentElement.clientHeight) {
-            this.container0.parentElement.style.height = this.dimensions.height + 'px';
-        }
-        //this.canvas.style.width = this.dimensions.width + "px";
-        //this.canvas.style.height = this.dimensions.height + "px";
-
-        //frame counter
-        this.stats = new Stats();
-        this.container0.appendChild( this.stats.domElement );
-
-        //resizer
-        window.addEventListener( 'resize', this.onWindowResize.bind(this), false );
-        this.onWindowResize();
+        super.init(this.container, {
+            controlsElement: this.container0,
+            startAnimation: false,
+            configureControls: (controls) => {
+                controls.noZoom = false;
+                controls.noPan = false;
+                controls.addEventListener('change', () => {
+                    this.needsRender = true;
+                    if (this.paused) {
+                        this.render();
+                    }
+                });
+            },
+            afterInit: () => {
+                this.renderer.shadowMap.enabled = false;
+                this.stats = new Stats();
+                this.container0.appendChild(this.stats.domElement);
+            },
+        });
     }
 
     captureend(format) {
@@ -1196,21 +1006,6 @@ export class VibCrystal {
         return safe + suffix + '.' + format;
     }
 
-    setCameraDirection(direction) {
-        if (direction == 'x') {
-            this.camera.position.set( this.cameraDistance, 0, 0);
-            this.camera.up.set( 0, 0, 1 );
-        }
-        if (direction == 'y') {
-            this.camera.position.set( 0, this.cameraDistance, 0);
-            this.camera.up.set( 0, 0, 1 );
-        }
-        if (direction == 'z') {
-            this.camera.position.set( 0, 0, this.cameraDistance);
-            this.camera.up.set( 0, 1, 0 );
-        }
-    }
-
     getAtypes(atom_numbers) {
         this.materials = [];
         this.atom_numbers = atom_numbers;
@@ -1222,16 +1017,6 @@ export class VibCrystal {
             material.color.copy(atomColor);
             this.materials.push( material );
         }
-    }
-
-    createShadedMaterial(config = {}) {
-        if (!this.shading) {
-            return new THREE.MeshBasicMaterial(config);
-        }
-        return new THREE.MeshLambertMaterial({
-            blending: THREE.NormalBlending,
-            ...config
-        });
     }
 
     refreshAtomMeshColors() {
@@ -1638,15 +1423,6 @@ export class VibCrystal {
         }
     }
 
-    addLights() {
-        this.scene.add(this.camera);
-        if (this.pointLight) {
-            this.pointLight.visible = true;
-        }
-        let light = new THREE.AmbientLight( getSharedLightConfig().ambient );
-        this.scene.add( light );
-    }
-
     update(phononweb) {
         /*
         this is the entry point of the phononweb
@@ -1671,7 +1447,7 @@ export class VibCrystal {
 
         //check if it is initialized
         if (!this.initialized) {
-            this.init(phononweb)
+            this.init()
             this.initialized = true;
         }
 
@@ -1696,43 +1472,13 @@ export class VibCrystal {
         this.startAnimationLoop();
     }
 
-    getContainerDimensions() {
-        let w = this.container.width();
-        let h = this.container.height();
-
-        // In module/deferred startup paths, initial flex layout can report 0x0.
-        // Fall back to actual DOM rects (container, parent, then window) so WebGL gets a real size.
-        if (!w || !h) {
-            let rect = this.container0.getBoundingClientRect();
-            w = rect.width;
-            h = rect.height;
-        }
-        if ((!w || !h) && this.container0.parentElement) {
-            let rect = this.container0.parentElement.getBoundingClientRect();
-            w = rect.width;
-            h = rect.height;
-        }
-        if (!w || !h) {
-            w = Math.max(window.innerWidth * 0.5, 300);
-            h = Math.max(window.innerHeight * 0.5, 300);
-        }
-
-        let dimensions = { width: w,
-                           height: h,
-                           ratio: ( w / h ) };
-        return dimensions;
+    onWindowResize() {
+        super.onWindowResize();
+        this.needsRender = true;
     }
 
-    onWindowResize() {
-        this.dimensions = this.getContainerDimensions();
-
-        this.camera.aspect = this.dimensions.ratio;
-        this.camera.updateProjectionMatrix();
-
-        this.renderer.setSize( this.dimensions.width, this.dimensions.height );
-        this.controls.handleResize();
-        this.needsRender = true;
-        this.render();
+    updateStructure() {
+        this.updatelocal();
     }
 
     playpause() {
@@ -1897,3 +1643,5 @@ export class VibCrystal {
         this.needsRender = false;
     }
 }
+
+Object.assign(VibCrystal.prototype, sharedViewerMethods);

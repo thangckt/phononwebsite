@@ -65,7 +65,7 @@ export class StructureViewerBase {
         this.isosurfacePreviewCache = null;
     }
 
-    init(container) {
+    init(container = this.container, options = {}) {
         this.container = container;
         const containerElement = container.get(0);
         this.dimensions = this.getContainerDimensions();
@@ -101,18 +101,27 @@ export class StructureViewerBase {
             containerElement.parentElement.style.height = `${this.dimensions.height}px`;
         }
 
-        this.controls = new TrackballControls(this.camera, this.renderer.domElement);
+        const controlsElement = options.controlsElement || this.renderer.domElement;
+        this.controls = new TrackballControls(this.camera, controlsElement);
         this.controls.rotateSpeed = 1.0;
         this.controls.zoomSpeed = 1.0;
         this.controls.panSpeed = 0.3;
         this.controls.staticMoving = true;
         this.controls.dynamicDampingFactor = 0.3;
+        if (typeof options.configureControls === 'function') {
+            options.configureControls(this.controls);
+        }
 
         window.addEventListener('resize', this.onWindowResize.bind(this), false);
 
         this.isInitialized = true;
+        if (typeof options.afterInit === 'function') {
+            options.afterInit();
+        }
         this.onWindowResize();
-        this.animate();
+        if (options.startAnimation !== false) {
+            this.animate();
+        }
     }
 
     clearIsosurfacePreviewCache() {
