@@ -63910,6 +63910,7 @@ function bindBondRuleControls(
     domBondAddAtomA,
     domBondAddAtomB,
     domBondAddCutoffInput,
+    domBondAddButton,
     onRulesChanged,
 ) {
     if (domBondRulesList && domBondRulesList.length) {
@@ -63966,6 +63967,12 @@ function bindBondRuleControls(
                 event.preventDefault();
                 addBondRuleFromControls();
             }
+        });
+    }
+    if (domBondAddButton && domBondAddButton.length) {
+        domBondAddButton.on('click', (event) => {
+            event.preventDefault();
+            addBondRuleFromControls();
         });
     }
 }
