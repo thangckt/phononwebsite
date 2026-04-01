@@ -20,13 +20,29 @@ export class LocalPhononDB {
         let name = this.name;
         let root = this.root;
         let generated = this.generated;
+        let finishEmpty = function() {
+            callback([]);
+        };
 
         function dothings(catalog) {
-            $.get(generated, function(localEntries) {
+            let request;
+            try {
+                request = $.get(generated, function(localEntries) {
                 let localById = {};
                 for (let i = 0; i < localEntries.length; i++) {
                     let entry = localEntries[i];
-                    localById[String(entry.id)] = entry;
+                    if (typeof entry === "string") {
+                        localById[String(entry)] = {
+                            id: String(entry),
+                            file: entry + ".json.gz"
+                        };
+                    } else if (entry && entry.id != null) {
+                        let id = String(entry.id);
+                        localById[id] = Object.assign({
+                            id: id,
+                            file: entry.file || (id + ".json.gz")
+                        }, entry);
+                    }
                 }
 
                 let materials = [];
@@ -47,13 +63,31 @@ export class LocalPhononDB {
                 }
 
                 callback(materials);
-            }).fail(function() {
-                callback([]);
-            });
+                });
+            } catch (error) {
+                finishEmpty();
+                return;
+            }
+
+            if (request && typeof request.fail === "function") {
+                request.fail(function() {
+                    finishEmpty();
+                });
+            }
         }
 
-        $.get(this.catalog, dothings).fail(function() {
-            callback([]);
-        });
+        let request;
+        try {
+            request = $.get(this.catalog, dothings);
+        } catch (error) {
+            finishEmpty();
+            return;
+        }
+
+        if (request && typeof request.fail === "function") {
+            request.fail(function() {
+                finishEmpty();
+            });
+        }
     }
 }
