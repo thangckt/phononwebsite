@@ -488,10 +488,18 @@ export class VibCrystal extends StructureViewerBase {
         domBondAddAtomA,
         domBondAddAtomB,
         domBondAddCutoffInput,
+        domBondAddButton,
         domResetAtomButton,
         domResetBondsButton,
         domResetVectorsButton,
     ) {
+        if (typeof domResetVectorsButton === 'undefined') {
+            domResetVectorsButton = domResetBondsButton;
+            domResetBondsButton = domResetAtomButton;
+            domResetAtomButton = domBondAddButton;
+            domBondAddButton = null;
+        }
+
         let self = this;
         this.dom_appearance_atom_list = domAtomList;
         this.dom_display_select = domDisplaySelect;
@@ -506,6 +514,7 @@ export class VibCrystal extends StructureViewerBase {
         this.dom_bond_add_atom_a = domBondAddAtomA;
         this.dom_bond_add_atom_b = domBondAddAtomB;
         this.dom_bond_add_cutoff_input = domBondAddCutoffInput;
+        this.dom_bond_add_button = domBondAddButton;
         const updateBondColorInputState = createBondColorInputStateUpdater(this, domBondColorInput);
 
         bindAppearanceAtomSelection(this, domAtomList, domAtomColorInput, domAtomRadiusInput);
@@ -676,6 +685,7 @@ export class VibCrystal extends StructureViewerBase {
             domBondAddAtomA,
             domBondAddAtomB,
             domBondAddCutoffInput,
+            domBondAddButton,
             () => {
                 self.refreshBondRulesUI(self.atom_numbers || []);
                 self.updatelocal();
@@ -1205,6 +1215,7 @@ export class VibCrystal extends StructureViewerBase {
         this.getAtypes(this.phonon.atom_numbers);
         this.addStructure(this.atoms,this.phonon.atom_numbers);
         this.addCell(this.phonon.lat);
+        this.adjustCovalentRadiiSelect();
         if (notifyAppearanceUpdate && typeof this.onAppearanceUpdated === 'function') {
             this.onAppearanceUpdated();
         }

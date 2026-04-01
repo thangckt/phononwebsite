@@ -119,6 +119,7 @@ v.setAdvancedAppearanceControls(
     $('#bond_add_atom_a'),
     $('#bond_add_atom_b'),
     $('#bond_add_cutoff_input'),
+    $('#bond_add_button'),
     $('#appearance_reset_atom_button'),
     $('#appearance_reset_bonds_button'),
     $('#appearance_reset_vectors_button'),
