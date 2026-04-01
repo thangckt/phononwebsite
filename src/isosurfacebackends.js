@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 import { buildMarchingCubesGeometry } from './marchingcubesgeometry.js';
 import { createVolumeTexture, disposeVolumeTexture } from './volumetexture.js';
-import { createRaymarchedIsosurface, supportsRaymarchedIsosurface } from './raymarchedisosurface.js';
+import { createRaymarchedIsosurface, supportsRaymarchedIsosurface, updateRaymarchedIsosurface } from './raymarchedisosurface.js';
 
 class BaseIsosurfaceBackend {
     constructor(controller) {
@@ -238,11 +238,13 @@ export class MarchingCubesIsosurfaceBackend extends BaseIsosurfaceBackend {
 }
 
 export class RaymarchIsosurfaceBackend extends BaseIsosurfaceBackend {
-    constructor(controller) {
+    constructor(controller, interpolation = 'trilinear') {
         super(controller);
+        this.interpolation = interpolation;
         this.volumeTexture = null;
         this.fallbackBackend = new MarchingCubesIsosurfaceBackend(controller);
         this.warned = false;
+        this.volumeTextureKey = null;
     }
 
     clearCache() {
@@ -252,10 +254,27 @@ export class RaymarchIsosurfaceBackend extends BaseIsosurfaceBackend {
     dispose() {
         disposeVolumeTexture(this.volumeTexture);
         this.volumeTexture = null;
+        this.volumeTextureKey = null;
         this.fallbackBackend.dispose();
     }
 
     ensureVolumeTexture() {
+        const nextKey = [
+            this.host.values,
+            this.host.sizex,
+            this.host.sizey,
+            this.host.sizez,
+        ];
+        if (
+            this.volumeTexture &&
+            this.volumeTextureKey &&
+            this.volumeTextureKey[0] === nextKey[0] &&
+            this.volumeTextureKey[1] === nextKey[1] &&
+            this.volumeTextureKey[2] === nextKey[2] &&
+            this.volumeTextureKey[3] === nextKey[3]
+        ) {
+            return;
+        }
         disposeVolumeTexture(this.volumeTexture);
         this.volumeTexture = createVolumeTexture(
             this.host.values,
@@ -263,21 +282,65 @@ export class RaymarchIsosurfaceBackend extends BaseIsosurfaceBackend {
             this.host.sizey,
             this.host.sizez,
         );
+        this.volumeTextureKey = nextKey;
     }
 
     useFallback() {
         if (!this.warned) {
-            console.warn('Raymarched isosurface backend is not implemented yet; falling back to marching cubes.');
+            console.warn('Raymarched isosurface backend is unavailable here; falling back to marching cubes.');
             this.warned = true;
         }
         return true;
     }
 
+    hasIsosurfaceObjects() {
+        if (!this.host.scene) {
+            return false;
+        }
+        for (let i = 0; i < this.host.scene.children.length; i++) {
+            if (this.host.scene.children[i] && this.host.scene.children[i].name === 'isosurface') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    updateExistingObjects() {
+        if (!this.hasIsosurfaceObjects()) {
+            return false;
+        }
+
+        let updated = false;
+        this.host.forEachNamedSceneObject('isosurface', (object) => {
+            updated = updateRaymarchedIsosurface(object, {
+                texture: this.volumeTexture,
+                isolevel: this.host.isolevel,
+                opacity: this.host.isosurfaceOpacity,
+                color: 0xffff00,
+                periodic: !!this.host.getMarchingCubesOptions().periodic,
+                gridSize: [this.host.sizex, this.host.sizey, this.host.sizez],
+                interpolation: this.interpolation,
+                textureRepeat: object.userData && object.userData.textureRepeat ? object.userData.textureRepeat : [1, 1, 1],
+            }) || updated;
+        });
+
+        if (updated) {
+            this.host.render();
+        }
+        return updated;
+    }
+
     requestUpdate() {
+        if (!Array.isArray(this.host.values) || !this.host.values.length || !this.host.scene) {
+            return;
+        }
         this.ensureVolumeTexture();
-        if (!this.volumeTexture || !supportsRaymarchedIsosurface()) {
+        if (!this.volumeTexture || !supportsRaymarchedIsosurface(this.host.renderer)) {
             this.useFallback();
             this.fallbackBackend.requestUpdate();
+            return;
+        }
+        if (this.updateExistingObjects()) {
             return;
         }
         const object = createRaymarchedIsosurface({
@@ -287,6 +350,9 @@ export class RaymarchIsosurfaceBackend extends BaseIsosurfaceBackend {
             opacity: this.host.isosurfaceOpacity,
             color: 0xffff00,
             periodic: !!this.host.getMarchingCubesOptions().periodic,
+            gridSize: [this.host.sizex, this.host.sizey, this.host.sizez],
+            interpolation: this.interpolation,
+            textureRepeat: [1, 1, 1],
         });
         if (!object) {
             this.useFallback();

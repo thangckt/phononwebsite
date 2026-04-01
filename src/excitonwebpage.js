@@ -86,7 +86,7 @@ export class ExcitonWebpage {
 
         domInput.on('input', previewHandler);
         domInput.on('change', finalHandler);
-        finalHandler();
+        updateLabel();
     }
 
     setIsosurfaceOpacityInput(domInput, domValue = null) {

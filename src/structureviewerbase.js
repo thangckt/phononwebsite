@@ -35,10 +35,15 @@ export class StructureViewerBase {
         this.sizey = 1;
         this.sizez = 1;
         this.cell = null;
-        this.isolevel = 0.02;
+        this.isosurfaceState = {
+            level: 0.02,
+            levelWasManuallySet: false,
+        };
         this.isosurfaceOpacity = 0.18;
         this.isosurfaceRenderMode = 'marching-cubes';
         this.isInitialized = false;
+        this.continuousRender = false;
+        this.renderQueued = false;
 
         this.cameraViewAngle = 18;
         this.cameraNear = 0.1;
@@ -67,6 +72,7 @@ export class StructureViewerBase {
 
     init(container = this.container, options = {}) {
         this.container = container;
+        this.continuousRender = options.continuousRender === true;
         const containerElement = container.get(0);
         this.dimensions = this.getContainerDimensions();
 
@@ -108,6 +114,9 @@ export class StructureViewerBase {
         this.controls.panSpeed = 0.3;
         this.controls.staticMoving = true;
         this.controls.dynamicDampingFactor = 0.3;
+        this.controls.addEventListener('change', () => {
+            this.requestRender();
+        });
         if (typeof options.configureControls === 'function') {
             options.configureControls(this.controls);
         }
@@ -119,13 +128,42 @@ export class StructureViewerBase {
             options.afterInit();
         }
         this.onWindowResize();
-        if (options.startAnimation !== false) {
+        const shouldStartAnimation = Object.prototype.hasOwnProperty.call(options, 'startAnimation')
+            ? options.startAnimation !== false
+            : true;
+        if (shouldStartAnimation) {
             this.animate();
         }
     }
 
     clearIsosurfacePreviewCache() {
         this.isosurfaceController.clearPreviewCache();
+    }
+
+    get isolevel() {
+        return this.isosurfaceState.level;
+    }
+
+    getIsolevel() {
+        return this.isosurfaceState.level;
+    }
+
+    hasManualIsolevel() {
+        return this.isosurfaceState.levelWasManuallySet;
+    }
+
+    setIsolevelState(level, { manual = this.hasManualIsolevel() } = {}) {
+        const numericLevel = Number(level);
+        if (!Number.isFinite(numericLevel)) {
+            return this.isosurfaceState.level;
+        }
+        this.isosurfaceState.level = numericLevel;
+        this.isosurfaceState.levelWasManuallySet = !!manual;
+        return numericLevel;
+    }
+
+    resetIsolevelState(level) {
+        return this.setIsolevelState(level, { manual: false });
     }
 
     setIsosurfaceRenderMode(mode) {
@@ -551,7 +589,7 @@ export class StructureViewerBase {
     }
 
     changeIsolevel(isolevel) {
-        this.isolevel = Number(isolevel);
+        this.setIsolevelState(isolevel, { manual: true });
         this.updateIsosurfaceSync();
     }
 
@@ -564,6 +602,9 @@ export class StructureViewerBase {
         this.isosurfaceOpacity = Math.max(0, Math.min(1, numericOpacity));
         this.forEachNamedSceneObject('isosurface', (mesh) => {
             if (mesh.material) {
+                if (mesh.material.uniforms && mesh.material.uniforms.uOpacity) {
+                    mesh.material.uniforms.uOpacity.value = this.isosurfaceOpacity;
+                }
                 mesh.material.opacity = this.isosurfaceOpacity;
                 mesh.material.transparent = true;
                 mesh.material.depthWrite = this.isosurfaceOpacity >= 0.999;
@@ -574,7 +615,7 @@ export class StructureViewerBase {
     }
 
     previewIsolevel(isolevel) {
-        this.isolevel = Number(isolevel);
+        this.setIsolevelState(isolevel, { manual: true });
         this.updateIsosurfacePreview();
     }
 
@@ -623,6 +664,9 @@ export class StructureViewerBase {
             return;
         }
         object.name = 'isosurface';
+        if (this.geometricCenter) {
+            object.position.copy(object.position.clone().sub(this.geometricCenter));
+        }
         this.scene.add(object);
     }
 
@@ -639,13 +683,15 @@ export class StructureViewerBase {
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(this.dimensions.width, this.dimensions.height, false);
         this.controls.handleResize();
-        this.render();
+        this.requestRender();
     }
 
     animate() {
         requestAnimationFrame(this.animate.bind(this));
-        this.render();
         this.update();
+        if (this.continuousRender) {
+            this.render();
+        }
     }
 
     update() {
@@ -658,6 +704,24 @@ export class StructureViewerBase {
         if (this.renderer && this.scene && this.camera) {
             this.renderer.render(this.scene, this.camera);
         }
+    }
+
+    requestRender() {
+        if (!this.renderer || !this.scene || !this.camera) {
+            return;
+        }
+        if (this.continuousRender) {
+            this.render();
+            return;
+        }
+        if (this.renderQueued) {
+            return;
+        }
+        this.renderQueued = true;
+        requestAnimationFrame(() => {
+            this.renderQueued = false;
+            this.render();
+        });
     }
 }
 

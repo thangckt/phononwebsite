@@ -32,7 +32,7 @@ export class StructureViewer extends StructureViewerBase {
         this.sizex = data.sizex || 1;
         this.sizey = data.sizey || 1;
         this.sizez = data.sizez || 1;
-        this.isolevel = Number.isFinite(data.isolevel) ? data.isolevel : this.isolevel;
+        this.resetIsolevelState(Number.isFinite(data.isolevel) ? data.isolevel : this.getIsolevel());
         this.clearIsosurfacePreviewCache();
         this.initializeBondRulesFromAtoms();
         this.refreshAppearanceControls();
@@ -187,6 +187,40 @@ export class StructureViewer extends StructureViewerBase {
 
     addIsosurfaceObject(object) {
         if (!object) {
+            return;
+        }
+
+        if (object.userData && object.userData.isRaymarchedIsosurface) {
+            const baseMatrix = new THREE.Matrix4().set(
+                this.baseLattice[0][0], this.baseLattice[1][0], this.baseLattice[2][0], 0,
+                this.baseLattice[0][1], this.baseLattice[1][1], this.baseLattice[2][1], 0,
+                this.baseLattice[0][2], this.baseLattice[1][2], this.baseLattice[2][2], 0,
+                0, 0, 0, 1,
+            );
+            const superLattice = this.getSupercellLattice();
+            const superMatrix = new THREE.Matrix4().set(
+                superLattice[0][0], superLattice[1][0], superLattice[2][0], 0,
+                superLattice[0][1], superLattice[1][1], superLattice[2][1], 0,
+                superLattice[0][2], superLattice[1][2], superLattice[2][2], 0,
+                0, 0, 0, 1,
+            );
+            const transform = new THREE.Matrix4().copy(superMatrix).multiply(new THREE.Matrix4().copy(baseMatrix).invert());
+            const mesh = object.clone();
+            mesh.geometry = object.geometry.clone();
+            mesh.material = object.material.clone();
+            mesh.onBeforeRender = object.onBeforeRender;
+            mesh.geometry.applyMatrix4(transform);
+            mesh.name = 'isosurface';
+            mesh.position.set(-this.geometricCenter.x, -this.geometricCenter.y, -this.geometricCenter.z);
+            mesh.userData = {
+                ...object.userData,
+                gridCell: superLattice.map((vector) => vector.slice()),
+                textureRepeat: [this.nx, this.ny, this.nz],
+            };
+            if (mesh.material && mesh.material.uniforms && mesh.material.uniforms.uTextureRepeat) {
+                mesh.material.uniforms.uTextureRepeat.value.set(this.nx, this.ny, this.nz);
+            }
+            this.scene.add(mesh);
             return;
         }
 

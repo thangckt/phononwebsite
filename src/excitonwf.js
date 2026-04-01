@@ -68,8 +68,13 @@ export class ExcitonWf extends StructureViewerBase {
         };
 
         const recommended = Math.min(Math.max(quantile(0.99), positiveValues[positiveValues.length - 1] * 0.02), 0.9);
-        if (force || !Number.isFinite(this.isolevel) || this.isolevel <= 0 || this.isolevel === 0.02) {
-            this.isolevel = recommended;
+        if (
+            force ||
+            !this.hasManualIsolevel() ||
+            !Number.isFinite(this.getIsolevel()) ||
+            this.getIsolevel() <= 0
+        ) {
+            this.resetIsolevelState(recommended);
         }
 
         if (this.onIsolevelRangeChanged) {
@@ -77,7 +82,7 @@ export class ExcitonWf extends StructureViewerBase {
                 min: 0,
                 max: Math.max(quantile(0.999), positiveValues[positiveValues.length - 1] * 0.1),
                 step: Math.max(1e-4, positiveValues[positiveValues.length - 1] / 500),
-                value: this.isolevel,
+                value: this.getIsolevel(),
             });
         }
     }

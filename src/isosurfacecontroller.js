@@ -6,7 +6,8 @@ export class IsosurfaceController {
         this.mode = 'marching-cubes';
         this.backends = {
             'marching-cubes': new MarchingCubesIsosurfaceBackend(this),
-            'raymarch': new RaymarchIsosurfaceBackend(this),
+            'raymarch-trilinear': new RaymarchIsosurfaceBackend(this, 'trilinear'),
+            'raymarch-tricubic': new RaymarchIsosurfaceBackend(this, 'tricubic'),
         };
         this.backend = this.backends[this.mode];
     }
@@ -16,7 +17,8 @@ export class IsosurfaceController {
     }
 
     setMode(mode) {
-        const nextMode = this.backends[mode] ? mode : 'marching-cubes';
+        const normalizedMode = mode === 'raymarch' ? 'raymarch-trilinear' : mode;
+        const nextMode = this.backends[normalizedMode] ? normalizedMode : 'marching-cubes';
         if (nextMode === this.mode) {
             return;
         }

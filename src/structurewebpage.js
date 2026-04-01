@@ -119,7 +119,7 @@ export class StructureWebpage {
 
         domInput.on('input', previewHandler);
         domInput.on('change', finalHandler);
-        finalHandler();
+        updateLabel();
     }
 
     setIsosurfaceOpacityInput(domInput, domValue = null) {
@@ -179,14 +179,18 @@ export class StructureWebpage {
         reader.onloadend = () => {
             try {
                 const data = parseStructureFile(file.name, reader.result);
+                if (data.values) {
+                    this.configureChargeDensityRange(data);
+                }
                 this.currentData = data;
                 this.viewer.setData(data);
                 this.applyDefaultRepetitions(data.repetitions || [1, 1, 1]);
                 this.setChargeDensityVisibility(!!data.values);
                 if (this.domIsolevelInput && data.values) {
-                    this.configureChargeDensityRange(data);
-                    this.domIsolevelInput.val(Number.isFinite(data.isolevel) ? data.isolevel : Number(this.domIsolevelInput.attr('value')));
-                    this.domIsolevelInput.trigger('input');
+                    this.domIsolevelInput.val(this.viewer.getIsolevel());
+                    if (this.domIsolevelValue) {
+                        this.domIsolevelValue.text(formatIsolevelValue(this.viewer.getIsolevel()));
+                    }
                 }
                 this.setTitleText(data.formula || getFilenameStem(file.name));
                 this.updateStructureInfo(data);
