@@ -470,6 +470,7 @@ export class StructureViewerBase {
             this.bondRules,
             this.getBondRuleKey.bind(this),
             this.getDefaultBondCutoff.bind(this),
+            { requireRule: true },
         );
 
         for (let i = 0; i < this.bonds.length; i++) {

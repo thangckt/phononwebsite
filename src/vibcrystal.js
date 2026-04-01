@@ -1057,6 +1057,7 @@ export class VibCrystal extends StructureViewerBase {
             this.bondRules,
             this.getBondRuleKey.bind(this),
             this.getDefaultBondCutoff.bind(this),
+            { requireRule: true },
         );
 
         const createBondMaterial = function(vertexColorsEnabled) {

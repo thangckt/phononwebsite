@@ -5,8 +5,9 @@ export function getViewerAtomRadius(display, atomNumber, atomScale, sphereRadius
     return sphereRadius * atomScale;
 }
 
-export function buildBondList(atomobjects, bondRules, getBondRuleKey, getDefaultBondCutoff) {
+export function buildBondList(atomobjects, bondRules, getBondRuleKey, getDefaultBondCutoff, options = {}) {
     const bonds = [];
+    const requireRule = !!options.requireRule;
 
     for (let i = 0; i < atomobjects.length; i++) {
         const atomA = atomobjects[i];
@@ -15,6 +16,9 @@ export function buildBondList(atomobjects, bondRules, getBondRuleKey, getDefault
             const distance = atomA.position.distanceTo(atomB.position);
             const key = getBondRuleKey(atomA.atom_number, atomB.atom_number);
             const rule = bondRules[key];
+            if (requireRule && !rule) {
+                continue;
+            }
             const cutoff = rule ? rule.cutoff : getDefaultBondCutoff(atomA.atom_number, atomB.atom_number);
             if (distance < cutoff) {
                 bonds.push({
