@@ -36,6 +36,7 @@ export class PhononWebpage {
         this.showModeWeightsOnPlot = false;
         this.materialFilterQuery = '';
         this.materialsIndex = [];
+        this.disabledReferenceKeys = new Set();
         this.loadingState = null;
     }
 
@@ -825,6 +826,25 @@ export class PhononWebpage {
             .filter(function(token) { return token.length > 0; });
     }
 
+    getMaterialReferenceKey(material) {
+        let source = material && material.source ? material.source : '';
+        let reference = material && material.reference ? material.reference : '';
+        return source + "::" + reference;
+    }
+
+    isReferenceEnabled(referenceKey) {
+        return !this.disabledReferenceKeys.has(referenceKey);
+    }
+
+    toggleReferenceEnabled(referenceKey) {
+        if (this.disabledReferenceKeys.has(referenceKey)) {
+            this.disabledReferenceKeys.delete(referenceKey);
+        } else {
+            this.disabledReferenceKeys.add(referenceKey);
+        }
+        this.renderMaterialsMenu();
+    }
+
     getMaterialElements(materialName) {
         let matches = materialName.match(/[A-Z][a-z]?/g);
         if (!matches) {
@@ -865,20 +885,30 @@ export class PhononWebpage {
         }
 
         let tokens = this.getMaterialFilterTokens();
-        let unique_references = {};
-        let filteredMaterials = this.materialsIndex.filter((material) => this.materialMatchesFilter(material, tokens));
+        let unique_references = new Map();
+        let baseFilteredMaterials = this.materialsIndex.filter((material) => this.materialMatchesFilter(material, tokens));
+        let filteredMaterials = baseFilteredMaterials.filter((material) => this.isReferenceEnabled(this.getMaterialReferenceKey(material)));
         let nreferences = 1;
+
+        for (let i=0; i<baseFilteredMaterials.length; i++) {
+            let m = baseFilteredMaterials[i];
+            let ref = m["reference"];
+            let refKey = this.getMaterialReferenceKey(m);
+            if (!unique_references.has(refKey)) {
+                unique_references.set(refKey, {
+                    index: nreferences,
+                    reference: ref
+                });
+                nreferences += 1;
+            }
+        }
 
         for (let i=0; i<filteredMaterials.length; i++) {
             let m = filteredMaterials[i];
-            let ref = m["reference"];
-            if (!unique_references.hasOwnProperty(ref)) {
-                unique_references[ref] = nreferences;
-                nreferences += 1;
-            }
-
+            let refKey = this.getMaterialReferenceKey(m);
+            let referenceEntry = unique_references.get(refKey);
             let name = utils.format_formula_html(m.name);
-            let name_ref = name + " ["+unique_references[ref]+"]";
+            let name_ref = name + " ["+referenceEntry.index+"]";
 
             let li = document.createElement("LI");
             let a = document.createElement("A");
@@ -895,10 +925,28 @@ export class PhononWebpage {
         }
 
         if (dom_ref) {
-            for (let ref in unique_references) {
-                let refIndex = unique_references[ref];
+            for (let [refKey, referenceEntry] of unique_references.entries()) {
+                let refIndex = referenceEntry.index;
+                let ref = referenceEntry.reference;
                 let li = document.createElement("LI");
-                li.innerHTML = "["+refIndex+"] "+ref;
+                li.className = "reference-filter-item";
+                if (!this.isReferenceEnabled(refKey)) {
+                    li.classList.add("reference-filter-disabled");
+                }
+                let toggle = document.createElement("button");
+                toggle.type = "button";
+                toggle.className = "reference-filter-toggle";
+                toggle.textContent = this.isReferenceEnabled(refKey) ? "on" : "off";
+                toggle.onclick = () => {
+                    this.toggleReferenceEnabled(refKey);
+                };
+
+                let text = document.createElement("span");
+                text.className = "reference-filter-text";
+                text.innerHTML = "["+refIndex+"] "+ref;
+
+                li.appendChild(toggle);
+                li.appendChild(text);
                 dom_ref.append(li);
             }
         }
