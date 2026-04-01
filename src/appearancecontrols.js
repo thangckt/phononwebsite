@@ -49,6 +49,11 @@ export function bindBondRuleControls(
     domBondAddButton,
     onRulesChanged,
 ) {
+    if (typeof domBondAddButton === 'function' && typeof onRulesChanged === 'undefined') {
+        onRulesChanged = domBondAddButton;
+        domBondAddButton = null;
+    }
+
     if (domBondRulesList && domBondRulesList.length) {
         domBondRulesList.on('click', 'button[data-remove-key]', (event) => {
             const key = event.currentTarget.getAttribute('data-remove-key');
