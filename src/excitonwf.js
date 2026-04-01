@@ -7,6 +7,15 @@ import { getCombinations } from './utils.js';
 
 const vecY = new THREE.Vector3(0, 1, 0);
 
+function getSharedLightConfig() {
+    return {
+        color: 0xdddddd,
+        intensity: 1.0,
+        position: [1, 1, 2],
+        ambient: 0x333333,
+    };
+}
+
 function getBond(point1, point2) {
     const direction = new THREE.Vector3().subVectors(point2, point1);
 
@@ -80,8 +89,9 @@ export class ExcitonWf {
         this.camera.position.set(0, 0, this.cameraDistance);
         this.camera.lookAt(this.scene.position);
 
-        this.pointLight = new THREE.PointLight(0xdddddd);
-        this.pointLight.position.set(1, 1, 2);
+        const lightConfig = getSharedLightConfig();
+        this.pointLight = new THREE.PointLight(lightConfig.color, lightConfig.intensity);
+        this.pointLight.position.set(...lightConfig.position);
         this.pointLight.visible = true;
         this.camera.add(this.pointLight);
 
@@ -666,15 +676,7 @@ export class ExcitonWf {
         for (let i = 0; i < this.atom_numbers.length; i++) {
             const number = this.atom_numbers[i];
             const atomColor = this.getAtomColor(number);
-            let material;
-
-            if (!this.shading) {
-                material = new THREE.MeshBasicMaterial({ blending: THREE.NormalBlending });
-            } else if (this.display === 'vesta') {
-                material = new THREE.MeshPhongMaterial({ reflectivity: 1, shininess: 80 });
-            } else {
-                material = new THREE.MeshLambertMaterial({ blending: THREE.NormalBlending });
-            }
+            let material = this.createShadedMaterial({ blending: THREE.NormalBlending });
             material.color.copy(atomColor);
             this.materials.push(material);
         }
@@ -749,14 +751,7 @@ export class ExcitonWf {
                         this.bondVertical,
                         true,
                     );
-                    let material;
-                    if (!this.shading) {
-                        material = new THREE.MeshBasicMaterial({ color: colorHex });
-                    } else if (this.display === 'vesta') {
-                        material = new THREE.MeshPhongMaterial({ color: colorHex, reflectivity: 1, shininess: 50 });
-                    } else {
-                        material = new THREE.MeshLambertMaterial({ color: colorHex });
-                    }
+                    let material = this.createShadedMaterial({ color: colorHex });
                     const object = new THREE.Mesh(geometry, material);
                     object.setRotationFromQuaternion(bond.quaternion);
                     object.position.copy(midpoint);
@@ -781,23 +776,27 @@ export class ExcitonWf {
 
     addLights() {
         this.scene.add(this.camera);
-        this.scene.add(new THREE.AmbientLight(0x333333));
+        this.scene.add(new THREE.AmbientLight(getSharedLightConfig().ambient));
     }
 
     updateLightStyle() {
         if (!this.pointLight) {
             return;
         }
+        const lightConfig = getSharedLightConfig();
+        this.pointLight.color.setHex(lightConfig.color);
+        this.pointLight.intensity = lightConfig.intensity;
+        this.pointLight.position.set(...lightConfig.position);
+    }
 
-        if (this.display === 'vesta') {
-            this.pointLight.color.setHex(0xffffff);
-            this.pointLight.intensity = 1.2;
-            this.pointLight.position.set(1, 1, 1);
-        } else {
-            this.pointLight.color.setHex(0xdddddd);
-            this.pointLight.intensity = 1.0;
-            this.pointLight.position.set(1, 1, 2);
+    createShadedMaterial(config = {}) {
+        if (!this.shading) {
+            return new THREE.MeshBasicMaterial(config);
         }
+        return new THREE.MeshLambertMaterial({
+            blending: THREE.NormalBlending,
+            ...config,
+        });
     }
 
     removeStructure() {
