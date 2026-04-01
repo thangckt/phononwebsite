@@ -51,7 +51,7 @@ def parse_args():
     parser.add_argument(
         "--band-points",
         type=int,
-        default=21,
+        default=11,
         help="Number of points per high-symmetry segment.",
     )
     parser.add_argument(
@@ -413,7 +413,7 @@ def prepare_archive(archive_path: Path, output_dir: Path, repetitions, band_poin
         reorder_payload_band_connection(payload)
 
         output_stem = choose_output_stem(archive_path, payload, name_mode)
-        payload["name"] = output_stem
+        payload["name"] = payload["formula"]
         output_path = output_dir / f"{output_stem}.json.gz"
         write_gzip_json(output_path, payload)
         return payload, output_path

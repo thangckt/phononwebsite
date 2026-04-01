@@ -42,9 +42,7 @@ export class LocalPhononDB {
                     m.type = "json";
                     m.reference = reference;
                     m.url = root + "/" + m.file;
-                    if (!m.link) {
-                        m.link = "https://materialsproject.org/materials/mp-" + m.id;
-                    }
+                    m.link = catalogEntry.url || m.link || ("https://materialsproject.org/materials/mp-" + m.id);
                     materials.push(m);
                 }
 

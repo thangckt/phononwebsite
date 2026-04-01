@@ -37,11 +37,11 @@ After installing the Python package:
 
 You can convert one archive or a full directory with:
 
-    $ prepare_phonondb /path/to/phonondb2017 --output-dir data/phonondb2017 --band-points 21
+    $ prepare_phonondb /path/to/phonondb2017 --output-dir data/phonondb2017 --band-points 11
 
 or directly from the repository checkout with:
 
-    $ python3 python/phononweb/scripts/prepare_phonondb.py /path/to/phonondb2017 --output-dir data/phonondb2017 --band-points 21
+    $ python3 python/phononweb/scripts/prepare_phonondb.py /path/to/phonondb2017 --output-dir data/phonondb2017 --band-points 11
 
 There is also an npm wrapper for local use. This writes the generated files into `data/phonondb2017`, updates `data/phonondb2017/models.json`, and makes the converted materials appear in the website menu:
 
@@ -49,7 +49,7 @@ There is also an npm wrapper for local use. This writes the generated files into
 
 You can also use the generic passthrough command if you want full control over the output location:
 
-    $ npm run prepare:phonondb -- /path/to/phonondb2017 --output-dir data/phonondb2017 --manifest data/phonondb2017/models.json --band-points 21 --limit 10
+    $ npm run prepare:phonondb -- /path/to/phonondb2017 --output-dir data/phonondb2017 --manifest data/phonondb2017/models.json --band-points 11 --limit 10
 
 The converter uses a seekpath high-symmetry path with:
 
