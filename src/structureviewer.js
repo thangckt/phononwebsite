@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 
-import { ExcitonWf } from './excitonwf.js';
+import { StructureViewerBase } from './structureviewerbase.js';
 import { covalent_radii } from './atomic_data.js';
 import { getCombinations } from './utils.js';
 
-export class StructureViewer extends ExcitonWf {
+export class StructureViewer extends StructureViewerBase {
 
     constructor() {
         super();
