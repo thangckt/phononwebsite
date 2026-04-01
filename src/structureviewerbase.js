@@ -5,6 +5,7 @@ import { createAtomBadgeHtml } from './atomcolors.js';
 import { bindAppearanceAtomSelection, bindBondRuleControls, bindEnterToApply, createBondColorInputStateUpdater } from './appearancecontrols.js';
 import { IsosurfaceController } from './isosurfacecontroller.js';
 import { getCombinations } from './utils.js';
+import { createAtomSphereGeometry, createBondCylinderGeometry } from './viewergeometry.js';
 import { getSharedLightConfig, sharedViewerMethods } from './viewercommon.js';
 
 const vecY = new THREE.Vector3(0, 1, 0);
@@ -444,7 +445,7 @@ export class StructureViewerBase {
                     : this.sphereRadius * atomScale;
                 sphereGeometries.set(
                     atomTypeIndex,
-                    new THREE.SphereGeometry(radius, this.sphereLat, this.sphereLon),
+                    createAtomSphereGeometry(radius, this.sphereLat, this.sphereLon),
                 );
             }
 
@@ -470,13 +471,11 @@ export class StructureViewerBase {
             if (distance < cutoff) {
                 const bond = getBond(atomA.position, atomB.position);
                 const createBondSegment = (length, midpoint, colorHex) => {
-                    const geometry = new THREE.CylinderGeometry(
-                        this.bondRadius,
+                    const geometry = createBondCylinderGeometry(
                         this.bondRadius,
                         length,
                         this.bondSegments,
                         this.bondVertical,
-                        true,
                     );
                     let material = this.createShadedMaterial({ color: colorHex });
                     const object = new THREE.Mesh(geometry, material);

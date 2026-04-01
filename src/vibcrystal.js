@@ -8,6 +8,7 @@ import { bindAppearanceAtomSelection, bindBondRuleControls, bindEnterToApply, cr
 import { sharedViewerMethods } from './viewercommon.js';
 import { StructureViewerBase } from './structureviewerbase.js';
 import { buildCrystalBondRules, getChemicalBondLimit } from './bonding.js';
+import { createAtomSphereGeometry, createBondCylinderGeometry, createCellLineObject } from './viewergeometry.js';
 
 const vec_y = new THREE.Vector3( 0, 1, 0 );
 const vec_0 = new THREE.Vector3( 0, 0, 0 );
@@ -915,49 +916,7 @@ export class VibCrystal extends StructureViewerBase {
         Represent the unit cell
         */
         if (this.cell) {
-          let material = new THREE.LineBasicMaterial({ color: 0x000000 });
-          let points = [];
-
-          let o = this.geometricCenter;
-          let zero = new THREE.Vector3(0,0,0);
-          let c = new THREE.Vector3(0,0,0);
-          let x = new THREE.Vector3(lat[0][0], lat[0][1], lat[0][2]);
-          let y = new THREE.Vector3(lat[1][0], lat[1][1], lat[1][2]);
-          let z = new THREE.Vector3(lat[2][0], lat[2][1], lat[2][2]);
-
-          //lower part
-          c.copy(zero);
-          c.sub(o); points.push(c.clone());
-          c.add(x); points.push(c.clone());
-          c.add(y); points.push(c.clone());
-          c.sub(x); points.push(c.clone());
-          c.sub(y); points.push(c.clone());
-
-          //upper part
-          c.copy(zero); c.add(z);
-          c.sub(o); points.push(c.clone());
-          c.add(x); points.push(c.clone());
-          c.add(y); points.push(c.clone());
-          c.sub(x); points.push(c.clone());
-          c.sub(y); points.push(c.clone());
-
-          //vertical lines
-          c.copy(zero);
-          c.sub(o); points.push(c.clone());
-          c.add(z); points.push(c.clone());
-
-          c.add(x); points.push(c.clone());
-          c.sub(z); points.push(c.clone());
-
-          c.add(y); points.push(c.clone());
-          c.add(z); points.push(c.clone());
-
-          c.sub(x); points.push(c.clone());
-          c.sub(z); points.push(c.clone());
-
-          let geometry = new THREE.BufferGeometry().setFromPoints(points);
-          let line = new THREE.Line(geometry, material);
-          this.scene.add(line);
+          this.scene.add(createCellLineObject(lat, this.geometricCenter));
         }
 
     }
@@ -1002,13 +961,13 @@ export class VibCrystal extends StructureViewerBase {
             let atomNumber = atom_numbers[typeIndex];
             let atomScale = this.getAtomRadiusScale(atomNumber);
             if (this.display == 'vesta') {
-                sphereGeometry = new THREE.SphereGeometry(
+                sphereGeometry = createAtomSphereGeometry(
                     (atomic_data.covalent_radii[atomNumber]/2.3) * atomScale,
                     this.sphereLat,
                     this.sphereLon
                 );
             } else {
-                sphereGeometry = new THREE.SphereGeometry(
+                sphereGeometry = createAtomSphereGeometry(
                     this.sphereRadius * atomScale,
                     this.sphereLat,
                     this.sphereLon
@@ -1136,8 +1095,8 @@ export class VibCrystal extends StructureViewerBase {
 
         //build bond meshes
         if (this.bonds.length > 0) {
-            let bondGeometry = new THREE.CylinderGeometry(
-                this.bondRadius, this.bondRadius, 1.0, this.bondSegments, this.bondVertical, true
+            let bondGeometry = createBondCylinderGeometry(
+                this.bondRadius, 1.0, this.bondSegments, this.bondVertical
             );
 
             if (this.bondColorByAtom) {

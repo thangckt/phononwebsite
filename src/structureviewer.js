@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { StructureViewerBase } from './structureviewerbase.js';
 import { covalent_radii } from './atomic_data.js';
 import { buildCrystalBondRules, getChemicalBondLimit } from './bonding.js';
+import { createCellLineObject } from './viewergeometry.js';
 
 export class StructureViewer extends StructureViewerBase {
 
@@ -147,45 +148,7 @@ export class StructureViewer extends StructureViewerBase {
         if (!this.cell || !lat) {
             return;
         }
-
-        const material = new THREE.LineBasicMaterial({ color: 0x000000 });
-        const points = [];
-        const zero = new THREE.Vector3(0, 0, 0);
-        const cursor = new THREE.Vector3(0, 0, 0);
-        const shift = this.geometricCenter;
-        const x = new THREE.Vector3(lat[0][0], lat[0][1], lat[0][2]);
-        const y = new THREE.Vector3(lat[1][0], lat[1][1], lat[1][2]);
-        const z = new THREE.Vector3(lat[2][0], lat[2][1], lat[2][2]);
-
-        cursor.copy(zero);
-        cursor.sub(shift); points.push(cursor.clone());
-        cursor.add(x); points.push(cursor.clone());
-        cursor.add(y); points.push(cursor.clone());
-        cursor.sub(x); points.push(cursor.clone());
-        cursor.sub(y); points.push(cursor.clone());
-
-        cursor.copy(zero).add(z);
-        cursor.sub(shift); points.push(cursor.clone());
-        cursor.add(x); points.push(cursor.clone());
-        cursor.add(y); points.push(cursor.clone());
-        cursor.sub(x); points.push(cursor.clone());
-        cursor.sub(y); points.push(cursor.clone());
-
-        cursor.copy(zero);
-        cursor.sub(shift); points.push(cursor.clone());
-        cursor.add(z); points.push(cursor.clone());
-
-        cursor.add(x); points.push(cursor.clone());
-        cursor.sub(z); points.push(cursor.clone());
-
-        cursor.add(y); points.push(cursor.clone());
-        cursor.add(z); points.push(cursor.clone());
-
-        cursor.sub(x); points.push(cursor.clone());
-        cursor.sub(z); points.push(cursor.clone());
-
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        this.scene.add(new THREE.Line(geometry, material));
+        this.scene.add(createCellLineObject(lat, this.geometricCenter));
     }
 
     getMarchingCubesOptions() {
