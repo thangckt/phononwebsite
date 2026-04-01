@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { TrackballControls } from './static_libs/TrackballControls.js';
 import { atomic_symbol, covalent_radii } from './atomic_data.js';
 import { createAtomBadgeHtml } from './atomcolors.js';
+import { bindAppearanceAtomSelection, bindBondRuleControls, bindEnterToApply, createBondColorInputStateUpdater } from './appearancecontrols.js';
 import { IsosurfaceController } from './isosurfacecontroller.js';
 import { getCombinations } from './utils.js';
 import { getSharedLightConfig, sharedViewerMethods } from './viewercommon.js';
@@ -183,28 +184,9 @@ export class StructureViewerBase {
         this.domBondAddAtomA = domBondAddAtomA;
         this.domBondAddAtomB = domBondAddAtomB;
         this.domBondAddCutoffInput = domBondAddCutoffInput;
+        const updateBondColorInputState = createBondColorInputStateUpdater(this, domBondColorInput);
 
-        const updateBondColorInputState = () => {
-            if (domBondColorInput && domBondColorInput.length) {
-                domBondColorInput.prop('disabled', this.bondColorByAtom);
-            }
-        };
-
-        if (domAtomList && domAtomList.length) {
-            domAtomList.on('click', 'button[data-atom-number]', (event) => {
-                const atomNumber = Number(event.currentTarget.getAttribute('data-atom-number'));
-                if (!Number.isFinite(atomNumber)) {
-                    return;
-                }
-                this.setSelectedAppearanceAtomNumber(atomNumber);
-                if (domAtomColorInput && domAtomColorInput.length) {
-                    domAtomColorInput.val(this.colorToInputHex(this.getAtomColorHex(atomNumber)));
-                }
-                if (domAtomRadiusInput && domAtomRadiusInput.length) {
-                    domAtomRadiusInput.val(this.getAtomRadiusScale(atomNumber));
-                }
-            });
-        }
+        bindAppearanceAtomSelection(this, domAtomList, domAtomColorInput, domAtomRadiusInput);
 
         const applyAppearanceSettings = () => {
             const atomNumber = Number(this.getSelectedAppearanceAtomNumber());
@@ -263,12 +245,6 @@ export class StructureViewerBase {
             domAtomRadiusInput.attr('min', 0.1);
             domAtomRadiusInput.attr('max', 5.0);
             domAtomRadiusInput.attr('step', 0.05);
-            domAtomRadiusInput.on('keydown', (event) => {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
-                    applyAppearanceSettings();
-                }
-            });
         }
 
         if (domBondRadiusInput && domBondRadiusInput.length) {
@@ -276,72 +252,21 @@ export class StructureViewerBase {
             domBondRadiusInput.attr('max', 1.0);
             domBondRadiusInput.attr('step', 0.01);
             domBondRadiusInput.val(this.bondRadius);
-            domBondRadiusInput.on('keydown', (event) => {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
-                    applyAppearanceSettings();
-                }
-            });
         }
 
-        if (domBondRulesList && domBondRulesList.length) {
-            domBondRulesList.on('click', 'button[data-remove-key]', (event) => {
-                const key = event.currentTarget.getAttribute('data-remove-key');
-                if (key && this.bondRules[key]) {
-                    delete this.bondRules[key];
-                    this.refreshAppearanceControls();
-                    this.updateStructure();
-                }
-            });
-        }
+        bindBondRuleControls(
+            this,
+            domBondRulesList,
+            domBondAddAtomA,
+            domBondAddAtomB,
+            domBondAddCutoffInput,
+            () => {
+                this.refreshAppearanceControls();
+                this.updateStructure();
+            },
+        );
 
-        const updateBondCutoffInput = () => {
-            if (!domBondAddCutoffInput || !domBondAddCutoffInput.length) {
-                return;
-            }
-            const a = Number(domBondAddAtomA.val());
-            const b = Number(domBondAddAtomB.val());
-            if (!Number.isFinite(a) || !Number.isFinite(b)) {
-                return;
-            }
-            const key = this.getBondRuleKey(a, b);
-            const value = this.bondRules[key] ? this.bondRules[key].cutoff : this.getDefaultBondCutoff(a, b);
-            domBondAddCutoffInput.val(Number(value).toFixed(2));
-        };
-
-        const addBondRuleFromControls = () => {
-            const a = Number(domBondAddAtomA.val());
-            const b = Number(domBondAddAtomB.val());
-            if (!Number.isFinite(a) || !Number.isFinite(b)) {
-                return;
-            }
-            let cutoff = this.getDefaultBondCutoff(a, b);
-            if (domBondAddCutoffInput && domBondAddCutoffInput.length) {
-                const parsed = parseFloat(domBondAddCutoffInput.val());
-                if (Number.isFinite(parsed) && parsed > 0) {
-                    cutoff = parsed;
-                }
-                domBondAddCutoffInput.val(cutoff.toFixed(2));
-            }
-            this.setBondRule(a, b, cutoff);
-            this.refreshAppearanceControls();
-            this.updateStructure();
-        };
-
-        if (domBondAddAtomA && domBondAddAtomA.length) {
-            domBondAddAtomA.on('change', updateBondCutoffInput);
-        }
-        if (domBondAddAtomB && domBondAddAtomB.length) {
-            domBondAddAtomB.on('change', updateBondCutoffInput);
-        }
-        if (domBondAddCutoffInput && domBondAddCutoffInput.length) {
-            domBondAddCutoffInput.on('keydown', (event) => {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
-                    addBondRuleFromControls();
-                }
-            });
-        }
+        bindEnterToApply([domAtomRadiusInput, domBondRadiusInput], applyAppearanceSettings);
 
         if (domResetAtomButton && domResetAtomButton.length) {
             domResetAtomButton.on('click', () => {

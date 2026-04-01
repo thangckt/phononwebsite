@@ -4,6 +4,7 @@ import * as atomic_data from './atomic_data.js';
 import * as utils from './utils.js';
 import * as mat from './mat.js';
 import { createAtomBadgeHtml } from './atomcolors.js';
+import { bindAppearanceAtomSelection, bindBondRuleControls, bindEnterToApply, createBondColorInputStateUpdater } from './appearancecontrols.js';
 import { sharedViewerMethods } from './viewercommon.js';
 import { StructureViewerBase } from './structureviewerbase.js';
 import { buildCrystalBondRules, getChemicalBondLimit } from './bonding.js';
@@ -503,27 +504,9 @@ export class VibCrystal extends StructureViewerBase {
         this.dom_bond_add_atom_a = domBondAddAtomA;
         this.dom_bond_add_atom_b = domBondAddAtomB;
         this.dom_bond_add_cutoff_input = domBondAddCutoffInput;
-        const updateBondColorInputState = function() {
-            if (domBondColorInput && domBondColorInput.length) {
-                domBondColorInput.prop('disabled', self.bondColorByAtom);
-            }
-        };
+        const updateBondColorInputState = createBondColorInputStateUpdater(this, domBondColorInput);
 
-        if (domAtomList && domAtomList.length) {
-            domAtomList.on('click', 'button[data-atom-number]', function() {
-                let atomNumber = Number(this.getAttribute('data-atom-number'));
-                if (!Number.isFinite(atomNumber)) {
-                    return;
-                }
-                self.setSelectedAppearanceAtomNumber(atomNumber);
-                if (domAtomColorInput && domAtomColorInput.length) {
-                    domAtomColorInput.val(self.colorToInputHex(self.getAtomColorHex(atomNumber)));
-                }
-                if (domAtomRadiusInput && domAtomRadiusInput.length) {
-                    domAtomRadiusInput.val(self.getAtomRadiusScale(atomNumber));
-                }
-            });
-        }
+        bindAppearanceAtomSelection(this, domAtomList, domAtomColorInput, domAtomRadiusInput);
 
         const applyAppearanceSettings = function() {
             let atomNumber = Number(self.getSelectedAppearanceAtomNumber());
@@ -685,64 +668,17 @@ export class VibCrystal extends StructureViewerBase {
             });
         }
 
-        if (domBondRulesList && domBondRulesList.length) {
-            domBondRulesList.on('click', 'button[data-remove-key]', function() {
-                let key = this.getAttribute('data-remove-key');
-                if (key && self.bondRules[key]) {
-                    delete self.bondRules[key];
-                    self.refreshBondRulesUI(self.atom_numbers || []);
-                    self.updatelocal();
-                }
-            });
-        }
-
-        const addBondRuleFromControls = function() {
-            let a = Number(domBondAddAtomA.val());
-            let b = Number(domBondAddAtomB.val());
-            if (!Number.isFinite(a) || !Number.isFinite(b)) {
-                return;
-            }
-            let defaultCutoff = self.getDefaultBondCutoff(a, b);
-            let cutoff = defaultCutoff;
-            if (domBondAddCutoffInput && domBondAddCutoffInput.length) {
-                let parsed = parseFloat(domBondAddCutoffInput.val());
-                if (Number.isFinite(parsed) && parsed > 0) {
-                    cutoff = parsed;
-                }
-                domBondAddCutoffInput.val(cutoff.toFixed(2));
-            }
-            self.setBondRule(a, b, cutoff);
-            self.refreshBondRulesUI(self.atom_numbers || []);
-            self.updatelocal();
-        };
-
-        const updateBondCutoffInput = function() {
-            if (!domBondAddCutoffInput || !domBondAddCutoffInput.length) {
-                return;
-            }
-            let a = Number(domBondAddAtomA.val());
-            let b = Number(domBondAddAtomB.val());
-            if (!Number.isFinite(a) || !Number.isFinite(b)) {
-                return;
-            }
-            let key = self.getBondRuleKey(a, b);
-            let value = self.bondRules[key] ? self.bondRules[key].cutoff : self.getDefaultBondCutoff(a, b);
-            domBondAddCutoffInput.val(Number(value).toFixed(2));
-        };
-        if (domBondAddAtomA && domBondAddAtomA.length) {
-            domBondAddAtomA.on('change', updateBondCutoffInput);
-        }
-        if (domBondAddAtomB && domBondAddAtomB.length) {
-            domBondAddAtomB.on('change', updateBondCutoffInput);
-        }
-        if (domBondAddCutoffInput && domBondAddCutoffInput.length) {
-            domBondAddCutoffInput.on('keydown', function(event) {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
-                    addBondRuleFromControls();
-                }
-            });
-        }
+        bindBondRuleControls(
+            this,
+            domBondRulesList,
+            domBondAddAtomA,
+            domBondAddAtomB,
+            domBondAddCutoffInput,
+            () => {
+                self.refreshBondRulesUI(self.atom_numbers || []);
+                self.updatelocal();
+            },
+        );
 
         if (domResetVectorsButton && domResetVectorsButton.length) {
             domResetVectorsButton.click(function() {
@@ -767,23 +703,7 @@ export class VibCrystal extends StructureViewerBase {
             });
         }
 
-        // Enter in text/number fields applies the whole appearance form.
-        let enterToUpdateInputs = [
-            domAtomRadiusInput,
-            domBondRadiusInput,
-            domArrowRadiusInput
-        ];
-        for (let i = 0; i < enterToUpdateInputs.length; i++) {
-            let domInput = enterToUpdateInputs[i];
-            if (domInput && domInput.length) {
-                domInput.on('keydown', function(event) {
-                    if (event.key === 'Enter') {
-                        event.preventDefault();
-                        applyAppearanceSettings();
-                    }
-                });
-            }
-        }
+        bindEnterToApply([domAtomRadiusInput, domBondRadiusInput, domArrowRadiusInput], applyAppearanceSettings);
     }
 
     init() {

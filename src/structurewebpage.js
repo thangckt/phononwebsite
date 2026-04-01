@@ -80,10 +80,13 @@ export class StructureWebpage {
         this.domAtompos = domAtompos;
     }
 
-    setIsolevelInput(domInput, domValue = null, domContainer = null) {
+    setIsosurfaceSection(domSection) {
+        this.domIsosurfaceSection = domSection;
+    }
+
+    setIsolevelInput(domInput, domValue = null) {
         this.domIsolevelInput = domInput;
         this.domIsolevelValue = domValue;
-        this.domIsolevelContainer = domContainer;
 
         const updateLabel = () => {
             const value = Number(domInput.val());
@@ -108,10 +111,9 @@ export class StructureWebpage {
         finalHandler();
     }
 
-    setIsosurfaceOpacityInput(domInput, domValue = null, domContainer = null) {
+    setIsosurfaceOpacityInput(domInput, domValue = null) {
         this.domOpacityInput = domInput;
         this.domOpacityValue = domValue;
-        this.domOpacityContainer = domContainer;
 
         const handler = () => {
             const value = Number(domInput.val());
@@ -201,11 +203,8 @@ export class StructureWebpage {
     }
 
     setChargeDensityVisibility(isVisible) {
-        if (this.domIsolevelContainer) {
-            this.domIsolevelContainer.toggle(!!isVisible);
-        }
-        if (this.domOpacityContainer) {
-            this.domOpacityContainer.toggle(!!isVisible);
+        if (this.domIsosurfaceSection) {
+            this.domIsosurfaceSection.toggle(!!isVisible);
         }
     }
 
