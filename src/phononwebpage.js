@@ -1,6 +1,7 @@
 import { LocalDB } from './localdb.js';
 import { ContribDB } from './contribdb.js';
 import { MaterialsProjectDB } from './mpdb.js';
+import { LocalPhononDB } from './localphonondb.js';
 import { PhononJson } from './phononjson.js';
 import { PhononYaml } from './phononyaml.js';
 import { exportXSF, exportPOSCAR }  from './exportfiles.js';
@@ -798,6 +799,10 @@ export class PhononWebpage {
 
         //contributions database
         source = new ContribDB();
+        source.get_materials(addMaterials);
+
+        //locally generated PhononDB subset
+        source = new LocalPhononDB();
         source.get_materials(addMaterials);
 
         //materials project database

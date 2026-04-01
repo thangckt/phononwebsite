@@ -9,6 +9,7 @@ import os
 import json
 import re
 import copy
+import numpy as np
 
 from phonopy import Phonopy
 from phonopy.units import Hartree, Bohr
@@ -55,9 +56,12 @@ class PhonopyPhonon():
             primitive = phonon.get_primitive() if hasattr(phonon, "get_primitive") else phonon.primitive
             nac_params = file_IO.parse_BORN(primitive, filename=nac_filename)
             nac_factor = Hartree * Bohr
-            if nac_params['factor'] == None:
+            if nac_params.get('factor') is None:
                 nac_params['factor'] = nac_factor
-            phonon.set_nac_params(nac_params)
+            if hasattr(phonon, "set_nac_params"):
+                phonon.set_nac_params(nac_params)
+            else:
+                phonon.nac_params = nac_params
 
         return PhonopyPhonon(phonon)
 
@@ -114,6 +118,30 @@ class PhonopyPhonon():
             self.labels.append(explicit_labels[start_k])
             self.bands.append(kpath[start_k:end_k])
         self.labels.append(explicit_labels[-1])
+
+    def set_bandstructure_seekpath_points(self, band_points=21):
+        """Get the bandstructure using seekpath with a fixed number of points per segment."""
+        import seekpath
+
+        unitcell = self.phonon.get_unitcell() if hasattr(self.phonon, "get_unitcell") else self.phonon.unitcell
+        cell = unitcell.get_cell() if hasattr(unitcell, "get_cell") else unitcell.cell
+        atoms = unitcell.get_atomic_numbers() if hasattr(unitcell, "get_atomic_numbers") else unitcell.numbers
+        pos = unitcell.get_scaled_positions() if hasattr(unitcell, "get_scaled_positions") else unitcell.scaled_positions
+
+        path = seekpath.get_path((cell, pos, atoms))
+        point_coords = path['point_coords']
+        path_segments = path['path']
+
+        segment_points = max(2, int(band_points))
+        self.bands = []
+        self.labels = []
+        for start_label, end_label in path_segments:
+            start_k = np.array(point_coords[start_label], dtype=float)
+            end_k = np.array(point_coords[end_label], dtype=float)
+            branch = np.linspace(start_k, end_k, num=segment_points, endpoint=True)
+            self.bands.append(branch)
+            self.labels.append(start_label)
+        self.labels.append(path_segments[-1][1])
 
     def get_frequencies_with_eigenvectors(self,qpoint=(0,0,0)):
         """calculate the eigenvalues and eigenvectors at a specific qpoint"""

@@ -27,6 +27,36 @@ You can visualize your own `phonopy` files by clicking on the `Choose files` but
 
 This only works with the newer versions of phonopy as new tags were added to 'band.yaml' to have information about the atomic positions and the supercell.
 
+Preparing PhononDB archives
+---------------------------
+The repository also ships a permanent conversion script for raw PhononDB-style `tar.lzma` archives containing `phonon.yaml` and `FORCE_SETS`. It generates the same compressed `.json.gz` format used for the Materials Project OpenData files and the internal browser loader.
+
+After installing the Python package:
+
+    $ pip install -e ./python
+
+You can convert one archive or a full directory with:
+
+    $ prepare_phonondb /path/to/phonondb2017 --output-dir data/phonondb2017 --band-points 21
+
+or directly from the repository checkout with:
+
+    $ python3 python/phononweb/scripts/prepare_phonondb.py /path/to/phonondb2017 --output-dir data/phonondb2017 --band-points 21
+
+There is also an npm wrapper for local use. This writes the generated files into `data/phonondb2017`, updates `data/phonondb2017/models.json`, and makes the converted materials appear in the website menu:
+
+    $ npm run prepare:phonondb:local -- /path/to/phonondb2017 --limit 10
+
+You can also use the generic passthrough command if you want full control over the output location:
+
+    $ npm run prepare:phonondb -- /path/to/phonondb2017 --output-dir data/phonondb2017 --manifest data/phonondb2017/models.json --band-points 21 --limit 10
+
+The converter uses a seekpath high-symmetry path with:
+
+    BAND_CONNECTION = .TRUE.
+
+and a fixed number of q-points per segment to keep the generated files reasonably small.
+
 Abinit
 ------
 To read a phonon dispersion from `Abinit` you need python scripts to convert the phonon dispersion data to the internal `.json` format used by the website.

@@ -38,7 +38,9 @@
     "build:site": "npm run build-uglify && npm run copy && npm run check:build-artifacts",
     "test": "npm run build-uglify && mocha \"test/**/*.test.cjs\"",
     "test:browser": "PLAYWRIGHT_SMOKE=1 mocha test/browser-smoke.test.cjs --timeout 30000",
-    "test:py": "python3 -m pytest python/phononweb/tests -q"
+    "test:py": "python3 -m pytest python/phononweb/tests -q",
+    "prepare:phonondb": "python3 python/phononweb/scripts/prepare_phonondb.py",
+    "prepare:phonondb:local": "python3 python/phononweb/scripts/prepare_phonondb.py --output-dir data/phonondb2017 --manifest data/phonondb2017/models.json --band-points 21"
   },
   "repository": {
     "type": "git",
