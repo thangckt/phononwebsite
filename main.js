@@ -68472,6 +68472,11 @@ function bindBondRuleControls(
     domBondAddButton,
     onRulesChanged,
 ) {
+    if (typeof domBondAddButton === 'function' && typeof onRulesChanged === 'undefined') {
+        onRulesChanged = domBondAddButton;
+        domBondAddButton = null;
+    }
+
     if (domBondRulesList && domBondRulesList.length) {
         domBondRulesList.on('click', 'button[data-remove-key]', (event) => {
             const key = event.currentTarget.getAttribute('data-remove-key');
@@ -72046,6 +72051,7 @@ class VibCrystal extends StructureViewerBase {
         this.captureK = null;
         this.captureN = null;
 		this.modified_covalent_radii = JSON.parse(JSON.stringify(covalent_radii));
+        this.autoBondRulesSourcePhonon = null;
     }
 
     setAtomColorOverride(atomNumber, colorValue) {
@@ -72165,7 +72171,42 @@ class VibCrystal extends StructureViewerBase {
         return getChemicalBondLimit(atomNumberA, atomNumberB, this.modified_covalent_radii);
     }
 
+    getClosestObservedBondDistance(atomNumberA, atomNumberB) {
+        if (!this.atoms || !this.atoms.length || !this.phonon || !this.phonon.atom_numbers) {
+            return null;
+        }
+
+        let atomNumbers = this.phonon.atom_numbers;
+        let minDistance = Infinity;
+
+        for (let i = 0; i < this.atoms.length; i++) {
+            let atomA = this.atoms[i];
+            let typeA = atomNumbers[atomA[0]];
+            for (let j = i + 1; j < this.atoms.length; j++) {
+                let atomB = this.atoms[j];
+                let typeB = atomNumbers[atomB[0]];
+                let matchesPair =
+                    (typeA === atomNumberA && typeB === atomNumberB) ||
+                    (typeA === atomNumberB && typeB === atomNumberA);
+                if (!matchesPair) {
+                    continue;
+                }
+
+                let distance$1 = distance(atomA.slice(1), atomB.slice(1));
+                if (distance$1 >= 0.4 && distance$1 < minDistance) {
+                    minDistance = distance$1;
+                }
+            }
+        }
+
+        return Number.isFinite(minDistance) ? minDistance : null;
+    }
+
     getDefaultBondCutoff(atomNumberA, atomNumberB) {
+        let closest = this.getClosestObservedBondDistance(atomNumberA, atomNumberB);
+        if (Number.isFinite(closest)) {
+            return Math.max(closest + 0.04, closest * 1.03);
+        }
         return this.getChemicalBondLimit(atomNumberA, atomNumberB);
     }
 
@@ -73088,7 +73129,10 @@ class VibCrystal extends StructureViewerBase {
             getComplexParts(v[1]),
             getComplexParts(v[2])
         ]);
-        this.initializeBondRulesFromAtoms(this.atoms, this.phonon.atom_numbers);
+        if (this.autoBondRulesSourcePhonon !== this.phonon || !Object.keys(this.bondRules).length) {
+            this.initializeBondRulesFromAtoms(this.atoms, this.phonon.atom_numbers);
+            this.autoBondRulesSourcePhonon = this.phonon;
+        }
 
         //check if it is initialized
         if (!this.initialized) {
@@ -74073,9 +74117,9 @@ class MaterialsProjectDB {
 
     constructor() {
         this.name = "mpdb";
-        this.year = 2025;
+        this.year = 2018;
         this.author = "G. Petretto et al.";
-        this.url = "https://materialsproject-parsed.s3.amazonaws.com/index.html#ph-bandstructures/dfpt/";
+        this.url = "https://www.nature.com/articles/sdata201865";
         this.probeUrl = "https://materialsproject-parsed.s3.amazonaws.com/ph-bandstructures/dfpt/mp-1000.json.gz";
     }
 
@@ -83023,11 +83067,12 @@ class PhononWebpage {
                 if (!this.isReferenceEnabled(refKey)) {
                     li.classList.add("reference-filter-disabled");
                 }
-                let toggle = document.createElement("button");
-                toggle.type = "button";
+                let toggle = document.createElement("input");
+                toggle.type = "checkbox";
                 toggle.className = "reference-filter-toggle";
-                toggle.textContent = this.isReferenceEnabled(refKey) ? "on" : "off";
-                toggle.onclick = () => {
+                toggle.checked = this.isReferenceEnabled(refKey);
+                toggle.title = "Show materials from this source";
+                toggle.onchange = () => {
                     this.toggleReferenceEnabled(refKey);
                 };
 
