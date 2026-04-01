@@ -4,6 +4,7 @@ import { atomic_symbol, covalent_radii } from './atomic_data.js';
 import { createAtomBadgeHtml } from './atomcolors.js';
 import { bindAppearanceAtomSelection, bindBondRuleControls, bindEnterToApply, createBondColorInputStateUpdater } from './appearancecontrols.js';
 import { IsosurfaceController } from './isosurfacecontroller.js';
+import { getCombinations } from './utils.js';
 import { createAtomSphereGeometry, createBondCylinderGeometry } from './viewergeometry.js';
 import { buildBondList, getViewerAtomRadius } from './viewermeshes.js';
 import { getSharedLightConfig, sharedViewerMethods } from './viewercommon.js';
