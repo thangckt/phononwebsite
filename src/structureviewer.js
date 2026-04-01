@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 import { StructureViewerBase } from './structureviewerbase.js';
 import { covalent_radii } from './atomic_data.js';
-import { getCombinations } from './utils.js';
+import { buildCrystalBondRules, getChemicalBondLimit } from './bonding.js';
 
 export class StructureViewer extends StructureViewerBase {
 
@@ -72,60 +72,8 @@ export class StructureViewer extends StructureViewerBase {
         });
     }
 
-    getCovalentBondLength(atomNumberA, atomNumberB) {
-        return (covalent_radii[atomNumberA] || 0) + (covalent_radii[atomNumberB] || 0);
-    }
-
-    getBondSearchLimit(atomNumberA, atomNumberB) {
-        const chemical = this.getChemicalBondLimit(atomNumberA, atomNumberB);
-        return chemical + Math.max(0.5, chemical * 0.2);
-    }
-
-    getChemicalBondLimit(atomNumberA, atomNumberB) {
-        const covalent = this.getCovalentBondLength(atomNumberA, atomNumberB);
-        return Math.max(0.4, covalent + 0.45);
-    }
-
     getDefaultBondCutoff(atomNumberA, atomNumberB) {
-        return this.getChemicalBondLimit(atomNumberA, atomNumberB);
-    }
-
-    getEffectiveCoordinationCandidates(siteNeighbors) {
-        if (!siteNeighbors || !siteNeighbors.length) {
-            return [];
-        }
-
-        const sorted = siteNeighbors
-            .filter((neighbor) => Number.isFinite(neighbor.distance) && neighbor.distance >= 0.4)
-            .sort((a, b) => a.distance - b.distance);
-        if (!sorted.length) {
-            return [];
-        }
-
-        const shortest = sorted[0].distance;
-        const accepted = [];
-
-        for (let i = 0; i < sorted.length; i++) {
-            const neighbor = sorted[i];
-            if (neighbor.distance > shortest + Math.max(1.0, shortest * 0.6)) {
-                break;
-            }
-
-            const relative = neighbor.distance / shortest;
-            const weight = Math.exp(1.0 - Math.pow(relative, 6));
-            if (weight < 0.35) {
-                continue;
-            }
-
-            accepted.push({
-                index: neighbor.index,
-                atom_number: neighbor.atom_number,
-                distance: neighbor.distance,
-                weight,
-            });
-        }
-
-        return accepted;
+        return getChemicalBondLimit(atomNumberA, atomNumberB, covalent_radii);
     }
 
     getReplicatedAtoms(nx, ny, nz) {
@@ -154,84 +102,17 @@ export class StructureViewer extends StructureViewerBase {
     }
 
     initializeBondRulesFromAtoms() {
-        this.bondRules = {};
         if (!this.baseAtoms || !this.baseAtoms.length || !this.atom_numbers || !this.atom_numbers.length) {
+            this.bondRules = {};
             return;
         }
 
-        const probeAtoms = this.getReplicatedAtoms(2, 2, 2).map((atom, index) => ({
-            index,
-            atom_number: this.atom_numbers[atom[0]],
-            position: new THREE.Vector3(atom[1], atom[2], atom[3]),
-        }));
-
-        const pairDistances = {};
-        const siteNeighbors = probeAtoms.map(() => []);
-        const combinations = getCombinations(probeAtoms);
-
-        for (let i = 0; i < combinations.length; i++) {
-            const a = combinations[i][0];
-            const b = combinations[i][1];
-            const length = a.position.distanceTo(b.position);
-            const searchLimit = this.getBondSearchLimit(a.atom_number, b.atom_number);
-            if (length <= searchLimit && length >= 0.4) {
-                siteNeighbors[a.index].push({
-                    index: b.index,
-                    atom_number: b.atom_number,
-                    distance: length,
-                });
-                siteNeighbors[b.index].push({
-                    index: a.index,
-                    atom_number: a.atom_number,
-                    distance: length,
-                });
-            }
-        }
-
-        const acceptedNeighbors = siteNeighbors.map((neighbors) => this.getEffectiveCoordinationCandidates(neighbors));
-        const acceptedNeighborMaps = acceptedNeighbors.map((neighbors) => {
-            const lookup = {};
-            for (let i = 0; i < neighbors.length; i++) {
-                lookup[neighbors[i].index] = neighbors[i];
-            }
-            return lookup;
-        });
-
-        for (let i = 0; i < combinations.length; i++) {
-            const a = combinations[i][0];
-            const b = combinations[i][1];
-            const length = a.position.distanceTo(b.position);
-            const chemicalLimit = this.getChemicalBondLimit(a.atom_number, b.atom_number);
-            const acceptedByA = acceptedNeighborMaps[a.index][b.index];
-            const acceptedByB = acceptedNeighborMaps[b.index][a.index];
-
-            if (!acceptedByA || !acceptedByB || length > chemicalLimit) {
-                continue;
-            }
-
-            const key = this.getBondRuleKey(a.atom_number, b.atom_number);
-            if (!pairDistances[key]) {
-                pairDistances[key] = {
-                    a: Math.min(a.atom_number, b.atom_number),
-                    b: Math.max(a.atom_number, b.atom_number),
-                    distances: [],
-                };
-            }
-            pairDistances[key].distances.push(length);
-        }
-
-        const keys = Object.keys(pairDistances);
-        for (let i = 0; i < keys.length; i++) {
-            const pair = pairDistances[keys[i]];
-            if (!pair.distances.length) {
-                continue;
-            }
-            let cutoff = Math.max.apply(null, pair.distances) + 0.04;
-            cutoff = Math.min(cutoff, this.getChemicalBondLimit(pair.a, pair.b));
-            if (Number.isFinite(cutoff) && cutoff >= 0.4) {
-                this.setBondRule(pair.a, pair.b, cutoff);
-            }
-        }
+        this.bondRules = buildCrystalBondRules(
+            this.getReplicatedAtoms(2, 2, 2),
+            this.atom_numbers,
+            covalent_radii,
+            this.getBondRuleKey.bind(this),
+        );
     }
 
     getSupercellLattice() {
