@@ -4,8 +4,8 @@ import { atomic_symbol, covalent_radii } from './atomic_data.js';
 import { createAtomBadgeHtml } from './atomcolors.js';
 import { bindAppearanceAtomSelection, bindBondRuleControls, bindEnterToApply, createBondColorInputStateUpdater } from './appearancecontrols.js';
 import { IsosurfaceController } from './isosurfacecontroller.js';
-import { getCombinations } from './utils.js';
 import { createAtomSphereGeometry, createBondCylinderGeometry } from './viewergeometry.js';
+import { buildBondList, getViewerAtomRadius } from './viewermeshes.js';
 import { getSharedLightConfig, sharedViewerMethods } from './viewercommon.js';
 
 const vecY = new THREE.Vector3(0, 1, 0);
@@ -440,9 +440,13 @@ export class StructureViewerBase {
             const atomNumber = this.atom_numbers[atomTypeIndex];
             if (!sphereGeometries.has(atomTypeIndex)) {
                 const atomScale = this.getAtomRadiusScale(atomNumber);
-                const radius = this.display === 'vesta'
-                    ? (covalent_radii[atomNumber] / 2.3) * atomScale
-                    : this.sphereRadius * atomScale;
+                const radius = getViewerAtomRadius(
+                    this.display,
+                    atomNumber,
+                    atomScale,
+                    this.sphereRadius,
+                    covalent_radii,
+                );
                 sphereGeometries.set(
                     atomTypeIndex,
                     createAtomSphereGeometry(radius, this.sphereLat, this.sphereLon),
@@ -461,41 +465,41 @@ export class StructureViewerBase {
             this.atomobjects.push(object);
         }
 
-        const combinations = getCombinations(this.atomobjects);
-        for (let i = 0; i < combinations.length; i++) {
-            const atomA = combinations[i][0];
-            const atomB = combinations[i][1];
-            const distance = atomA.position.distanceTo(atomB.position);
-            const key = this.getBondRuleKey(atomA.atom_number, atomB.atom_number);
-            const cutoff = this.bondRules[key] ? this.bondRules[key].cutoff : this.getDefaultBondCutoff(atomA.atom_number, atomB.atom_number);
-            if (distance < cutoff) {
-                const bond = getBond(atomA.position, atomB.position);
-                const createBondSegment = (length, midpoint, colorHex) => {
-                    const geometry = createBondCylinderGeometry(
-                        this.bondRadius,
-                        length,
-                        this.bondSegments,
-                        this.bondVertical,
-                    );
-                    let material = this.createShadedMaterial({ color: colorHex });
-                    const object = new THREE.Mesh(geometry, material);
-                    object.setRotationFromQuaternion(bond.quaternion);
-                    object.position.copy(midpoint);
-                    object.name = 'bond';
-                    this.scene.add(object);
-                    this.bondobjects.push(object);
-                };
+        this.bonds = buildBondList(
+            this.atomobjects,
+            this.bondRules,
+            this.getBondRuleKey.bind(this),
+            this.getDefaultBondCutoff.bind(this),
+        );
 
-                if (this.bondColorByAtom) {
-                    const direction = new THREE.Vector3().subVectors(atomB.position, atomA.position).normalize();
-                    const halfLength = distance / 2;
-                    const midpointA = atomA.position.clone().addScaledVector(direction, halfLength / 2);
-                    const midpointB = atomB.position.clone().addScaledVector(direction, -halfLength / 2);
-                    createBondSegment(halfLength, midpointA, this.getAtomColorHex(atomA.atom_number));
-                    createBondSegment(halfLength, midpointB, this.getAtomColorHex(atomB.atom_number));
-                } else {
-                    createBondSegment(distance, bond.midpoint, this.bondscolor);
-                }
+        for (let i = 0; i < this.bonds.length; i++) {
+            const bondEntry = this.bonds[i];
+            const bond = getBond(bondEntry.a, bondEntry.b);
+            const createBondSegment = (length, midpoint, colorHex) => {
+                const geometry = createBondCylinderGeometry(
+                    this.bondRadius,
+                    length,
+                    this.bondSegments,
+                    this.bondVertical,
+                );
+                let material = this.createShadedMaterial({ color: colorHex });
+                const object = new THREE.Mesh(geometry, material);
+                object.setRotationFromQuaternion(bond.quaternion);
+                object.position.copy(midpoint);
+                object.name = 'bond';
+                this.scene.add(object);
+                this.bondobjects.push(object);
+            };
+
+            if (this.bondColorByAtom) {
+                const direction = new THREE.Vector3().subVectors(bondEntry.b, bondEntry.a).normalize();
+                const halfLength = bondEntry.baseLength / 2;
+                const midpointA = bondEntry.a.clone().addScaledVector(direction, halfLength / 2);
+                const midpointB = bondEntry.b.clone().addScaledVector(direction, -halfLength / 2);
+                createBondSegment(halfLength, midpointA, this.getAtomColorHex(bondEntry.a_atom_number));
+                createBondSegment(halfLength, midpointB, this.getAtomColorHex(bondEntry.b_atom_number));
+            } else {
+                createBondSegment(bondEntry.baseLength, bond.midpoint, this.bondscolor);
             }
         }
     }

@@ -9,6 +9,7 @@ import { sharedViewerMethods } from './viewercommon.js';
 import { StructureViewerBase } from './structureviewerbase.js';
 import { buildCrystalBondRules, getChemicalBondLimit } from './bonding.js';
 import { createAtomSphereGeometry, createBondCylinderGeometry, createCellLineObject } from './viewergeometry.js';
+import { buildBondList, getViewerAtomRadius } from './viewermeshes.js';
 
 const vec_y = new THREE.Vector3( 0, 1, 0 );
 const vec_0 = new THREE.Vector3( 0, 0, 0 );
@@ -960,19 +961,11 @@ export class VibCrystal extends StructureViewerBase {
             let sphereGeometry;
             let atomNumber = atom_numbers[typeIndex];
             let atomScale = this.getAtomRadiusScale(atomNumber);
-            if (this.display == 'vesta') {
-                sphereGeometry = createAtomSphereGeometry(
-                    (atomic_data.covalent_radii[atomNumber]/2.3) * atomScale,
-                    this.sphereLat,
-                    this.sphereLon
-                );
-            } else {
-                sphereGeometry = createAtomSphereGeometry(
-                    this.sphereRadius * atomScale,
-                    this.sphereLat,
-                    this.sphereLon
-                );
-            }
+            sphereGeometry = createAtomSphereGeometry(
+                getViewerAtomRadius(this.display, atomNumber, atomScale, this.sphereRadius, atomic_data.covalent_radii),
+                this.sphereLat,
+                this.sphereLon
+            );
 
             let instancedMesh = new THREE.InstancedMesh(sphereGeometry, this.materials[typeIndex], count);
             instancedMesh.name = "atoms-" + typeIndex;
@@ -1059,30 +1052,12 @@ export class VibCrystal extends StructureViewerBase {
             }
         }
 
-        //obtain combinations two by two of all the atoms
-        let combinations = utils.getCombinations( this.atomobjects );
-        let a, b, length;
-        //collect bonds first
-        for (let i=0; i<combinations.length; i++) {
-            a = combinations[i][0];
-            b = combinations[i][1];
-            let ad = a.position;
-            let bd = b.position;
-
-            // Draw bond only if the corresponding bond rule exists and cutoff is satisfied.
-            length = ad.distanceTo(bd);
-            let key = this.getBondRuleKey(a.atom_number, b.atom_number);
-            let rule = this.bondRules[key];
-            if (rule && length < rule.cutoff) {
-                this.bonds.push({
-                    a: ad,
-                    b: bd,
-                    a_atom_number: a.atom_number,
-                    b_atom_number: b.atom_number,
-                    baseLength: length
-                });
-            }
-        }
+        this.bonds = buildBondList(
+            this.atomobjects,
+            this.bondRules,
+            this.getBondRuleKey.bind(this),
+            this.getDefaultBondCutoff.bind(this),
+        );
 
         const createBondMaterial = function(vertexColorsEnabled) {
             let bondMaterialConfig = {
