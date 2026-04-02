@@ -74208,10 +74208,26 @@ class LocalPhononDB {
         };
         let normalizeMaterialId = function(value) {
             let text = String(value == null ? '' : value).trim();
+            if (text.endsWith('.json.gz')) {
+                text = text.slice(0, -8);
+            } else if (text.endsWith('.json')) {
+                text = text.slice(0, -5);
+            }
             if (text.startsWith('mp-')) {
                 return text.slice(3);
             }
             return text;
+        };
+
+        let normalizeMaterialFile = function(value, normalizedId) {
+            let text = String(value == null ? '' : value).trim();
+            if (text.endsWith('.json.gz')) {
+                return text;
+            }
+            if (text.endsWith('.json')) {
+                return text + '.gz';
+            }
+            return 'mp-' + normalizedId + '.json.gz';
         };
 
         function dothings(catalog) {
@@ -74225,13 +74241,13 @@ class LocalPhononDB {
                         let id = normalizeMaterialId(entry);
                         localById[id] = {
                             id: id,
-                            file: String(entry).endsWith('.json.gz') ? String(entry) : String(entry) + ".json.gz"
+                            file: normalizeMaterialFile(entry, id)
                         };
                     } else if (entry && entry.id != null) {
                         let id = normalizeMaterialId(entry.id);
                         localById[id] = Object.assign({
                             id: id,
-                            file: entry.file || ('mp-' + id + ".json.gz")
+                            file: normalizeMaterialFile(entry.file || entry.id, id)
                         }, entry);
                     }
                 }
