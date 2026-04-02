@@ -478,8 +478,8 @@ def prepare_archive(
             name_mode=name_mode,
             path_metadata=path_metadata,
         )
-        apply_average_mass_normalization(payload)
         reorder_payload_band_connection(payload)
+        apply_average_mass_normalization(payload)
         if vector_format == "json":
             quantize_payload(payload, vector_decimals)
         else:
