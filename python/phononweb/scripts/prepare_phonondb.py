@@ -94,6 +94,12 @@ def parse_args():
         default=1,
         help="Number of archives to convert in parallel. Use 1 for serial execution.",
     )
+    parser.add_argument(
+        "--vector-decimals",
+        type=int,
+        default=4,
+        help="Decimal digits kept for eigenvector components in the generated JSON. Use a negative value to disable rounding.",
+    )
     return parser.parse_args()
 
 
@@ -366,6 +372,14 @@ def reorder_payload_band_connection(payload):
     return payload
 
 
+def quantize_payload(payload, vector_decimals):
+    if vector_decimals is None or vector_decimals < 0:
+        return payload
+
+    payload["vectors"] = np.round(np.array(payload["vectors"], dtype=float), decimals=vector_decimals)
+    return payload
+
+
 def write_gzip_json(path: Path, payload):
     encoded = json.dumps(payload, cls=JsonEncoder, separators=(",", ":")).encode("utf-8")
     with gzip.open(path, "wb", compresslevel=9) as handle:
@@ -384,7 +398,14 @@ def build_manifest_entry(payload, output_path: Path):
     }
 
 
-def prepare_archive(archive_path: Path, output_dir: Path, repetitions, band_points: int, name_mode: str):
+def prepare_archive(
+    archive_path: Path,
+    output_dir: Path,
+    repetitions,
+    band_points: int,
+    name_mode: str,
+    vector_decimals: int = 4,
+):
     with tempfile.TemporaryDirectory(prefix="phonondb-prepare-") as tmp:
         tmpdir = Path(tmp)
         extracted_root = extract_archive(archive_path, tmpdir)
@@ -418,6 +439,7 @@ def prepare_archive(archive_path: Path, output_dir: Path, repetitions, band_poin
             path_metadata=path_metadata,
         )
         reorder_payload_band_connection(payload)
+        quantize_payload(payload, vector_decimals)
 
         output_stem = choose_output_stem(archive_path, payload, name_mode)
         payload["name"] = payload["formula"]
@@ -432,6 +454,7 @@ def prepare_archive_task(task):
     repetitions = task["repetitions"]
     band_points = task["band_points"]
     name_mode = task["name_mode"]
+    vector_decimals = task["vector_decimals"]
     started_at = time.perf_counter()
     payload, output_path = prepare_archive(
         archive_path,
@@ -439,6 +462,7 @@ def prepare_archive_task(task):
         repetitions=repetitions,
         band_points=band_points,
         name_mode=name_mode,
+        vector_decimals=vector_decimals,
     )
     elapsed = time.perf_counter() - started_at
     return {
@@ -494,6 +518,7 @@ def main():
             "repetitions": repetitions,
             "band_points": args.band_points,
             "name_mode": args.name_from,
+            "vector_decimals": args.vector_decimals,
         })
 
     jobs = max(1, int(args.jobs))
