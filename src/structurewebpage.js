@@ -1,4 +1,4 @@
-import { parsePoscar } from './poscar.js';
+import { parsePoscar } from './poscarformat.js';
 import { parseChgcar } from './chgcar.js';
 import { format_formula_html } from './utils.js';
 import { renderLatticeTable, renderAtomPositionsTable } from './structureinfo.js';

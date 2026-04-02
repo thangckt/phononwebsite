@@ -41,11 +41,13 @@ def test_prepare_archive_writes_compressed_internal_json(tmp_path):
     assert len(payload['line_breaks']) > 0
     assert len(payload['qpoints']) == len(payload['distances'])
     assert len(payload['qpoints']) == len(payload['eigenvalues'])
-    assert len(payload['qpoints']) == len(payload['vectors'])
+    assert 'vectors_compressed' in payload
+    assert 'vectors' not in payload
 
     with gzip.open(output_path, 'rt', encoding='utf-8') as handle:
         written = json.load(handle)
 
     assert written['formula'] == 'Si2'
     assert written['name'] == 'Si2'
+    assert written['vectors_compressed']['format'] == 'q11-int16-base64'
     assert written['atom_pos_car'][1] != written['atom_pos_red'][1]

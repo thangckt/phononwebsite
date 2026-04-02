@@ -7,6 +7,7 @@
 """Prepare ready-to-serve compressed JSON files from raw PhononDB archives."""
 
 import argparse
+import base64
 import concurrent.futures
 import gzip
 import json
@@ -99,6 +100,12 @@ def parse_args():
         type=int,
         default=4,
         help="Decimal digits kept for eigenvector components in the generated JSON. Use a negative value to disable rounding.",
+    )
+    parser.add_argument(
+        "--vector-format",
+        choices=["json", "q11-int16-base64"],
+        default="q11-int16-base64",
+        help="How eigenvectors are stored in the generated JSON payload.",
     )
     return parser.parse_args()
 
@@ -380,6 +387,19 @@ def quantize_payload(payload, vector_decimals):
     return payload
 
 
+def encode_vectors_q11_int16_base64(payload):
+    vectors = np.array(payload["vectors"], dtype=np.float32)
+    quantized = np.clip(np.rint(vectors * 2047.0), -2047, 2047).astype(np.int16)
+    payload["vectors_compressed"] = {
+        "format": "q11-int16-base64",
+        "scale": 2047,
+        "shape": list(quantized.shape),
+        "data": base64.b64encode(quantized.tobytes(order="C")).decode("ascii"),
+    }
+    del payload["vectors"]
+    return payload
+
+
 def write_gzip_json(path: Path, payload):
     encoded = json.dumps(payload, cls=JsonEncoder, separators=(",", ":")).encode("utf-8")
     with gzip.open(path, "wb", compresslevel=9) as handle:
@@ -405,6 +425,7 @@ def prepare_archive(
     band_points: int,
     name_mode: str,
     vector_decimals: int = 4,
+    vector_format: str = "q11-int16-base64",
 ):
     with tempfile.TemporaryDirectory(prefix="phonondb-prepare-") as tmp:
         tmpdir = Path(tmp)
@@ -439,7 +460,10 @@ def prepare_archive(
             path_metadata=path_metadata,
         )
         reorder_payload_band_connection(payload)
-        quantize_payload(payload, vector_decimals)
+        if vector_format == "json":
+            quantize_payload(payload, vector_decimals)
+        else:
+            encode_vectors_q11_int16_base64(payload)
 
         output_stem = choose_output_stem(archive_path, payload, name_mode)
         payload["name"] = payload["formula"]
@@ -455,6 +479,7 @@ def prepare_archive_task(task):
     band_points = task["band_points"]
     name_mode = task["name_mode"]
     vector_decimals = task["vector_decimals"]
+    vector_format = task["vector_format"]
     started_at = time.perf_counter()
     payload, output_path = prepare_archive(
         archive_path,
@@ -463,6 +488,7 @@ def prepare_archive_task(task):
         band_points=band_points,
         name_mode=name_mode,
         vector_decimals=vector_decimals,
+        vector_format=vector_format,
     )
     elapsed = time.perf_counter() - started_at
     return {
@@ -519,6 +545,7 @@ def main():
             "band_points": args.band_points,
             "name_mode": args.name_from,
             "vector_decimals": args.vector_decimals,
+            "vector_format": args.vector_format,
         })
 
     jobs = max(1, int(args.jobs))

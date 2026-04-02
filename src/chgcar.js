@@ -1,5 +1,5 @@
 import * as mat from './mat.js';
-import { parsePoscarStructureLines } from './poscar.js';
+import { parsePoscarStructureLines } from './poscarformat.js';
 
 function tokenize(line) {
     return String(line || '').trim().split(/\s+/).filter(Boolean);

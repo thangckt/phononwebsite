@@ -9,6 +9,78 @@ var ev2cm1 = 8065.73;
 
 export class PhononJson {
 
+    decodeBase64Bytes(base64Text) {
+        if (typeof base64Text !== 'string') {
+            return new Uint8Array(0);
+        }
+
+        if (typeof atob === 'function') {
+            let binary = atob(base64Text);
+            let bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            return bytes;
+        }
+
+        if (typeof Buffer !== 'undefined') {
+            return new Uint8Array(Buffer.from(base64Text, 'base64'));
+        }
+
+        throw new Error('Base64 decoding is not available in this environment.');
+    }
+
+    decodeCompressedVectors(payload) {
+        if (!payload || payload.format !== 'q11-int16-base64') {
+            return null;
+        }
+
+        let shape = payload.shape || [];
+        if (shape.length !== 5) {
+            return null;
+        }
+
+        let scale = Number(payload.scale);
+        if (!Number.isFinite(scale) || scale <= 0) {
+            return null;
+        }
+
+        let bytes = this.decodeBase64Bytes(payload.data);
+        let expectedCount = shape.reduce((acc, value) => acc * value, 1);
+        if (bytes.length !== expectedCount * 2) {
+            return null;
+        }
+
+        let view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+        let values = new Float32Array(expectedCount);
+        for (let i = 0; i < expectedCount; i++) {
+            values[i] = view.getInt16(i * 2, true) / scale;
+        }
+
+        let offset = 0;
+        let vectors = [];
+        for (let q = 0; q < shape[0]; q++) {
+            let qVectors = [];
+            for (let n = 0; n < shape[1]; n++) {
+                let modeVectors = [];
+                for (let atom = 0; atom < shape[2]; atom++) {
+                    let atomVectors = [];
+                    for (let axis = 0; axis < shape[3]; axis++) {
+                        atomVectors.push([
+                            values[offset++],
+                            values[offset++],
+                        ]);
+                    }
+                    modeVectors.push(atomVectors);
+                }
+                qVectors.push(modeVectors);
+            }
+            vectors.push(qVectors);
+        }
+
+        return vectors;
+    }
+
     normalizeEigenvectors() {
         if (!this.vec || !this.vec.length || !this.atom_numbers || !this.atom_numbers.length) {
             return;
@@ -223,7 +295,9 @@ export class PhononJson {
         this.atom_pos_car = data["atom_pos_car"];
         this.atom_pos_red = data["atom_pos_red"];
         this.lat = data["lattice"];
-        this.vec = data["vectors"];
+        this.vec = data["vectors_compressed"]
+            ? this.decodeCompressedVectors(data["vectors_compressed"])
+            : data["vectors"];
         this.kpoints = data["qpoints"];
         this.distances = data["distances"];
         this.formula = data["formula"];
