@@ -303,6 +303,8 @@ export class PhononJson {
         this.formula = data["formula"];
         this.eigenvalues = data["eigenvalues"];
         this.repetitions = data["repetitions"];
+        this.average_mass = data["average_mass"];
+        this.mode_amplitude_convention = data["mode_amplitude_convention"];
 
         //get qindex
         this.qindex = {};

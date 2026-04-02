@@ -27,6 +27,7 @@ from phononweb.jsonencoder import JsonEncoder
 from phononweb.lattice import red_car
 from phononweb.phonopyphonon import PhonopyPhonon
 from phononweb.units import atomic_numbers
+from phononweb.units import atomic_mass
 from phononweb.utils import estimate_band_connection
 
 THZ_TO_CM1 = 33.35641
@@ -286,6 +287,24 @@ def get_structure_metadata(phonopy_phonon):
     }
 
 
+def apply_average_mass_normalization(payload):
+    atom_numbers_list = payload.get("atom_numbers") or []
+    if not atom_numbers_list:
+        return payload
+
+    masses = np.array([float(atomic_mass[int(number)]) for number in atom_numbers_list], dtype=float)
+    if not np.all(np.isfinite(masses)) or np.any(masses <= 0):
+        return payload
+
+    average_mass = float(np.mean(masses))
+    scale = np.sqrt(average_mass / masses).reshape(1, 1, len(masses), 1, 1)
+    vectors = np.array(payload["vectors"], dtype=float)
+    payload["vectors"] = vectors * scale
+    payload["average_mass"] = average_mass
+    payload["mode_amplitude_convention"] = "avg-mass-normalized"
+    return payload
+
+
 def convert_band_yaml_to_site_json(
     band_yaml,
     structure,
@@ -459,6 +478,7 @@ def prepare_archive(
             name_mode=name_mode,
             path_metadata=path_metadata,
         )
+        apply_average_mass_normalization(payload)
         reorder_payload_band_connection(payload)
         if vector_format == "json":
             quantize_payload(payload, vector_decimals)
