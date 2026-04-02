@@ -74206,6 +74206,13 @@ class LocalPhononDB {
         let finishEmpty = function() {
             callback([]);
         };
+        let normalizeMaterialId = function(value) {
+            let text = String(value == null ? '' : value).trim();
+            if (text.startsWith('mp-')) {
+                return text.slice(3);
+            }
+            return text;
+        };
 
         function dothings(catalog) {
             let request;
@@ -74215,15 +74222,16 @@ class LocalPhononDB {
                 for (let i = 0; i < localEntries.length; i++) {
                     let entry = localEntries[i];
                     if (typeof entry === "string") {
-                        localById[String(entry)] = {
-                            id: String(entry),
-                            file: entry + ".json.gz"
+                        let id = normalizeMaterialId(entry);
+                        localById[id] = {
+                            id: id,
+                            file: String(entry).endsWith('.json.gz') ? String(entry) : String(entry) + ".json.gz"
                         };
                     } else if (entry && entry.id != null) {
-                        let id = String(entry.id);
+                        let id = normalizeMaterialId(entry.id);
                         localById[id] = Object.assign({
                             id: id,
-                            file: entry.file || (id + ".json.gz")
+                            file: entry.file || ('mp-' + id + ".json.gz")
                         }, entry);
                     }
                 }
@@ -74231,7 +74239,7 @@ class LocalPhononDB {
                 let materials = [];
                 for (let i = 0; i < catalog.length; i++) {
                     let catalogEntry = catalog[i];
-                    let localEntry = localById[String(catalogEntry.id)];
+                    let localEntry = localById[normalizeMaterialId(catalogEntry.id)];
                     if (!localEntry) {
                         continue;
                     }
