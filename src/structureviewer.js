@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { StructureViewerBase } from './structureviewerbase.js';
 import { covalent_radii } from './atomic_data.js';
 import { buildCrystalBondRules, getChemicalBondLimit } from './bonding.js';
+import { clampRaymarchStepCount, refreshRaymarchedIsosurfaceUniforms } from './raymarchedisosurface.js';
 import { createCellLineObject } from './viewergeometry.js';
 
 export class StructureViewer extends StructureViewerBase {
@@ -220,6 +221,14 @@ export class StructureViewer extends StructureViewerBase {
             if (mesh.material && mesh.material.uniforms && mesh.material.uniforms.uTextureRepeat) {
                 mesh.material.uniforms.uTextureRepeat.value.set(this.nx, this.ny, this.nz);
             }
+            if (mesh.material && mesh.material.uniforms && mesh.material.uniforms.uStepCount) {
+                const repeatScale = Math.max(this.nx || 1, this.ny || 1, this.nz || 1);
+                mesh.material.uniforms.uStepCount.value = clampRaymarchStepCount(
+                    mesh.material.uniforms.uStepCount.value * repeatScale,
+                    [this.sizex || 1, this.sizey || 1, this.sizez || 1],
+                );
+            }
+            refreshRaymarchedIsosurfaceUniforms(mesh, mesh.userData.gridCell);
             this.scene.add(mesh);
             return;
         }

@@ -323,6 +323,8 @@ export class RaymarchIsosurfaceBackend extends BaseIsosurfaceBackend {
         const renderConfig = this.getRenderConfig();
         let updated = false;
         this.host.forEachNamedSceneObject('isosurface', (object) => {
+            const textureRepeat = object.userData && object.userData.textureRepeat ? object.userData.textureRepeat : [1, 1, 1];
+            const repeatScale = Math.max(textureRepeat[0] || 1, textureRepeat[1] || 1, textureRepeat[2] || 1);
             updated = updateRaymarchedIsosurface(object, {
                 texture: this.volumeTexture,
                 isolevel: this.host.isolevel,
@@ -331,8 +333,8 @@ export class RaymarchIsosurfaceBackend extends BaseIsosurfaceBackend {
                 periodic: !!this.host.getMarchingCubesOptions().periodic,
                 gridSize: [this.host.sizex, this.host.sizey, this.host.sizez],
                 interpolation: renderConfig.interpolation,
-                textureRepeat: object.userData && object.userData.textureRepeat ? object.userData.textureRepeat : [1, 1, 1],
-                stepCount: renderConfig.stepCount,
+                textureRepeat: textureRepeat,
+                stepCount: renderConfig.stepCount * repeatScale,
                 activeRayHits: renderConfig.activeRayHits,
             }) || updated;
         });

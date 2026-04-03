@@ -7,6 +7,10 @@ const MAX_RAY_HITS = 2;
 const RAYMARCH_OPACITY_COMPENSATION = RAYMARCH_PERFORMANCE_SETTINGS.opacityCompensation;
 const BoxGeometryCtor = Reflect.get(THREE, 'BoxGeometry') || Reflect.get(THREE, 'BoxBufferGeometry');
 
+export function clampRaymarchStepCount(stepCount, gridSize = [1, 1, 1]) {
+    return Math.max(24, Math.min(MAX_STEPS, Math.round(stepCount || (Math.max(...gridSize) * 2.0))));
+}
+
 function createCellMatrix(gridCell) {
     const a = gridCell[0];
     const b = gridCell[1];
@@ -66,7 +70,7 @@ function createMaterial({ texture, gridCell, isolevel, opacity, color, periodic,
             uGradientMatrix: { value: gradientMatrix },
             uWorldToTexture: { value: new THREE.Matrix4() },
             uTextureToWorld: { value: new THREE.Matrix4() },
-            uStepCount: { value: Math.max(24, Math.min(MAX_STEPS, Math.round(stepCount || (Math.max(...gridSize) * 2.0)))) },
+            uStepCount: { value: clampRaymarchStepCount(stepCount, gridSize) },
             uActiveRayHits: { value: Math.max(1, Math.min(MAX_RAY_HITS, Math.round(activeRayHits || MAX_RAY_HITS))) },
             uInterpolationMode: { value: getInterpolationMode(interpolation) },
             uTextureRepeat: { value: new THREE.Vector3(textureRepeat[0], textureRepeat[1], textureRepeat[2]) },
@@ -228,10 +232,15 @@ function createMaterial({ texture, gridCell, isolevel, opacity, color, periodic,
 
             vec3 computeTextureGradient3(vec3 coord) {
                 vec3 eps = 1.0 / max(uGridSize, vec3(2.0));
-                float dx = sampleVolume(coord + vec3(eps.x, 0.0, 0.0)) - sampleVolume(coord - vec3(eps.x, 0.0, 0.0));
-                float dy = sampleVolume(coord + vec3(0.0, eps.y, 0.0)) - sampleVolume(coord - vec3(0.0, eps.y, 0.0));
-                float dz = sampleVolume(coord + vec3(0.0, 0.0, eps.z)) - sampleVolume(coord - vec3(0.0, 0.0, eps.z));
-                return vec3(dx, dy, dz);
+                vec3 e1 = vec3( eps.x, -eps.y, -eps.z);
+                vec3 e2 = vec3(-eps.x, -eps.y,  eps.z);
+                vec3 e3 = vec3(-eps.x,  eps.y, -eps.z);
+                vec3 e4 = vec3( eps.x,  eps.y,  eps.z);
+                float s1 = sampleVolume(coord + e1);
+                float s2 = sampleVolume(coord + e2);
+                float s3 = sampleVolume(coord + e3);
+                float s4 = sampleVolume(coord + e4);
+                return e1 * s1 + e2 * s2 + e3 * s3 + e4 * s4;
             }
 
             vec3 estimateNormal(vec3 coord) {
@@ -322,6 +331,8 @@ function createMaterial({ texture, gridCell, isolevel, opacity, color, periodic,
                 }
 
                 float stepSize = span / float(max(uStepCount, 1));
+                float voxelAdvance = 1.5 / max(max(uGridSize.x, uGridSize.y), uGridSize.z);
+                float minHitAdvance = max(stepSize * 2.5, voxelAdvance);
                 float currentStartT = startT;
                 vec4 accumulated = vec4(0.0);
 
@@ -353,7 +364,7 @@ function createMaterial({ texture, gridCell, isolevel, opacity, color, periodic,
                             vec4 hitColor = shadeHit(hitPos, rayDirection);
                             accumulated.rgb += (1.0 - accumulated.a) * hitColor.a * hitColor.rgb;
                             accumulated.a += (1.0 - accumulated.a) * hitColor.a;
-                            nextStartT = hitT + stepSize * 1.25;
+                            nextStartT = hitT + minHitAdvance;
                             foundHit = true;
                             break;
                         }
@@ -362,7 +373,7 @@ function createMaterial({ texture, gridCell, isolevel, opacity, color, periodic,
                         previousValue = currentValue;
                     }
 
-                    if (!foundHit || accumulated.a >= 0.98 || nextStartT >= endT) {
+                    if (!foundHit || accumulated.a >= 0.94 || nextStartT >= endT) {
                         break;
                     }
 
@@ -387,25 +398,32 @@ function attachRaymarchUniformUpdater(mesh, gridCell) {
     };
     mesh.userData.raymarchState = state;
     mesh.onBeforeRender = function() {
-        if (!this.material || !this.material.uniforms) {
-            return;
-        }
-        const activeGridCell = (this.userData && this.userData.gridCell) ? this.userData.gridCell : gridCell;
-        const textureRepeat = (this.userData && this.userData.textureRepeat) ? this.userData.textureRepeat : [1, 1, 1];
-        const state = this.userData && this.userData.raymarchState ? this.userData.raymarchState : null;
-        const cellMatrix = state ? state.cellMatrix : createCellMatrix(activeGridCell);
-        const textureToWorld = state ? state.textureToWorld : new THREE.Matrix4();
-        const worldToTexture = state ? state.worldToTexture : new THREE.Matrix4();
-        updateCellMatrix(cellMatrix, activeGridCell);
-        this.updateMatrixWorld();
-        textureToWorld.multiplyMatrices(this.matrixWorld, cellMatrix);
-        worldToTexture.copy(textureToWorld).invert();
-        this.material.uniforms.uTextureToWorld.value.copy(textureToWorld);
-        this.material.uniforms.uWorldToTexture.value.copy(worldToTexture);
-        if (this.material.uniforms.uTextureRepeat) {
-            this.material.uniforms.uTextureRepeat.value.set(textureRepeat[0], textureRepeat[1], textureRepeat[2]);
-        }
+        refreshRaymarchedIsosurfaceUniforms(this, gridCell);
     };
+}
+
+export function refreshRaymarchedIsosurfaceUniforms(mesh, fallbackGridCell = null) {
+    if (!mesh || !mesh.material || !mesh.material.uniforms) {
+        return;
+    }
+    const activeGridCell = (mesh.userData && mesh.userData.gridCell) ? mesh.userData.gridCell : fallbackGridCell;
+    if (!Array.isArray(activeGridCell) || activeGridCell.length !== 3) {
+        return;
+    }
+    const textureRepeat = (mesh.userData && mesh.userData.textureRepeat) ? mesh.userData.textureRepeat : [1, 1, 1];
+    const state = mesh.userData && mesh.userData.raymarchState ? mesh.userData.raymarchState : null;
+    const cellMatrix = state ? state.cellMatrix : createCellMatrix(activeGridCell);
+    const textureToWorld = state ? state.textureToWorld : new THREE.Matrix4();
+    const worldToTexture = state ? state.worldToTexture : new THREE.Matrix4();
+    updateCellMatrix(cellMatrix, activeGridCell);
+    mesh.updateMatrixWorld(true);
+    textureToWorld.multiplyMatrices(mesh.matrixWorld, cellMatrix);
+    worldToTexture.copy(textureToWorld).invert();
+    mesh.material.uniforms.uTextureToWorld.value.copy(textureToWorld);
+    mesh.material.uniforms.uWorldToTexture.value.copy(worldToTexture);
+    if (mesh.material.uniforms.uTextureRepeat) {
+        mesh.material.uniforms.uTextureRepeat.value.set(textureRepeat[0], textureRepeat[1], textureRepeat[2]);
+    }
 }
 
 export function createRaymarchedIsosurface({
@@ -446,6 +464,7 @@ export function createRaymarchedIsosurface({
     mesh.userData.gridCell = gridCell.map((vector) => vector.slice());
     mesh.userData.textureRepeat = textureRepeat.slice();
     attachRaymarchUniformUpdater(mesh, mesh.userData.gridCell);
+    refreshRaymarchedIsosurfaceUniforms(mesh, mesh.userData.gridCell);
     return mesh;
 }
 
@@ -486,7 +505,7 @@ export function updateRaymarchedIsosurface(object, {
         uniforms.uPeriodic.value = periodic ? 1 : 0;
     }
     if (uniforms.uStepCount) {
-        uniforms.uStepCount.value = Math.max(24, Math.min(MAX_STEPS, Math.round(stepCount || (Math.max(...gridSize) * 2.0))));
+        uniforms.uStepCount.value = clampRaymarchStepCount(stepCount, gridSize);
     }
     if (uniforms.uActiveRayHits) {
         uniforms.uActiveRayHits.value = Math.max(1, Math.min(MAX_RAY_HITS, Math.round(activeRayHits || MAX_RAY_HITS)));
@@ -510,6 +529,7 @@ export function updateRaymarchedIsosurface(object, {
         material.depthWrite = nextDepthWrite;
         material.needsUpdate = true;
     }
+    refreshRaymarchedIsosurfaceUniforms(object);
     return true;
 }
 
