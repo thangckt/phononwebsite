@@ -368,16 +368,24 @@ ap {
     height: 48px;
 }
 
+#mat li + li {
+    margin-top: 0.03rem;
+}
+
 #mat li a {
-    text-decoration: none;
-    color: #000;
-    margin-bottom: 0.2em;
     display: block;
-    transition: font-size 0.3s ease, background-color 0.3s ease;
+    padding: 0.08rem 0.4rem;
+    text-decoration: none;
+    color: #475569;
+    border-left: 3px solid transparent;
+    transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+    line-height: 1.15;
 }
 
 #mat li a:hover {
-    background: deepskyblue;
+    background: rgba(0, 191, 255, 0.12);
+    color: #0f172a;
+    border-left-color: deepskyblue;
 }
 
 #ref {
