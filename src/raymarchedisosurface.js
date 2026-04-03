@@ -444,6 +444,7 @@ export function updateRaymarchedIsosurface(object, {
         return false;
     }
 
+    const material = object.material;
     const uniforms = object.material.uniforms;
     if (uniforms.uVolume) {
         uniforms.uVolume.value = texture;
@@ -455,7 +456,7 @@ export function updateRaymarchedIsosurface(object, {
         uniforms.uOpacity.value = opacity;
     }
     if (uniforms.uColor) {
-        uniforms.uColor.value = new THREE.Color(color);
+        uniforms.uColor.value.set(color);
     }
     if (uniforms.uGridSize) {
         uniforms.uGridSize.value.set(gridSize[0], gridSize[1], gridSize[2]);
@@ -475,10 +476,16 @@ export function updateRaymarchedIsosurface(object, {
     if (uniforms.uTextureRepeat) {
         uniforms.uTextureRepeat.value.set(textureRepeat[0], textureRepeat[1], textureRepeat[2]);
     }
-    object.material.opacity = opacity;
-    object.material.transparent = true;
-    object.material.depthWrite = opacity >= 0.999;
-    object.material.needsUpdate = true;
+    material.opacity = opacity;
+    if (material.transparent !== true) {
+        material.transparent = true;
+        material.needsUpdate = true;
+    }
+    const nextDepthWrite = opacity >= 0.999;
+    if (material.depthWrite !== nextDepthWrite) {
+        material.depthWrite = nextDepthWrite;
+        material.needsUpdate = true;
+    }
     if (object.userData && object.userData.gridCell) {
         attachRaymarchUniformUpdater(object, object.userData.gridCell);
     }
