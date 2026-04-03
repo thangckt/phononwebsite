@@ -238,7 +238,7 @@ Acknowledgments & Funding
 
 VASP Software GmbH (2019-present): <http://www.vasp.at>
 
-<img src="figures/vasp.png" width="150px">
+<img src="figures/vasp.png" width="280px">
 
 Fonds National de la Recherche Scientifique (2017-2019): <http://www.fnrs.be/>
 
