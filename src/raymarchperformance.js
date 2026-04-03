@@ -13,19 +13,19 @@ export const RAYMARCH_PERFORMANCE_OPTION_DESCRIPTIONS = {
 export const RAYMARCH_PERFORMANCE_SETTINGS = {
     opacityCompensation: 1.7,
     interactive: {
-        resolutionDivisor: 1,
+        resolutionDivisor: 2,
         interpolation: 'trilinear',
-        stepScale: 0.18,
-        minSteps: 16,
-        maxSteps: 64,
+        stepScale: 0.8,
+        minSteps: 32,
+        maxSteps: 256,
         maxRayHits: 2,
     },
     settled: {
         resolutionDivisor: 2,
         interpolation: 'selected',
-        stepScale: 0.5,
-        minSteps: 56,
-        maxSteps: 224,
+        stepScale: 0.8,
+        minSteps: 32,
+        maxSteps: 256,
         maxRayHits: 2,
     },
 };
