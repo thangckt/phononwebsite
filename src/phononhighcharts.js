@@ -114,7 +114,7 @@ export class PhononHighcharts {
         for (let i=0; i<this.chart.series.length; i++) {
             let series = this.chart.series[i];
             if (series.options.isLegendSeries || series.options.isWeightSeries) { continue; }
-            if (String(series.name) !== String(n)) { continue; }
+            if (Number(series.options.bandIndex) !== Number(n)) { continue; }
             for (let j=0; j<series.points.length; j++) {
                 let point = series.points[j];
                 if (Math.abs(point.x - targetX) < 1e-12) {
