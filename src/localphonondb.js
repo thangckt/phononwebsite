@@ -10,7 +10,7 @@ export class LocalPhononDB {
         this.author = "A. Togo";
         this.year = 2018;
         this.url = "https://github.com/atztogo/phonondb";
-        this.catalog = "phonondb2018/phonondb.json";
+        this.catalog = "data/phonondb2017/catalog.json";
         this.generated = "data/phonondb2017/models.json";
         this.root = "data/phonondb2017";
     }
