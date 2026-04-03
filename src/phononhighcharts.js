@@ -85,12 +85,15 @@ export class PhononHighcharts {
     setClickEvent( phononweb ) {
         let click_event = function () {
             if (this.series.options.isLegendSeries || this.series.options.isWeightSeries) { return; }
-            let k = phononweb.phonon.qindex[this.x];
+            let k = Number.isFinite(this.options && this.options.kIndex)
+                ? this.options.kIndex
+                : phononweb.phonon.qindex[this.x];
             let n = this.series.options.bandIndex;
             if (!Number.isFinite(n)) {
                 n = Number(this.series.name);
             }
-            phononweb.selectModeByBandIndex(k, n, false);
+            phononweb.selectModeByBandIndex(k, n, true);
+            return false;
         }
         this.HighchartsOptions.plotOptions.series.point.events.click = click_event
     }
@@ -102,6 +105,7 @@ export class PhononHighcharts {
 
         if (this.selectedPoint &&
             this.selectedBandIndex === n &&
+            this.selectedK === k &&
             this.selectedX === targetX) {
             return;
         }
@@ -115,19 +119,34 @@ export class PhononHighcharts {
             let series = this.chart.series[i];
             if (series.options.isLegendSeries || series.options.isWeightSeries) { continue; }
             if (Number(series.options.bandIndex) !== Number(n)) { continue; }
+            let fallbackPoint = null;
             for (let j=0; j<series.points.length; j++) {
                 let point = series.points[j];
-                if (Math.abs(point.x - targetX) < 1e-12) {
+                let pointK = point.options ? point.options.kIndex : undefined;
+                if (Number.isFinite(pointK) && Number(pointK) === Number(k)) {
                     point.select(true, false);
                     this.selectedPoint = point;
                     this.selectedBandIndex = n;
+                    this.selectedK = k;
                     this.selectedX = targetX;
                     return;
                 }
+                if (!fallbackPoint && Math.abs(point.x - targetX) < 1e-12) {
+                    fallbackPoint = point;
+                }
+            }
+            if (fallbackPoint) {
+                fallbackPoint.select(true, false);
+                this.selectedPoint = fallbackPoint;
+                this.selectedBandIndex = n;
+                this.selectedK = k;
+                this.selectedX = targetX;
+                return;
             }
         }
 
         this.selectedBandIndex = null;
+        this.selectedK = null;
         this.selectedX = null;
     }
 
@@ -609,7 +628,11 @@ export class PhononHighcharts {
                     let eig = [];
 
                     for (let k=segmentStart; k<segmentEnd; k++) {
-                        eig.push([dists[k],eival[k][n]]);
+                        eig.push({
+                            x: dists[k],
+                            y: eival[k][n],
+                            kIndex: k,
+                        });
                     }
 
                     this.highcharts.push({

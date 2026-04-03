@@ -47,4 +47,42 @@ describe('PhononHighcharts selection sync', () => {
     assert.equal(chartHelper.selectedBandIndex, 4);
     assert.equal(chartHelper.selectedX, 1.25);
   });
+
+  it('prefers the exact k-index when multiple points share the same x position', () => {
+    const chartHelper = new PhononHighcharts(null);
+    let selectedPoint = null;
+    const firstPoint = {
+      x: 2.0,
+      options: { kIndex: 5 },
+      select(value) {
+        if (value === true) {
+          selectedPoint = 'first';
+        }
+      },
+    };
+    const secondPoint = {
+      x: 2.0,
+      options: { kIndex: 6 },
+      select(value) {
+        if (value === true) {
+          selectedPoint = 'second';
+        }
+      },
+    };
+
+    chartHelper.chart = {
+      series: [
+        {
+          name: '4',
+          options: { bandIndex: 4 },
+          points: [firstPoint, secondPoint],
+        },
+      ],
+    };
+
+    chartHelper.selectModePoint({ distances: [0, 0, 0, 0, 0, 2.0, 2.0] }, 6, 4);
+
+    assert.equal(selectedPoint, 'second');
+    assert.equal(chartHelper.selectedK, 6);
+  });
 });

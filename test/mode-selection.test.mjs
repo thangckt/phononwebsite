@@ -44,8 +44,8 @@ describe('Degenerate mode selection inputs', () => {
 
     visualizer.updated = false;
     dispersion.selected = false;
-    kInput.val('3');
-    nInput.val('4');
+    kInput.val('4');
+    nInput.val('5');
     p.selectModeFromInputs();
 
     assert.equal(p.k, 3);

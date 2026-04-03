@@ -574,15 +574,15 @@ export class PhononWebpage {
         if (!this.dom_k || !this.dom_n) { return; }
         let limits = this.getModeSelectionLimits();
 
-        this.dom_k.attr('min', 0);
-        this.dom_k.attr('max', limits.maxK);
+        this.dom_k.attr('min', 1);
+        this.dom_k.attr('max', limits.maxK + 1);
         this.dom_k.attr('step', 1);
-        this.dom_k.val(this.k);
+        this.dom_k.val(this.k + 1);
 
-        this.dom_n.attr('min', 0);
-        this.dom_n.attr('max', limits.maxN);
+        this.dom_n.attr('min', 1);
+        this.dom_n.attr('max', limits.maxN + 1);
         this.dom_n.attr('step', 1);
-        this.dom_n.val(this.getEnergyOrderFromBandIndex(this.k, this.n));
+        this.dom_n.val(this.getEnergyOrderFromBandIndex(this.k, this.n) + 1);
     }
 
     selectModeByBandIndex(k, n, syncChart=true) {
@@ -612,11 +612,11 @@ export class PhononWebpage {
 
         k = parseInt(k, 10);
         nOrder = parseInt(nOrder, 10);
-        if (!Number.isFinite(k)) { k = this.k; }
-        if (!Number.isFinite(nOrder)) { nOrder = this.getEnergyOrderFromBandIndex(this.k, this.n); }
+        if (!Number.isFinite(k)) { k = this.k + 1; }
+        if (!Number.isFinite(nOrder)) { nOrder = this.getEnergyOrderFromBandIndex(this.k, this.n) + 1; }
 
-        k = Math.max(0, Math.min(limits.maxK, k));
-        nOrder = Math.max(0, Math.min(limits.maxN, nOrder));
+        k = Math.max(1, Math.min(limits.maxK + 1, k)) - 1;
+        nOrder = Math.max(1, Math.min(limits.maxN + 1, nOrder)) - 1;
         let n = this.getBandIndexFromEnergyOrder(k, nOrder);
         this.selectModeByBandIndex(k, n, syncChart);
     }
