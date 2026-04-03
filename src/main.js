@@ -6,7 +6,6 @@ import jsyaml from 'js-yaml';
 import Detector from '../libs/Detector.js';
 import '../libs/CCapture.js';
 import GIFLib from '../libs/gif.js';
-import Whammy from 'whammy';
 
 // Import your own classes (adjust the path as needed)
 import { VibCrystal, PhononHighcharts, PhononWebpage } from './phononwebsite.js';
@@ -65,7 +64,6 @@ const GIF = resolveGifConstructor(GIFLib);
 if (GIF) {
     globalThis.GIF = GIF;
 }
-globalThis.Whammy = Whammy;
 
 // Now use your classes as before
 const v = new VibCrystal($('#vibcrystal'));

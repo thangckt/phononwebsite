@@ -52,6 +52,49 @@ function getBond( point1, point2 ) {
              midpoint: point1.clone().add( direction.multiplyScalar(0.5) ) };
 }
 
+function getSupportedWebmMimeType() {
+    if (typeof globalThis.MediaRecorder !== 'function') {
+        return null;
+    }
+
+    const preferredTypes = [
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/webm',
+    ];
+
+    if (typeof globalThis.MediaRecorder.isTypeSupported !== 'function') {
+        return preferredTypes[preferredTypes.length - 1];
+    }
+
+    for (let i = 0; i < preferredTypes.length; i++) {
+        if (globalThis.MediaRecorder.isTypeSupported(preferredTypes[i])) {
+            return preferredTypes[i];
+        }
+    }
+
+    return null;
+}
+
+function browserSupportsNativeWebmCapture() {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+        return false;
+    }
+
+    let canvas = document.createElement('canvas');
+    if (!canvas || typeof canvas.captureStream !== 'function') {
+        return false;
+    }
+
+    return !!getSupportedWebmMimeType();
+}
+
+function browserSupportsWebmCapture() {
+    return browserSupportsNativeWebmCapture();
+}
+
 export class VibCrystal extends StructureViewerBase {
     /*
     Class to show phonon vibrations using Three.js and WebGl
@@ -78,6 +121,16 @@ export class VibCrystal extends StructureViewerBase {
         this.stats = null;
         this.capturer = null;
         this.captureState = 'idle';
+        this.captureFormat = null;
+        this.captureFrameCount = 0;
+        this.captureFrameTarget = 0;
+        this.captureStartTime = 0;
+        this.captureDurationMs = 0;
+        this.capturePhaseStart = 0;
+        this.captureRecorder = null;
+        this.captureRecorderChunks = [];
+        this.captureRecorderMimeType = null;
+        this.captureStream = null;
         this.vibrationComponents = [];
         this.onAppearanceUpdated = null;
 
@@ -360,13 +413,7 @@ export class VibCrystal extends StructureViewerBase {
 
     setWebmButton(dom_button) {
         let self = this;
-        /*
-        check if its Chrome 1+ taken from
-        http://stackoverflow.com/questions/9847580/how-to-detect-safari-chrome-ie-firefox-and-opera-browser
-        only show webm button for chrome
-        */
-        let isChrome = !!window.chrome && !!window.chrome.webstore;
-        if (!isChrome) {
+        if (!browserSupportsWebmCapture()) {
             dom_button.hide();
         }
 
@@ -780,14 +827,38 @@ export class VibCrystal extends StructureViewerBase {
     }
 
     captureend(format) {
-        if (!this.capturer || this.captureState !== 'capturing') {
+        if (this.captureState !== 'capturing') {
+            return;
+        }
+
+        const progress = document.getElementById('progress');
+        if (this.captureRecorder && format === 'webm') {
+            const recorder = this.captureRecorder;
+            const stream = this.captureStream;
+
+            this.captureRecorder = null;
+            this.captureStream = null;
+            this.captureState = 'saving';
+
+            if (stream && typeof stream.getTracks === 'function') {
+                stream.getTracks().forEach((track) => {
+                    if (track && typeof track.stop === 'function') {
+                        track.stop();
+                    }
+                });
+            }
+
+            recorder.stop();
+            return;
+        }
+
+        if (!this.capturer) {
             return;
         }
 
         const capturer = this.capturer;
         this.capturer = null;
         this.captureState = 'saving';
-        const progress = document.getElementById('progress');
         const filename = this.getCaptureFilename(format);
 
         capturer.stop();
@@ -800,11 +871,8 @@ export class VibCrystal extends StructureViewerBase {
             element.click();
             document.body.removeChild(element);
 
-            //remove progress bar
-            if (progress) {
-                progress.style.width = '0%';
-            }
-            this.captureState = 'idle';
+            this.resetCaptureProgress(progress);
+            this.resetCaptureState();
         });
     }
 
@@ -827,11 +895,18 @@ export class VibCrystal extends StructureViewerBase {
             progress.style.width = '0%';
         }
 
+        let captureFrameTarget = this.getCaptureFrameTarget();
+        let captureDurationMs = this.getCaptureDurationMs(captureFrameTarget);
+
+        if (format === 'webm' && this.startNativeWebmCapture(progress)) {
+            this.captureFrameTarget = captureFrameTarget;
+            this.captureDurationMs = captureDurationMs;
+            return;
+        }
+
         let options = { format: format,
                         workersPath: 'libs/',
-                        verbose: true,
-                        frameMax: this.fps,
-                        end: this.captureend.bind(this,format),
+                        verbose: false,
                         framerate: this.fps,
                         onProgress: function( p ) {
                             if (progress) {
@@ -842,7 +917,99 @@ export class VibCrystal extends StructureViewerBase {
 
         this.capturer = new globalThis.CCapture( options ),
         this.captureState = 'capturing';
+        this.captureFormat = format;
+        this.captureFrameCount = 0;
+        this.captureFrameTarget = captureFrameTarget;
+        this.captureStartTime = (typeof performance !== 'undefined' && typeof performance.now === 'function') ? performance.now() : Date.now();
+        this.captureDurationMs = captureDurationMs;
+        this.capturePhaseStart = ((this.time % 1) + 1) % 1;
         this.capturer.start();
+    }
+
+    startNativeWebmCapture(progress) {
+        if (!this.canvas || typeof this.canvas.captureStream !== 'function' || typeof globalThis.MediaRecorder !== 'function') {
+            return false;
+        }
+
+        let mimeType = getSupportedWebmMimeType();
+        if (!mimeType) {
+            return false;
+        }
+
+        let stream = this.canvas.captureStream(this.fps);
+        let recorder;
+        try {
+            recorder = new globalThis.MediaRecorder(stream, { mimeType: mimeType });
+        } catch (error) {
+            recorder = new globalThis.MediaRecorder(stream);
+            mimeType = recorder.mimeType || mimeType;
+        }
+
+        this.captureRecorder = recorder;
+        this.captureRecorderChunks = [];
+        this.captureRecorderMimeType = mimeType;
+        this.captureStream = stream;
+        this.captureState = 'capturing';
+        this.captureFormat = 'webm';
+        this.captureFrameCount = 0;
+        this.captureFrameTarget = this.getCaptureFrameTarget();
+        this.captureStartTime = (typeof performance !== 'undefined' && typeof performance.now === 'function') ? performance.now() : Date.now();
+        this.captureDurationMs = this.getCaptureDurationMs(this.captureFrameTarget);
+        this.capturePhaseStart = ((this.time % 1) + 1) % 1;
+
+        recorder.ondataavailable = (event) => {
+            if (event && event.data && event.data.size > 0) {
+                this.captureRecorderChunks.push(event.data);
+            }
+        };
+
+        recorder.onstop = () => {
+            let blob = new Blob(this.captureRecorderChunks, { type: this.captureRecorderMimeType || 'video/webm' });
+            let url = window.URL.createObjectURL(blob);
+            let element = document.createElement('a');
+            element.setAttribute('href', url);
+            element.setAttribute('download', this.getCaptureFilename('webm'));
+            element.style.display = 'none';
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+
+            this.resetCaptureProgress(progress);
+            this.resetCaptureState();
+        };
+
+        recorder.start();
+        return true;
+    }
+
+    getCaptureFrameTarget() {
+        let speed = Math.max(this.speed, this.minSpeed, 1e-6);
+        return Math.max(1, Math.round(this.fps / speed));
+    }
+
+    getCaptureDurationMs(frameTarget = this.getCaptureFrameTarget()) {
+        return (frameTarget / this.fps) * 1000;
+    }
+
+    resetCaptureProgress(progress) {
+        if (progress) {
+            progress.style.width = '0%';
+        }
+    }
+
+    resetCaptureState() {
+        this.capturer = null;
+        this.captureRecorder = null;
+        this.captureRecorderChunks = [];
+        this.captureRecorderMimeType = null;
+        this.captureStream = null;
+        this.captureState = 'idle';
+        this.captureFormat = null;
+        this.captureFrameCount = 0;
+        this.captureFrameTarget = 0;
+        this.captureStartTime = 0;
+        this.captureDurationMs = 0;
+        this.capturePhaseStart = 0;
     }
 
     getCaptureFilename(format) {
@@ -1319,7 +1486,7 @@ export class VibCrystal extends StructureViewerBase {
         this.lastFrameTime = timestamp;
         if (dt > 0.05) dt = 0.05;
 
-        if (!this.paused) {
+        if (!this.paused && this.captureState !== 'capturing') {
             this.time += dt * this.speed;
         }
         this.controls.update();
@@ -1338,7 +1505,11 @@ export class VibCrystal extends StructureViewerBase {
             this.needsRender = false;
             return;
         }
-        let phaseAngle = this.time * 2.0 * mat.pi;
+        let phaseTime = this.time;
+        if (this.captureState === 'capturing' && this.captureFrameTarget > 0) {
+            phaseTime = this.capturePhaseStart + (this.captureFrameCount / this.captureFrameTarget);
+        }
+        let phaseAngle = phaseTime * 2.0 * mat.pi;
         let phaseRe = this.amplitude * Math.cos(phaseAngle);
         let phaseIm = this.amplitude * Math.sin(phaseAngle);
         let v = new THREE.Vector3();
@@ -1425,6 +1596,21 @@ export class VibCrystal extends StructureViewerBase {
         //if the capturer exists then capture
         if (this.capturer) {
             this.capturer.capture( this.canvas );
+            this.captureFrameCount += 1;
+            if (this.captureFrameCount >= this.captureFrameTarget) {
+                this.captureend(this.captureFormat || 'webm');
+            }
+        } else if (this.captureRecorder && this.captureState === 'capturing') {
+            let progress = document.getElementById('progress');
+            this.captureFrameCount += 1;
+
+            if (progress && this.captureFrameTarget > 0) {
+                progress.style.width = (Math.min(this.captureFrameCount / this.captureFrameTarget, 1.0) * 100) + '%';
+            }
+
+            if (this.captureFrameCount >= this.captureFrameTarget) {
+                this.captureend('webm');
+            }
         }
 
         if (this.stats) {
