@@ -1,19 +1,13 @@
-import os
+#!/usr/bin/env python3
+"""Compatibility wrapper for the homepage renderer."""
 
-os.system('pandoc --columns 10000 --email-obfuscation=javascript README.md -f markdown -t html -o readme.html')
+from pathlib import Path
+import runpy
+import sys
 
-print("Reading readme.html")
-with open('readme.html') as f:
-    pandoc = f.read()
-os.remove("readme.html")
 
-print("Reading reference index.html from ref_index.html")
-with open('ref_index.html') as f:
-    ref = f.read()
+SCRIPT = Path(__file__).resolve().parent / "python" / "phononweb" / "scripts" / "render_homepage.py"
 
-print("replacing PANDOC")
-ref = ref.replace("PANDOC",pandoc)
-
-print("Writing index.html")
-with open('index.html','w') as f:
-    f.write(ref)
+if __name__ == "__main__":
+    sys.argv = [str(SCRIPT), *sys.argv[1:]]
+    runpy.run_path(str(SCRIPT), run_name="__main__")

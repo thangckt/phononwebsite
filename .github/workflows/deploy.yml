@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
@@ -26,6 +27,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      - name: Install pandoc
+        run: sudo apt-get update && sudo apt-get install -y pandoc
 
       - name: Install dependencies
         run: npm install

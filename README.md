@@ -188,6 +188,10 @@ Build deployable website into `build/`:
 
     npm run build:site
 
+Regenerate the homepage (`index.html`) from `README.md` using the template in `ref_index.html`:
+
+    npm run generate:index
+
 Run JavaScript tests:
 
     npm test
