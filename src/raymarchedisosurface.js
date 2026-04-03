@@ -5,6 +5,7 @@ const MAX_STEPS = 384;
 const MAX_REFINEMENT_STEPS = 2;
 const MAX_RAY_HITS = 2;
 const RAYMARCH_OPACITY_COMPENSATION = RAYMARCH_PERFORMANCE_SETTINGS.opacityCompensation;
+const BoxGeometryCtor = Reflect.get(THREE, 'BoxGeometry') || Reflect.get(THREE, 'BoxBufferGeometry');
 
 function createCellMatrix(gridCell) {
     const a = gridCell[0];
@@ -19,8 +20,20 @@ function createCellMatrix(gridCell) {
     );
 }
 
+function updateCellMatrix(matrix, gridCell) {
+    const a = gridCell[0];
+    const b = gridCell[1];
+    const c = gridCell[2];
+
+    return matrix.set(
+        a[0], b[0], c[0], 0,
+        a[1], b[1], c[1], 0,
+        a[2], b[2], c[2], 0,
+        0, 0, 0, 1,
+    );
+}
+
 function createRaymarchGeometry(gridCell) {
-    const BoxGeometryCtor = Reflect.get(THREE, 'BoxGeometry') || Reflect.get(THREE, 'BoxBufferGeometry');
     const geometry = new BoxGeometryCtor(1, 1, 1);
     geometry.translate(0.5, 0.5, 0.5);
     geometry.setAttribute('texturePosition', geometry.attributes.position.clone());
@@ -367,15 +380,23 @@ function createMaterial({ texture, gridCell, isolevel, opacity, color, periodic,
 }
 
 function attachRaymarchUniformUpdater(mesh, gridCell) {
+    const state = mesh.userData.raymarchState || {
+        cellMatrix: createCellMatrix(gridCell),
+        textureToWorld: new THREE.Matrix4(),
+        worldToTexture: new THREE.Matrix4(),
+    };
+    mesh.userData.raymarchState = state;
     mesh.onBeforeRender = function() {
         if (!this.material || !this.material.uniforms) {
             return;
         }
         const activeGridCell = (this.userData && this.userData.gridCell) ? this.userData.gridCell : gridCell;
         const textureRepeat = (this.userData && this.userData.textureRepeat) ? this.userData.textureRepeat : [1, 1, 1];
-        const cellMatrix = createCellMatrix(activeGridCell);
-        const textureToWorld = new THREE.Matrix4();
-        const worldToTexture = new THREE.Matrix4();
+        const state = this.userData && this.userData.raymarchState ? this.userData.raymarchState : null;
+        const cellMatrix = state ? state.cellMatrix : createCellMatrix(activeGridCell);
+        const textureToWorld = state ? state.textureToWorld : new THREE.Matrix4();
+        const worldToTexture = state ? state.worldToTexture : new THREE.Matrix4();
+        updateCellMatrix(cellMatrix, activeGridCell);
         this.updateMatrixWorld();
         textureToWorld.multiplyMatrices(this.matrixWorld, cellMatrix);
         worldToTexture.copy(textureToWorld).invert();
@@ -476,6 +497,9 @@ export function updateRaymarchedIsosurface(object, {
     if (uniforms.uTextureRepeat) {
         uniforms.uTextureRepeat.value.set(textureRepeat[0], textureRepeat[1], textureRepeat[2]);
     }
+    if (object.userData) {
+        object.userData.textureRepeat = textureRepeat.slice();
+    }
     material.opacity = opacity;
     if (material.transparent !== true) {
         material.transparent = true;
@@ -485,9 +509,6 @@ export function updateRaymarchedIsosurface(object, {
     if (material.depthWrite !== nextDepthWrite) {
         material.depthWrite = nextDepthWrite;
         material.needsUpdate = true;
-    }
-    if (object.userData && object.userData.gridCell) {
-        attachRaymarchUniformUpdater(object, object.userData.gridCell);
     }
     return true;
 }
