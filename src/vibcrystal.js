@@ -1066,6 +1066,21 @@ export class VibCrystal extends StructureViewerBase {
     }
 
     refreshBondMeshColors() {
+        if (this.bondColorByAtom && this.splitBondObjects && this.splitBondObjects.length) {
+            for (let i = 0; i < this.splitBondObjects.length; i++) {
+                let bondPair = this.splitBondObjects[i];
+                if (bondPair.meshA && bondPair.meshA.material) {
+                    bondPair.meshA.material.color.copy(this.getAtomColor(bondPair.aAtomNumber));
+                    bondPair.meshA.material.needsUpdate = true;
+                }
+                if (bondPair.meshB && bondPair.meshB.material) {
+                    bondPair.meshB.material.color.copy(this.getAtomColor(bondPair.bAtomNumber));
+                    bondPair.meshB.material.needsUpdate = true;
+                }
+            }
+            return;
+        }
+
         if (!this.bondmeshes || !this.bondmeshes.length) {
             return;
         }
@@ -1148,6 +1163,7 @@ export class VibCrystal extends StructureViewerBase {
         this.bondobjects  = [];
         this.bondmesh = null;
         this.bondmeshes = [];
+        this.splitBondObjects = [];
         this.arrowobjects = [];
         this.atompos = [];
         this.atomvel = [];
@@ -1282,7 +1298,7 @@ export class VibCrystal extends StructureViewerBase {
 
         const createBondMaterial = function(vertexColorsEnabled) {
             let bondMaterialConfig = {
-                color: this.bondscolor,
+                color: vertexColorsEnabled ? 0xffffff : this.bondscolor,
                 blending: THREE.NormalBlending,
                 vertexColors: vertexColorsEnabled
             };
@@ -1296,15 +1312,6 @@ export class VibCrystal extends StructureViewerBase {
             );
 
             if (this.bondColorByAtom) {
-                let meshA = new THREE.InstancedMesh(bondGeometry, createBondMaterial(true), this.bonds.length);
-                let meshB = new THREE.InstancedMesh(bondGeometry, createBondMaterial(true), this.bonds.length);
-                meshA.name = "bonds-a";
-                meshB.name = "bonds-b";
-                meshA.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-                meshB.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-                meshA.frustumCulled = false;
-                meshB.frustumCulled = false;
-
                 let dir = new THREE.Vector3();
                 for (let i=0; i<this.bonds.length; i++) {
                     let bond = this.bonds[i];
@@ -1313,39 +1320,41 @@ export class VibCrystal extends StructureViewerBase {
                     dir.copy(bond.b).sub(bond.a).normalize();
                     let offset = dir.clone().multiplyScalar(lengthNow * 0.25);
 
-                    this.instanceDummy.quaternion.copy(bonddata.quaternion);
-                    this.instanceDummy.scale.set(1, lengthNow * 0.5, 1);
+                    let meshA = new THREE.Mesh(
+                        bondGeometry,
+                        this.createShadedMaterial({
+                            color: this.getAtomColorHex(bond.a_atom_number),
+                            blending: THREE.NormalBlending,
+                        })
+                    );
+                    let meshB = new THREE.Mesh(
+                        bondGeometry,
+                        this.createShadedMaterial({
+                            color: this.getAtomColorHex(bond.b_atom_number),
+                            blending: THREE.NormalBlending,
+                        })
+                    );
 
-                    this.instanceDummy.position.copy(bonddata.midpoint).sub(offset);
-                    this.instanceDummy.updateMatrix();
-                    meshA.setMatrixAt(i, this.instanceDummy.matrix);
+                    meshA.position.copy(bonddata.midpoint).sub(offset);
+                    meshB.position.copy(bonddata.midpoint).add(offset);
+                    meshA.setRotationFromQuaternion(bonddata.quaternion);
+                    meshB.setRotationFromQuaternion(bonddata.quaternion);
+                    meshA.scale.set(1, lengthNow * 0.5, 1);
+                    meshB.scale.set(1, lengthNow * 0.5, 1);
+                    meshA.name = "bond";
+                    meshB.name = "bond";
 
-                    this.instanceDummy.position.copy(bonddata.midpoint).add(offset);
-                    this.instanceDummy.updateMatrix();
-                    meshB.setMatrixAt(i, this.instanceDummy.matrix);
-
-                    if (meshA.setColorAt) {
-                        meshA.setColorAt(i, this.getAtomColor(bond.a_atom_number));
-                    }
-                    if (meshB.setColorAt) {
-                        meshB.setColorAt(i, this.getAtomColor(bond.b_atom_number));
-                    }
+                    this.scene.add(meshA);
+                    this.scene.add(meshB);
+                    this.splitBondObjects.push({
+                        meshA,
+                        meshB,
+                        aAtomNumber: bond.a_atom_number,
+                        bAtomNumber: bond.b_atom_number,
+                    });
+                    this.bondobjects.push(meshA);
+                    this.bondobjects.push(meshB);
                 }
-
-                meshA.instanceMatrix.needsUpdate = true;
-                meshB.instanceMatrix.needsUpdate = true;
-                if (meshA.instanceColor) {
-                    meshA.instanceColor.needsUpdate = true;
-                }
-                if (meshB.instanceColor) {
-                    meshB.instanceColor.needsUpdate = true;
-                }
-
-                this.bondmeshes.push(meshA);
-                this.bondmeshes.push(meshB);
-                this.bondmesh = meshA;
-                this.scene.add(meshA);
-                this.scene.add(meshB);
             } else {
                 this.bondmesh = new THREE.InstancedMesh(
                     bondGeometry,
@@ -1564,7 +1573,20 @@ export class VibCrystal extends StructureViewerBase {
                 let bonddata = getBond(bond.a, bond.b);
                 this.instanceDummy.quaternion.copy(bonddata.quaternion);
                 let lengthNow = bond.a.distanceTo(bond.b);
-                if (this.bondColorByAtom && this.bondmeshes.length >= 2) {
+                if (this.bondColorByAtom && this.splitBondObjects && this.splitBondObjects.length) {
+                    let dir = new THREE.Vector3().copy(bond.b).sub(bond.a).normalize();
+                    let offset = dir.multiplyScalar(lengthNow * 0.25);
+                    let bondPair = this.splitBondObjects[i];
+
+                    if (bondPair && bondPair.meshA && bondPair.meshB) {
+                        bondPair.meshA.position.copy(bonddata.midpoint).sub(offset);
+                        bondPair.meshB.position.copy(bonddata.midpoint).add(offset);
+                        bondPair.meshA.setRotationFromQuaternion(bonddata.quaternion);
+                        bondPair.meshB.setRotationFromQuaternion(bonddata.quaternion);
+                        bondPair.meshA.scale.set(1, lengthNow * 0.5, 1);
+                        bondPair.meshB.scale.set(1, lengthNow * 0.5, 1);
+                    }
+                } else if (this.bondColorByAtom && this.bondmeshes.length >= 2) {
                     let dir = new THREE.Vector3().copy(bond.b).sub(bond.a).normalize();
                     let offset = dir.multiplyScalar(lengthNow * 0.25);
 
