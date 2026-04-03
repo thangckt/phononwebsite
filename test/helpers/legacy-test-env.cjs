@@ -2,39 +2,13 @@ const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('jsdom');
 const jqueryFactory = require('jquery');
-const ComplexLib = require('complex');
 const jsyaml = require('js-yaml');
 
 require('esbuild-register/dist/node').register({
   target: 'es2019',
   format: 'cjs',
 });
-
-function wrapComplex(raw) {
-  return {
-    __rawComplex: raw,
-    mult(other) {
-      const rhs = other && other.__rawComplex ? other.__rawComplex : other;
-      return wrapComplex(raw.clone().mult(rhs));
-    },
-    real() {
-      return raw.real;
-    },
-    imag() {
-      return raw.im;
-    },
-  };
-}
-
-function makeComplexCompat() {
-  function Complex(real, imag) {
-    return wrapComplex(ComplexLib.from(real, imag));
-  }
-  Complex.Polar = function (r, phi) {
-    return wrapComplex(ComplexLib.fromPolar(r, phi));
-  };
-  return Complex;
-}
+const { Complex } = require('../../src/legacycomplex.js');
 
 function resolveAsset(url) {
   const clean = decodeURIComponent(url.split('?')[0]);
@@ -80,7 +54,7 @@ function setupLegacyTestEnv() {
   global.navigator = dom.window.navigator;
   global.alert = () => {};
   global.jsyaml = jsyaml;
-  global.Complex = makeComplexCompat();
+  global.Complex = Complex;
 
   const $ = jqueryFactory(dom.window);
   installAjaxStubs($);

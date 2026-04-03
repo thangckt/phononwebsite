@@ -7,6 +7,7 @@ require('esbuild-register/dist/node').register({
 });
 
 const { VibCrystal } = require('../src/vibcrystal.js');
+const { Complex } = require('../src/legacycomplex.js');
 
 function makeContainer() {
   return {
@@ -335,5 +336,30 @@ describe('VibCrystal advanced appearance', function () {
 
     const cutoff = v.getDefaultBondCutoff(6, 8);
     assert.equal(Number(cutoff.toFixed(2)), 2.11);
+  });
+
+  it('preserves real and imaginary vibration components from the local complex helper', function () {
+    const v = new VibCrystal(makeContainer());
+    v.init = () => {};
+    v.updatelocal = () => {};
+    v.initialized = true;
+
+    v.update({
+      phonon: { atom_numbers: [6] },
+      atoms: [[0, 0, 0, 0]],
+      vibrations: [[
+        Complex(0.25, -0.5),
+        Complex(-0.75, 0.125),
+        Complex(0.5, 0.625),
+      ]],
+      k: 0,
+      n: 0,
+    });
+
+    assert.deepEqual(v.vibrationComponents[0], [
+      [0.25, -0.5],
+      [-0.75, 0.125],
+      [0.5, 0.625],
+    ]);
   });
 });

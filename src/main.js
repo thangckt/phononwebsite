@@ -1,11 +1,11 @@
 import $ from 'jquery';
 import * as THREE from 'three';
 import Highcharts from 'highcharts';
-import ComplexLib from 'complex';
 import jsyaml from 'js-yaml';
 import Detector from '../libs/Detector.js';
 import '../libs/CCapture.js';
 import GIFLib from '../libs/gif.js';
+import { Complex } from './legacycomplex.js';
 
 // Import your own classes (adjust the path as needed)
 import { VibCrystal, PhononHighcharts, PhononWebpage } from './phononwebsite.js';
@@ -22,36 +22,6 @@ function resolveGifConstructor(mod) {
     }
     return null;
 }
-
-function wrapComplex(raw) {
-    return {
-        __rawComplex: raw,
-        mult(other) {
-            const rhs = other && other.__rawComplex ? other.__rawComplex : other;
-            return wrapComplex(raw.clone().mult(rhs));
-        },
-        multiply(other) {
-            const rhs = other && other.__rawComplex ? other.__rawComplex : other;
-            return wrapComplex(raw.clone().multiply(rhs));
-        },
-        real() {
-            return raw.real;
-        },
-        imag() {
-            return raw.im;
-        }
-    };
-}
-
-function Complex(real, imag) {
-    return wrapComplex(ComplexLib.from(real, imag));
-}
-
-Complex.Polar = function(r, phi) {
-    return wrapComplex(ComplexLib.fromPolar(r, phi));
-};
-
-Complex.fromPolar = Complex.Polar;
 
 // Keep legacy globals available for modules still using the old global style.
 globalThis.THREE = THREE;

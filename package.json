@@ -8,7 +8,6 @@
     "test": "test"
   },
   "dependencies": {
-    "complex": "3.0.1",
     "highcharts": "12.2.0",
     "jquery": "3.7.1",
     "js-yaml": "4.1.0",

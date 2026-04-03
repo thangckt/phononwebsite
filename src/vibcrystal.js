@@ -24,7 +24,9 @@ function getComplexParts(z) {
     let re = 0.0;
     let im = 0.0;
 
-    if (z && typeof z.real === 'number') {
+    if (z && typeof z.re === 'number') {
+        re = z.re;
+    } else if (z && typeof z.real === 'number') {
         re = z.real;
     } else if (z && typeof z.real === 'function') {
         re = z.real();
