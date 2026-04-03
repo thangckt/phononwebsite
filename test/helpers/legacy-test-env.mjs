@@ -47,7 +47,11 @@ export function setupLegacyTestEnv() {
   global.window = dom.window;
   global.document = dom.window.document;
   global.location = dom.window.location;
-  global.navigator = dom.window.navigator;
+  Object.defineProperty(global, 'navigator', {
+    configurable: true,
+    writable: true,
+    value: dom.window.navigator,
+  });
   global.alert = () => {};
   global.jsyaml = jsyaml;
   global.Complex = Complex;
@@ -67,7 +71,7 @@ export function teardownLegacyTestEnv(dom) {
   delete global.window;
   delete global.document;
   delete global.location;
-  delete global.navigator;
+  Reflect.deleteProperty(global, 'navigator');
   delete global.alert;
   delete global.jsyaml;
   delete global.Complex;
