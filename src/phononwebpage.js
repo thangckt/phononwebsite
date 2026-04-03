@@ -872,6 +872,37 @@ export class PhononWebpage {
         });
     }
 
+    getMaterialSourcePriority(material) {
+        let source = material && material.source ? material.source : '';
+        let sourcePriorities = {
+            localdb: 0,
+            contribdb: 1,
+            phonondb: 2,
+            mpdb: 3,
+        };
+        return Object.prototype.hasOwnProperty.call(sourcePriorities, source)
+            ? sourcePriorities[source]
+            : 99;
+    }
+
+    compareMaterialsForMenu(a, b) {
+        let priorityDelta = this.getMaterialSourcePriority(a) - this.getMaterialSourcePriority(b);
+        if (priorityDelta !== 0) {
+            return priorityDelta;
+        }
+
+        let nameA = (a && a.name ? a.name : '').toLowerCase();
+        let nameB = (b && b.name ? b.name : '').toLowerCase();
+        let nameDelta = nameA.localeCompare(nameB);
+        if (nameDelta !== 0) {
+            return nameDelta;
+        }
+
+        let referenceA = this.getMaterialReferenceKey(a);
+        let referenceB = this.getMaterialReferenceKey(b);
+        return referenceA.localeCompare(referenceB);
+    }
+
     renderMaterialsMenu() {
         let dom_mat = this.dom_mat;
         let dom_ref = this.dom_ref;
@@ -886,8 +917,12 @@ export class PhononWebpage {
 
         let tokens = this.getMaterialFilterTokens();
         let unique_references = new Map();
-        let baseFilteredMaterials = this.materialsIndex.filter((material) => this.materialMatchesFilter(material, tokens));
-        let filteredMaterials = baseFilteredMaterials.filter((material) => this.isReferenceEnabled(this.getMaterialReferenceKey(material)));
+        let baseFilteredMaterials = this.materialsIndex
+            .filter((material) => this.materialMatchesFilter(material, tokens))
+            .slice()
+            .sort(this.compareMaterialsForMenu.bind(this));
+        let filteredMaterials = baseFilteredMaterials
+            .filter((material) => this.isReferenceEnabled(this.getMaterialReferenceKey(material)));
         let nreferences = 1;
 
         for (let i=0; i<baseFilteredMaterials.length; i++) {
