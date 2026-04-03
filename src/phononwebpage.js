@@ -932,10 +932,17 @@ export class PhononWebpage {
             if (!unique_references.has(refKey)) {
                 unique_references.set(refKey, {
                     index: nreferences,
-                    reference: ref
+                    reference: ref,
+                    count: 0
                 });
                 nreferences += 1;
             }
+            unique_references.get(refKey).count += 1;
+        }
+
+        let materialsHeading = document.querySelector("#material-list h3");
+        if (materialsHeading) {
+            materialsHeading.textContent = "Materials (" + filteredMaterials.length + "):";
         }
 
         for (let i=0; i<filteredMaterials.length; i++) {
@@ -963,6 +970,7 @@ export class PhononWebpage {
             for (let [refKey, referenceEntry] of unique_references.entries()) {
                 let refIndex = referenceEntry.index;
                 let ref = referenceEntry.reference;
+                let refCount = referenceEntry.count || 0;
                 let li = document.createElement("LI");
                 li.className = "reference-filter-item";
                 if (!this.isReferenceEnabled(refKey)) {
@@ -979,7 +987,7 @@ export class PhononWebpage {
 
                 let text = document.createElement("span");
                 text.className = "reference-filter-text";
-                text.innerHTML = "["+refIndex+"] "+ref;
+                text.innerHTML = "["+refIndex+"] "+ref+" ("+refCount+")";
 
                 li.appendChild(toggle);
                 li.appendChild(text);
