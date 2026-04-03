@@ -11,7 +11,10 @@ authors = [
 ]
 readme = ""
 requires-python = ">=3.7"
-dependencies = []
+dependencies = [
+    "numpy",
+    "PyYAML",
+]
 
 [project.optional-dependencies]
 test = ["pytest>=8", "phonopy", "seekpath"]
