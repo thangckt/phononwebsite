@@ -11,6 +11,76 @@ section {
     max-width: 650px;
 }
 
+.homepage-layout {
+    height: 100%;
+}
+
+.homepage-layout .flex-menu {
+    flex: 1;
+}
+
+.homepage-layout .homepage-content-panel {
+    flex: 4;
+}
+
+.homepage-menu-panel {
+    padding-bottom: 1rem;
+}
+
+#homepage-panel {
+    position: absolute;
+    inset: 0;
+    overflow: auto;
+    padding: 0 1.5rem 2.5rem;
+    box-sizing: border-box;
+}
+
+.homepage-content {
+    max-width: 760px;
+    margin: 0 auto;
+}
+
+.homepage-toc-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.homepage-toc-item + .homepage-toc-item {
+    margin-top: 0.2rem;
+}
+
+.homepage-toc-item a {
+    display: block;
+    padding: 0.28rem 0.45rem;
+    text-decoration: none;
+    color: #475569;
+    border-left: 3px solid transparent;
+    transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.homepage-toc-item a:hover {
+    background: rgba(0, 191, 255, 0.12);
+    color: #0f172a;
+}
+
+.homepage-toc-item a.active {
+    background: rgba(0, 191, 255, 0.16);
+    border-left-color: deepskyblue;
+    color: #0c4a6e;
+    font-weight: 700;
+}
+
+.homepage-toc-item.level-h2 a {
+    padding-left: 1rem;
+    font-size: 0.96rem;
+}
+
+.homepage-toc-item.level-h3 a {
+    padding-left: 1.45rem;
+    font-size: 0.92rem;
+}
+
 code {
     background: #f8f8f8;
 }
@@ -89,6 +159,18 @@ h3 {
     display: block;
     padding: 0.5em;
     color: white;
+}
+
+@media screen and (max-width: 1000px) {
+    #homepage-panel {
+        position: relative;
+        overflow: visible;
+        padding: 0 1rem 2rem;
+    }
+
+    .homepage-content {
+        max-width: none;
+    }
 }
 
 #nx, #ny, #nz {
