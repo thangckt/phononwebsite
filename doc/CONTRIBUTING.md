@@ -22,14 +22,14 @@ This guide focuses on practical repository organization for day-to-day work.
 
 ## Naming Rules
 
-- JavaScript tests: `name.test.cjs`
+- JavaScript tests: `name.test.mjs`
 - Python tests: `test_*.py`
 - Keep file names lowercase and descriptive.
 
 ## Build and Test
 
 - Install deps: `npm install`
-- Build JS bundle: `npm run build-uglify`
+- Build local site bundle: `npm run build`
 - Build deploy site: `npm run build:site`
 - JS tests: `npm test`
 - Python tests: `npm run test:py`

@@ -161,7 +161,7 @@ Naming and placement conventions:
 
 - Add new browser app code under `src/`.
 - Keep legacy/static vendored browser libs in `src/static_libs/` (ES module friendly) or `libs/` when required by external runtime tools.
-- Add new JS tests as `*.test.cjs` in `test/`.
+- Add new JS tests as `*.test.mjs` in `test/`.
 - Put reusable test sample data under `test/fixtures/`.
 - Put Python tests under `python/phononweb/tests/`.
 - Do not commit generated artifacts except expected deploy output under `build/` when explicitly needed by workflow.
@@ -180,15 +180,15 @@ Install dependencies:
 
     npm install
 
-Build JS bundle and minified artifact:
+Build a local/debug site bundle:
 
-    npm run build-uglify
+    npm run build
 
 Build deployable website into `build/`:
 
     npm run build:site
 
-Regenerate the homepage (`index.html`) from `README.md` using the template in `ref_index.html`:
+Regenerate just the homepage (`index.html`) from `README.md` using the template in `ref_index.html`:
 
     npm run generate:index
 

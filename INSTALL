@@ -3,15 +3,19 @@ Here are some instructions to compile and run the code locally.
 Build
 ====================
 
-To combine the multiple javascript files in src/* into a single bundle (build/main.js) we use rollup.
-This package can be installed using npm
+Install dependencies:
 ```
-npm install rollup
+npm install
 ```
 
-The javascript bundle is built using
+Build the local/debug site bundle:
 ```
-rollup -c
+npm run build
+```
+
+Build the deployable website:
+```
+npm run build:site
 ```
 
 Test
