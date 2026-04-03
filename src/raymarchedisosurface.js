@@ -20,7 +20,8 @@ function createCellMatrix(gridCell) {
 }
 
 function createRaymarchGeometry(gridCell) {
-    const geometry = new THREE.BoxBufferGeometry(1, 1, 1);
+    const BoxGeometryCtor = THREE.BoxGeometry || THREE.BoxBufferGeometry;
+    const geometry = new BoxGeometryCtor(1, 1, 1);
     geometry.translate(0.5, 0.5, 0.5);
     geometry.setAttribute('texturePosition', geometry.attributes.position.clone());
     geometry.applyMatrix4(createCellMatrix(gridCell));

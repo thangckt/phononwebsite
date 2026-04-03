@@ -1229,12 +1229,17 @@ export class VibCrystal extends StructureViewerBase {
         if (this.arrows) {
 
             //arrow geometry
-            let arrowGeometry = new THREE.CylinderGeometry( 0,
-                                                            this.arrowHeadRadiusRatio*this.arrowRadius,
-                                                            this.arrowLength*this.arrowHeadLengthRatio );
+            let arrowGeometry = new THREE.CylinderGeometry(
+                0,
+                this.arrowHeadRadiusRatio * this.arrowRadius,
+                this.arrowLength * this.arrowHeadLengthRatio
+            );
 
-            let axisGeometry  = new THREE.CylinderGeometry( this.arrowRadius, this.arrowRadius,
-                                                            this.arrowLength );
+            let axisGeometry = new THREE.CylinderGeometry(
+                this.arrowRadius,
+                this.arrowRadius,
+                this.arrowLength
+            );
 
             let AxisMaterial;
             if (this.shading) {
@@ -1250,16 +1255,16 @@ export class VibCrystal extends StructureViewerBase {
             }
 
             for (let i=0; i<atoms.length; i++) {
+                // Use a group instead of legacy Geometry.merge() so the arrow
+                // representation remains compatible with newer Three.js releases.
+                let object = new THREE.Group();
+                let axisMesh = new THREE.Mesh(axisGeometry, AxisMaterial);
+                let arrowMesh = new THREE.Mesh(arrowGeometry, AxisMaterial);
+                let length = (this.arrowLength + this.arrowLength * this.arrowHeadLengthRatio) / 2;
 
-                //add an arrow for each atom
-                let ArrowMesh = new THREE.Mesh( arrowGeometry, AxisMaterial );
-                let length = (this.arrowLength+this.arrowLength*this.arrowHeadLengthRatio)/2;
-                ArrowMesh.position.y = length;
-
-                //merge form of the arrow with cylinder
-                ArrowMesh.updateMatrix();
-                axisGeometry.merge(ArrowMesh.geometry,ArrowMesh.matrix);
-                let object = new THREE.Mesh( axisGeometry, AxisMaterial );
+                arrowMesh.position.y = length;
+                object.add(axisMesh);
+                object.add(arrowMesh);
                 object.position.copy( geometricCenter );
 
                 this.scene.add( object );
