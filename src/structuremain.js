@@ -4,6 +4,10 @@ import Detector from '../libs/Detector.js';
 
 import { StructureViewer, StructureWebpage } from './structurewebsite.js';
 
+if (THREE.ColorManagement && typeof THREE.ColorManagement.enabled === 'boolean') {
+    THREE.ColorManagement.enabled = false;
+}
+
 globalThis.THREE = THREE;
 globalThis.$ = $;
 globalThis.jQuery = $;

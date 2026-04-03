@@ -20,7 +20,7 @@ function createCellMatrix(gridCell) {
 }
 
 function createRaymarchGeometry(gridCell) {
-    const BoxGeometryCtor = THREE.BoxGeometry || THREE.BoxBufferGeometry;
+    const BoxGeometryCtor = Reflect.get(THREE, 'BoxGeometry') || Reflect.get(THREE, 'BoxBufferGeometry');
     const geometry = new BoxGeometryCtor(1, 1, 1);
     geometry.translate(0.5, 0.5, 0.5);
     geometry.setAttribute('texturePosition', geometry.attributes.position.clone());

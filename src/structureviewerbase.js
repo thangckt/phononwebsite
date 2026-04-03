@@ -92,11 +92,18 @@ export class StructureViewerBase {
         const lightConfig = getSharedLightConfig();
         this.pointLight = new THREE.PointLight(lightConfig.color, lightConfig.intensity);
         this.pointLight.position.set(...lightConfig.position);
+        this.pointLight.decay = lightConfig.decay;
         this.pointLight.visible = true;
         this.camera.add(this.pointLight);
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setClearColor(0xffffff);
+        if ('outputColorSpace' in this.renderer && 'LinearSRGBColorSpace' in THREE) {
+            this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+        }
+        if ('toneMapping' in this.renderer) {
+            this.renderer.toneMapping = THREE.NoToneMapping;
+        }
         this.renderer.setPixelRatio(this.getPreferredPixelRatio());
         this.renderer.setSize(this.dimensions.width, this.dimensions.height, false);
         containerElement.appendChild(this.renderer.domElement);

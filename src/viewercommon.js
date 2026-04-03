@@ -6,9 +6,11 @@ import { createAtomBadgeHtml } from './atomcolors.js';
 export function getSharedLightConfig() {
     return {
         color: 0xdddddd,
-        intensity: 1.0,
+        intensity: Math.PI * 1.08,
         position: [1, 1, 2],
-        ambient: 0x333333,
+        ambient: 0x262626,
+        ambientIntensity: 1.08,
+        decay: 0,
     };
 }
 
@@ -153,7 +155,8 @@ export const sharedViewerMethods = {
         if (this.pointLight) {
             this.pointLight.visible = true;
         }
-        this.scene.add(new THREE.AmbientLight(getSharedLightConfig().ambient));
+        const lightConfig = getSharedLightConfig();
+        this.scene.add(new THREE.AmbientLight(lightConfig.ambient, lightConfig.ambientIntensity));
     },
 
     updateLightStyle() {

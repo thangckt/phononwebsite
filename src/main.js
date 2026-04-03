@@ -10,6 +10,10 @@ import { Complex } from './legacycomplex.js';
 // Import your own classes (adjust the path as needed)
 import { VibCrystal, PhononHighcharts, PhononWebpage } from './phononwebsite.js';
 
+if (THREE.ColorManagement && typeof THREE.ColorManagement.enabled === 'boolean') {
+    THREE.ColorManagement.enabled = false;
+}
+
 function resolveGifConstructor(mod) {
     if (typeof mod === 'function') {
         return mod;
