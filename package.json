@@ -17,9 +17,7 @@
   "devDependencies": {
     "@rollup/plugin-commonjs": "^28.0.3",
     "@rollup/plugin-node-resolve": "^16.0.1",
-    "esbuild-register": "^3.6.0",
     "jsdom": "^24.1.3",
-    "mocha": "^11.5.0",
     "rollup": "^2.79.0",
     "terser": "^5.44.0"
   },
@@ -33,8 +31,8 @@
     "build:debug": "npm run generate:index && npm run build && npm run copy:debug",
     "check:build-artifacts": "test -f build/main.min.js && test -f build/exciton.min.js && test -f build/structure.min.js",
     "build:site": "npm run generate:index && npm run build-uglify && npm run copy && npm run check:build-artifacts",
-    "test": "npm run build-uglify && mocha \"test/**/*.test.cjs\"",
-    "test:browser": "PLAYWRIGHT_SMOKE=1 mocha test/browser-smoke.test.cjs --timeout 30000",
+    "test": "npm run build-uglify && node --test --test-force-exit test/*.test.mjs",
+    "test:browser": "PLAYWRIGHT_SMOKE=1 node --test --test-force-exit test/browser-smoke.test.mjs",
     "test:py": "python3 -m pytest python/phononweb/tests -q",
     "prepare:phonondb": "python3 python/phononweb/scripts/prepare_phonondb.py",
     "prepare:phonondb:local": "python3 python/phononweb/scripts/prepare_phonondb.py --output-dir data/phonondb2017 --manifest data/phonondb2017/models.json --band-points 15 --skip-existing"

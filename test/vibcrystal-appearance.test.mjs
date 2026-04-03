@@ -1,13 +1,10 @@
-const assert = require('assert');
-const { JSDOM } = require('jsdom');
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import { JSDOM } from 'jsdom';
+import jqueryFactory from 'jquery';
 
-require('esbuild-register/dist/node').register({
-  target: 'es2019',
-  format: 'cjs',
-});
-
-const { VibCrystal } = require('../src/vibcrystal.js');
-const { Complex } = require('../src/legacycomplex.js');
+import { VibCrystal } from '../src/vibcrystal.js';
+import { Complex } from '../src/legacycomplex.js';
 
 function makeContainer() {
   return {
@@ -42,8 +39,8 @@ function makeAppearanceDom() {
   </body></html>`);
 }
 
-describe('VibCrystal advanced appearance', function () {
-  it('supports atom color overrides and reset', function () {
+describe('VibCrystal advanced appearance', () => {
+  it('supports atom color overrides and reset', () => {
     const v = new VibCrystal(makeContainer());
     v.display = 'jmol';
 
@@ -57,9 +54,9 @@ describe('VibCrystal advanced appearance', function () {
     assert.equal(v.getAtomColorHex(6), defaultColor);
   });
 
-  it('preserves selected atom when rebuilding selectors', function () {
+  it('preserves selected atom when rebuilding selectors', () => {
     const dom = makeAppearanceDom();
-    const $ = require('jquery')(dom.window);
+    const $ = jqueryFactory(dom.window);
 
     const v = new VibCrystal(makeContainer());
     v.atom_numbers = [6, 8, 6];
@@ -91,9 +88,9 @@ describe('VibCrystal advanced appearance', function () {
     dom.window.close();
   });
 
-  it('resets atom, bonds and vectors sections independently', function () {
+  it('resets atom, bonds and vectors sections independently', () => {
     const dom = makeAppearanceDom();
-    const $ = require('jquery')(dom.window);
+    const $ = jqueryFactory(dom.window);
 
     const v = new VibCrystal(makeContainer());
     v.atom_numbers = [6];
@@ -148,9 +145,9 @@ describe('VibCrystal advanced appearance', function () {
     dom.window.close();
   });
 
-  it('adds and removes bond rules from the UI controls', function () {
+  it('adds and removes bond rules from the UI controls', () => {
     const dom = makeAppearanceDom();
-    const $ = require('jquery')(dom.window);
+    const $ = jqueryFactory(dom.window);
 
     const v = new VibCrystal(makeContainer());
     v.atom_numbers = [6, 8];
@@ -188,9 +185,9 @@ describe('VibCrystal advanced appearance', function () {
     dom.window.close();
   });
 
-  it('updates split bond colors mode from the bonds controls', function () {
+  it('updates split bond colors mode from the bonds controls', () => {
     const dom = makeAppearanceDom();
-    const $ = require('jquery')(dom.window);
+    const $ = jqueryFactory(dom.window);
 
     const v = new VibCrystal(makeContainer());
     v.atom_numbers = [6, 8];
@@ -223,9 +220,9 @@ describe('VibCrystal advanced appearance', function () {
     dom.window.close();
   });
 
-  it('disables bond color input while split bond colors mode is enabled', function () {
+  it('disables bond color input while split bond colors mode is enabled', () => {
     const dom = makeAppearanceDom();
-    const $ = require('jquery')(dom.window);
+    const $ = jqueryFactory(dom.window);
 
     const v = new VibCrystal(makeContainer());
     v.atom_numbers = [6, 8];
@@ -260,9 +257,9 @@ describe('VibCrystal advanced appearance', function () {
     dom.window.close();
   });
 
-  it('keeps default atom colors dynamic across display modes', function () {
+  it('keeps default atom colors dynamic across display modes', () => {
     const dom = makeAppearanceDom();
-    const $ = require('jquery')(dom.window);
+    const $ = jqueryFactory(dom.window);
 
     const v = new VibCrystal(makeContainer());
     v.atom_numbers = [6];
@@ -297,7 +294,7 @@ describe('VibCrystal advanced appearance', function () {
     dom.window.close();
   });
 
-  it('keeps manually added bond rules across phonon mode updates', function () {
+  it('keeps manually added bond rules across phonon mode updates', () => {
     const v = new VibCrystal(makeContainer());
     v.initialized = true;
     v.updatelocal = () => {};
@@ -325,7 +322,7 @@ describe('VibCrystal advanced appearance', function () {
     assert.equal(v.bondRules[v.getBondRuleKey(6, 8)].cutoff, 2.25);
   });
 
-  it('uses the closest observed pair distance as the default bond cutoff', function () {
+  it('uses the closest observed pair distance as the default bond cutoff', () => {
     const v = new VibCrystal(makeContainer());
     v.phonon = { atom_numbers: [6, 8] };
     v.atoms = [
@@ -338,7 +335,7 @@ describe('VibCrystal advanced appearance', function () {
     assert.equal(Number(cutoff.toFixed(2)), 2.11);
   });
 
-  it('preserves real and imaginary vibration components from the local complex helper', function () {
+  it('preserves real and imaginary vibration components from the local complex helper', () => {
     const v = new VibCrystal(makeContainer());
     v.init = () => {};
     v.updatelocal = () => {};

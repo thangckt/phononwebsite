@@ -1,14 +1,10 @@
-const assert = require('assert');
-const { JSDOM } = require('jsdom');
+import assert from 'node:assert/strict';
+import { afterEach, beforeEach, describe, it } from 'node:test';
+import { JSDOM } from 'jsdom';
 
-require('esbuild-register/dist/node').register({
-  target: 'es2019',
-  format: 'cjs',
-});
+import { VibCrystal } from '../src/vibcrystal.js';
 
-const { VibCrystal } = require('../src/vibcrystal.js');
-
-describe('VibCrystal capture lifecycle', function () {
+describe('VibCrystal capture lifecycle', () => {
   let dom;
   let fakeContainer;
   let captureInstances;
@@ -16,7 +12,7 @@ describe('VibCrystal capture lifecycle', function () {
   let originalCreateElement;
   let createdUrls;
 
-  beforeEach(function () {
+  beforeEach(() => {
     dom = new JSDOM(`<!doctype html><html><body><div id="progress"></div></body></html>`);
     global.window = dom.window;
     global.document = dom.window.document;
@@ -88,7 +84,9 @@ describe('VibCrystal capture lifecycle', function () {
     };
   });
 
-  afterEach(function () {
+  afterEach(() => {
+    document.createElement = originalCreateElement;
+    delete global.window.URL.createObjectURL;
     dom.window.close();
     delete global.window;
     delete global.document;
@@ -97,7 +95,7 @@ describe('VibCrystal capture lifecycle', function () {
     delete global.CCapture;
   });
 
-  it('shows the webm button when the browser reports webm support', function () {
+  it('shows the webm button when the browser reports webm support', () => {
     const v = new VibCrystal(fakeContainer);
     const button = {
       hidden: false,
@@ -140,7 +138,7 @@ describe('VibCrystal capture lifecycle', function () {
     assert.equal(typeof button.handler, 'function');
   });
 
-  it('uses MediaRecorder for webm capture when available', function () {
+  it('uses MediaRecorder for webm capture when available', () => {
     const v = new VibCrystal(fakeContainer);
     v.speed = 1;
     v.time = 1.25;
@@ -171,7 +169,7 @@ describe('VibCrystal capture lifecycle', function () {
     assert.equal(createdUrls.length, 1);
   });
 
-  it('ignores duplicate capture start while already capturing', function () {
+  it('ignores duplicate capture start while already capturing', () => {
     const v = new VibCrystal(fakeContainer);
 
     v.capturestart('gif');
@@ -182,7 +180,7 @@ describe('VibCrystal capture lifecycle', function () {
     assert.ok(v.capturer);
   });
 
-  it('resets state/progress cleanly when capture ends', function () {
+  it('resets state/progress cleanly when capture ends', () => {
     const v = new VibCrystal(fakeContainer);
     v.phonon = { name: 'Graphene demo' };
     v.speed = 1;
@@ -205,12 +203,11 @@ describe('VibCrystal capture lifecycle', function () {
     assert.ok(lastCapture.stopped);
     assert.ok(lastCapture.saved);
 
-    // Calling end a second time should be a no-op.
     v.captureend('gif');
     assert.equal(v.captureState, 'idle');
   });
 
-  it('includes k-point and mode indices in capture filename when available', function () {
+  it('includes k-point and mode indices in capture filename when available', () => {
     const v = new VibCrystal(fakeContainer);
     v.phonon = { name: 'Graphene demo' };
     v.captureK = 7;
@@ -219,7 +216,7 @@ describe('VibCrystal capture lifecycle', function () {
     assert.equal(v.getCaptureFilename('gif'), 'Graphene_demo_k7_n2.gif');
   });
 
-  it('captures one full oscillation cycle based on speed', function () {
+  it('captures one full oscillation cycle based on speed', () => {
     const v = new VibCrystal(fakeContainer);
     v.speed = 2.0;
 
@@ -227,7 +224,7 @@ describe('VibCrystal capture lifecycle', function () {
     assert.equal(v.getCaptureDurationMs(30), 500);
   });
 
-  it('freezes animation time during capture and samples exact loop phases', function () {
+  it('freezes animation time during capture and samples exact loop phases', () => {
     const v = new VibCrystal(fakeContainer);
     v.speed = 1;
     v.time = 2.4;

@@ -1,24 +1,26 @@
-const assert = require('assert');
-const {
+import assert from 'node:assert/strict';
+import { afterEach, beforeEach, describe, it } from 'node:test';
+
+import {
+  loadPhononClasses,
   setupLegacyTestEnv,
   teardownLegacyTestEnv,
-  loadPhononClasses,
-} = require('./helpers/legacy-test-env.cjs');
+} from './helpers/legacy-test-env.mjs';
 
-describe('Legacy compatibility: data loading', function () {
+describe('Legacy compatibility: data loading', () => {
   let dom;
   let PhononWebpage;
 
-  beforeEach(function () {
+  beforeEach(async () => {
     ({ dom } = setupLegacyTestEnv());
-    ({ PhononWebpage } = loadPhononClasses());
+    ({ PhononWebpage } = await loadPhononClasses());
   });
 
-  afterEach(function () {
+  afterEach(() => {
     teardownLegacyTestEnv(dom);
   });
 
-  it('loads a phononwebsite internal json file', function () {
+  it('loads a phononwebsite internal json file', () => {
     const visualizer = { updated: false, update() { this.updated = true; } };
     const dispersion = { updated: false, setClickEvent() {}, update() { this.updated = true; } };
     const p = new PhononWebpage(visualizer, dispersion);
@@ -32,7 +34,7 @@ describe('Legacy compatibility: data loading', function () {
     assert.ok(dispersion.updated, 'dispersion update should run');
   });
 
-  it('loads a pymatgen phonon json', function () {
+  it('loads a pymatgen phonon json', () => {
     const visualizer = { updated: false, update() { this.updated = true; } };
     const dispersion = { updated: false, setClickEvent() {}, update() { this.updated = true; } };
     const p = new PhononWebpage(visualizer, dispersion);
@@ -45,7 +47,7 @@ describe('Legacy compatibility: data loading', function () {
     assert.ok(dispersion.updated, 'dispersion update should run');
   });
 
-  it('loads a phonopy yaml file', function () {
+  it('loads a phonopy yaml file', () => {
     const visualizer = { updated: false, update() { this.updated = true; } };
     const dispersion = { updated: false, setClickEvent() {}, update() { this.updated = true; } };
     const p = new PhononWebpage(visualizer, dispersion);

@@ -1,14 +1,10 @@
-const fs = require('fs');
-const path = require('path');
-const { JSDOM } = require('jsdom');
-const jqueryFactory = require('jquery');
-const jsyaml = require('js-yaml');
+import fs from 'node:fs';
+import path from 'node:path';
+import { JSDOM } from 'jsdom';
+import jqueryFactory from 'jquery';
+import jsyaml from 'js-yaml';
 
-require('esbuild-register/dist/node').register({
-  target: 'es2019',
-  format: 'cjs',
-});
-const { Complex } = require('../../src/legacycomplex.js');
+import { Complex } from '../../src/legacycomplex.js';
 
 function resolveAsset(url) {
   const clean = decodeURIComponent(url.split('?')[0]);
@@ -32,7 +28,7 @@ function installAjaxStubs($) {
   };
 }
 
-function setupLegacyTestEnv() {
+export function setupLegacyTestEnv() {
   const dom = new JSDOM(
     `
     <!doctype html>
@@ -64,7 +60,7 @@ function setupLegacyTestEnv() {
   return { dom, $ };
 }
 
-function teardownLegacyTestEnv(dom) {
+export function teardownLegacyTestEnv(dom) {
   if (dom && dom.window) {
     dom.window.close();
   }
@@ -79,13 +75,8 @@ function teardownLegacyTestEnv(dom) {
   delete global.jQuery;
 }
 
-function loadPhononClasses() {
-  delete require.cache[require.resolve('../../src/phononwebsite.js')];
-  return require('../../src/phononwebsite.js');
+export async function loadPhononClasses() {
+  const moduleUrl = new URL('../../src/phononwebsite.js', import.meta.url);
+  moduleUrl.searchParams.set('t', String(Date.now()));
+  return import(moduleUrl.href);
 }
-
-module.exports = {
-  setupLegacyTestEnv,
-  teardownLegacyTestEnv,
-  loadPhononClasses,
-};

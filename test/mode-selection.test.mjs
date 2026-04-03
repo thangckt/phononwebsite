@@ -1,24 +1,26 @@
-const assert = require('assert');
-const {
+import assert from 'node:assert/strict';
+import { afterEach, beforeEach, describe, it } from 'node:test';
+
+import {
+  loadPhononClasses,
   setupLegacyTestEnv,
   teardownLegacyTestEnv,
-  loadPhononClasses,
-} = require('./helpers/legacy-test-env.cjs');
+} from './helpers/legacy-test-env.mjs';
 
-describe('Degenerate mode selection inputs', function () {
+describe('Degenerate mode selection inputs', () => {
   let dom;
   let PhononWebpage;
 
-  beforeEach(function () {
+  beforeEach(async () => {
     ({ dom } = setupLegacyTestEnv());
-    ({ PhononWebpage } = loadPhononClasses());
+    ({ PhononWebpage } = await loadPhononClasses());
   });
 
-  afterEach(function () {
+  afterEach(() => {
     teardownLegacyTestEnv(dom);
   });
 
-  it('allows selecting mode by k-index and energy order', function () {
+  it('allows selecting mode by k-index and energy order', () => {
     const visualizer = {
       updated: false,
       update() { this.updated = true; },
@@ -53,7 +55,7 @@ describe('Degenerate mode selection inputs', function () {
     assert.ok(dispersion.selected, 'dispersion should highlight selected point');
   });
 
-  it('clamps manual mode selection to valid index ranges', function () {
+  it('clamps manual mode selection to valid index ranges', () => {
     const visualizer = { update() {} };
     const dispersion = { setClickEvent() {}, update() {}, selectModePoint() {} };
 
@@ -76,7 +78,7 @@ describe('Degenerate mode selection inputs', function () {
     assert.equal(p.n, p.getBandIndexFromEnergyOrder(p.k, maxOrder));
   });
 
-  it('maps energy order to band index at each k-point', function () {
+  it('maps energy order to band index at each k-point', () => {
     const visualizer = { update() {} };
     const dispersion = { setClickEvent() {}, update() {}, selectModePoint() {} };
     const p = new PhononWebpage(visualizer, dispersion);

@@ -1,24 +1,26 @@
-const assert = require('assert');
-const {
+import assert from 'node:assert/strict';
+import { afterEach, beforeEach, describe, it } from 'node:test';
+
+import {
+  loadPhononClasses,
   setupLegacyTestEnv,
   teardownLegacyTestEnv,
-  loadPhononClasses,
-} = require('./helpers/legacy-test-env.cjs');
+} from './helpers/legacy-test-env.mjs';
 
-describe('Legacy compatibility: UI wiring', function () {
+describe('Legacy compatibility: UI wiring', () => {
   let dom;
   let PhononWebpage;
 
-  beforeEach(function () {
+  beforeEach(async () => {
     ({ dom } = setupLegacyTestEnv());
-    ({ PhononWebpage } = loadPhononClasses());
+    ({ PhononWebpage } = await loadPhononClasses());
   });
 
-  afterEach(function () {
+  afterEach(() => {
     teardownLegacyTestEnv(dom);
   });
 
-  it('updateMenu populates materials and references', function () {
+  it('updateMenu populates materials and references', () => {
     const visualizer = { update() {} };
     const dispersion = { setClickEvent() {}, update() {} };
     const p = new PhononWebpage(visualizer, dispersion);

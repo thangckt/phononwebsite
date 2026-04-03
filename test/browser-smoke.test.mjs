@@ -1,39 +1,37 @@
-const assert = require('assert');
-const { spawn } = require('child_process');
+import assert from 'node:assert/strict';
+import { after, before, describe, it } from 'node:test';
+import { spawn } from 'node:child_process';
 
 let playwright = null;
 try {
-  playwright = require('playwright');
-} catch (err) {
+  playwright = await import('playwright');
+} catch {
   // Playwright is optional for now.
 }
 
 const runBrowserSmoke = process.env.PLAYWRIGHT_SMOKE === '1' && !!playwright;
-const describeBrowser = runBrowserSmoke ? describe : describe.skip;
 
-describeBrowser('Browser smoke (optional)', function () {
-  this.timeout(30000);
-
+describe('Browser smoke (optional)', { concurrency: false }, () => {
   const port = 8123;
   const baseUrl = `http://127.0.0.1:${port}`;
   let server;
 
-  before(function (done) {
+  before({ skip: !runBrowserSmoke }, async () => {
     server = spawn('python3', ['-m', 'http.server', String(port)], {
       cwd: process.cwd(),
       stdio: 'ignore',
     });
 
-    setTimeout(done, 800);
+    await new Promise((resolve) => setTimeout(resolve, 800));
   });
 
-  after(function () {
+  after(() => {
     if (server && !server.killed) {
       server.kill('SIGTERM');
     }
   });
 
-  it('loads phonon.html with no page errors', async function () {
+  it('loads phonon.html with no page errors', { skip: !runBrowserSmoke, timeout: 30000 }, async () => {
     const browser = await playwright.chromium.launch({ headless: true });
     const page = await browser.newPage();
     const pageErrors = [];
@@ -50,7 +48,7 @@ describeBrowser('Browser smoke (optional)', function () {
     assert.equal(pageErrors.length, 0, `Browser page errors:\n${pageErrors.join('\n')}`);
   });
 
-  it('loads exciton.html with no page errors', async function () {
+  it('loads exciton.html with no page errors', { skip: !runBrowserSmoke, timeout: 30000 }, async () => {
     const browser = await playwright.chromium.launch({ headless: true });
     const page = await browser.newPage();
     const pageErrors = [];
@@ -66,10 +64,6 @@ describeBrowser('Browser smoke (optional)', function () {
 
     assert.equal(pageErrors.length, 0, `Browser page errors:\n${pageErrors.join('\n')}`);
   });
-});
 
-if (!runBrowserSmoke) {
-  describe('Browser smoke (optional)', function () {
-    it.skip('set PLAYWRIGHT_SMOKE=1 and install playwright to run');
-  });
-}
+  it('set PLAYWRIGHT_SMOKE=1 and install playwright to run', { skip: runBrowserSmoke }, () => {});
+});

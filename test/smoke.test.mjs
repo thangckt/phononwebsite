@@ -1,14 +1,15 @@
-const fs = require('fs');
-const path = require('path');
-const assert = require('assert');
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
 
 function read(relPath) {
   const absPath = path.join(process.cwd(), relPath);
   return fs.readFileSync(absPath, 'utf8');
 }
 
-describe('Build smoke tests', function () {
-  it('produces minified bundle artifacts', function () {
+describe('Build smoke tests', () => {
+  it('produces minified bundle artifacts', () => {
     const requiredFiles = [
       'build/main.js',
       'build/main.js.map',
@@ -25,14 +26,14 @@ describe('Build smoke tests', function () {
     }
   });
 
-  it('does not leak Node fs imports into browser bundle', function () {
+  it('does not leak Node fs imports into browser bundle', () => {
     const mainJs = read('build/main.js');
     const mainMinJs = read('build/main.min.js');
     assert.ok(!mainJs.includes("from 'fs'"), 'build/main.js must not import fs');
     assert.ok(!mainMinJs.includes("from 'fs'"), 'build/main.min.js must not import fs');
   });
 
-  it('uses minified production entrypoint', function () {
+  it('uses minified production entrypoint', () => {
     const html = read('phonon.html');
     assert.ok(
       html.includes('<script src="main.min.js" type="module"></script>'),
@@ -40,7 +41,7 @@ describe('Build smoke tests', function () {
     );
   });
 
-  it('uses minified exciton entrypoint', function () {
+  it('uses minified exciton entrypoint', () => {
     const html = read('exciton.html');
     assert.ok(
       html.includes('<script src="exciton.min.js" type="module"></script>'),
@@ -48,7 +49,7 @@ describe('Build smoke tests', function () {
     );
   });
 
-  it('keeps exciton datasets in the shared standard format', function () {
+  it('keeps exciton datasets in the shared standard format', () => {
     const datasets = [
       'data/excitondb/bn/absorptionspectra.json',
       'data/excitondb/mos2/absorptionspectra.json',

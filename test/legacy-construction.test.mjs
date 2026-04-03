@@ -1,26 +1,28 @@
-const assert = require('assert');
-const {
+import assert from 'node:assert/strict';
+import { afterEach, beforeEach, describe, it } from 'node:test';
+
+import {
+  loadPhononClasses,
   setupLegacyTestEnv,
   teardownLegacyTestEnv,
-  loadPhononClasses,
-} = require('./helpers/legacy-test-env.cjs');
+} from './helpers/legacy-test-env.mjs';
 
-describe('Legacy compatibility: construction', function () {
+describe('Legacy compatibility: construction', () => {
   let dom;
   let VibCrystal;
   let PhononHighcharts;
   let PhononWebpage;
 
-  beforeEach(function () {
+  beforeEach(async () => {
     ({ dom } = setupLegacyTestEnv());
-    ({ VibCrystal, PhononHighcharts, PhononWebpage } = loadPhononClasses());
+    ({ VibCrystal, PhononHighcharts, PhononWebpage } = await loadPhononClasses());
   });
 
-  afterEach(function () {
+  afterEach(() => {
     teardownLegacyTestEnv(dom);
   });
 
-  it('initializes VibCrystal, PhononHighcharts and PhononWebpage', function () {
+  it('initializes VibCrystal, PhononHighcharts and PhononWebpage', () => {
     const fakeContainer = {
       width: () => 640,
       height: () => 480,
