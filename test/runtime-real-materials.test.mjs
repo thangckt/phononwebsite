@@ -61,7 +61,7 @@ describe('Runtime real-material diagnostics', () => {
       eigenvaluesCm1: qIndex === 0 ? [1, 2] : [4, 3],
     });
 
-    const solution = phonon.computeRuntimeBandConnectedEigenSolution();
+    const solution = await phonon.computeRuntimeBandConnectedEigenSolutionAsync();
 
     assert.ok(solution);
     assert.deepEqual(solution.eigenvalues, [[1, 2], [3, 4]]);
