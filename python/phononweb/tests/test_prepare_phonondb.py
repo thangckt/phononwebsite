@@ -82,5 +82,10 @@ def test_prepare_archive_runtime_mode_writes_dynamical_matrix_payload(tmp_path):
     assert 'vectors' not in payload
     assert 'vectors_compressed' not in payload
     assert 'eigenvalues' not in payload
+    assert len(payload['qpoints']) == len(payload['distances'])
+    assert len(payload['qpoints']) > 0
+    assert len(payload['line_breaks']) > 0
+    assert payload['mode_amplitude_convention'] == 'avg-mass-normalized'
+    assert payload['average_mass'] > 0
     assert payload['dynamical_matrix']['format'] == 'phonopy-dynamical-matrix-v1'
     assert len(payload['dynamical_matrix']['masses']) == payload['natoms']

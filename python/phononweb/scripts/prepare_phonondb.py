@@ -307,6 +307,69 @@ def apply_average_mass_normalization(payload):
     return payload
 
 
+def add_average_mass_metadata(payload):
+    atom_numbers_list = payload.get("atom_numbers") or []
+    if not atom_numbers_list:
+        return payload
+
+    masses = np.array([float(atomic_mass[int(number)]) for number in atom_numbers_list], dtype=float)
+    if not np.all(np.isfinite(masses)) or np.any(masses <= 0):
+        return payload
+
+    payload["average_mass"] = float(np.mean(masses))
+    payload["mode_amplitude_convention"] = "avg-mass-normalized"
+    return payload
+
+
+def convert_seekpath_bands_to_runtime_json(
+    phonopy_phonon,
+    structure,
+    repetitions,
+    archive_path,
+    name_mode,
+):
+    bands = getattr(phonopy_phonon, "bands", None) or []
+    highsym_qpts, line_breaks = build_path_metadata(phonopy_phonon)
+    reciprocal_metric = np.linalg.inv(np.array(structure["lattice"], dtype=float)).T
+
+    qpoints = []
+    distances = []
+    cumulative_distance = 0.0
+
+    for branch in bands:
+        branch = np.array(branch, dtype=float)
+        if len(branch) == 0:
+            continue
+        previous_qpoint = branch[0].copy()
+        for branch_index, qpoint in enumerate(branch):
+            if branch_index > 0:
+                cumulative_distance += float(
+                    np.linalg.norm(np.dot(qpoint - previous_qpoint, reciprocal_metric))
+                )
+                previous_qpoint = qpoint.copy()
+            qpoints.append([float(value) for value in qpoint])
+            distances.append(cumulative_distance)
+
+    payload = {
+        "name": choose_output_stem(archive_path, structure, name_mode),
+        "natoms": len(structure["atom_types"]),
+        "lattice": structure["lattice"],
+        "atom_types": structure["atom_types"],
+        "atom_numbers": structure["atom_numbers"],
+        "formula": structure["formula"],
+        "qpoints": qpoints,
+        "repetitions": repetitions,
+        "atom_pos_red": structure["atom_pos_red"],
+        "atom_pos_car": structure["atom_pos_car"],
+        "masses": structure["masses"],
+        "distances": distances,
+        "highsym_qpts": highsym_qpts,
+        "line_breaks": line_breaks,
+    }
+    add_average_mass_metadata(payload)
+    return payload
+
+
 def convert_band_yaml_to_site_json(
     band_yaml,
     structure,
@@ -465,34 +528,38 @@ def prepare_archive(
             nac_filename=str(born) if born.exists() else None,
         )
         phonopy_phonon.set_bandstructure_seekpath_points(band_points=band_points)
-        phonopy_phonon.get_bandstructure(is_eigenvectors=True, is_band_connection=True)
         structure = get_structure_metadata(phonopy_phonon)
 
-        band_yaml_path = tmpdir / "band.yaml"
-        phonopy_phonon.write_band_yaml(filename=str(band_yaml_path))
-        band_yaml = load_band_yaml(band_yaml_path)
-        path_metadata = build_path_metadata(phonopy_phonon)
-
-        payload = convert_band_yaml_to_site_json(
-            band_yaml,
-            structure=structure,
-            repetitions=repetitions,
-            archive_path=archive_path,
-            name_mode=name_mode,
-            path_metadata=path_metadata,
-        )
-        reorder_payload_band_connection(payload)
-        apply_average_mass_normalization(payload)
-        if vector_format == "json":
-            quantize_payload(payload, vector_decimals)
-        elif vector_format == "q11-int16-base64":
-            encode_vectors_q11_int16_base64(payload)
-        else:
-            del payload["vectors"]
-
         if vector_format == "runtime":
-            del payload["eigenvalues"]
+            payload = convert_seekpath_bands_to_runtime_json(
+                phonopy_phonon,
+                structure=structure,
+                repetitions=repetitions,
+                archive_path=archive_path,
+                name_mode=name_mode,
+            )
             payload["dynamical_matrix"] = get_runtime_dynamical_matrix_payload(phonopy_phonon.phonon)
+        else:
+            phonopy_phonon.get_bandstructure(is_eigenvectors=True, is_band_connection=True)
+            band_yaml_path = tmpdir / "band.yaml"
+            phonopy_phonon.write_band_yaml(filename=str(band_yaml_path))
+            band_yaml = load_band_yaml(band_yaml_path)
+            path_metadata = build_path_metadata(phonopy_phonon)
+
+            payload = convert_band_yaml_to_site_json(
+                band_yaml,
+                structure=structure,
+                repetitions=repetitions,
+                archive_path=archive_path,
+                name_mode=name_mode,
+                path_metadata=path_metadata,
+            )
+            reorder_payload_band_connection(payload)
+            apply_average_mass_normalization(payload)
+            if vector_format == "json":
+                quantize_payload(payload, vector_decimals)
+            elif vector_format == "q11-int16-base64":
+                encode_vectors_q11_int16_base64(payload)
 
         output_stem = choose_output_stem(archive_path, payload, name_mode)
         payload["name"] = payload["formula"]
