@@ -15,6 +15,7 @@ import sys
 import tarfile
 import tempfile
 import time
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -626,10 +627,21 @@ def main():
             output_stem = archive.stem.replace(".tar", "")
             output_path = output_dir / f"{output_stem}.json.gz"
             if output_path.exists():
-                payload = load_gzip_json(output_path)
-                manifest.append(build_manifest_entry(payload, output_path))
-                print(f"[{index}/{total_archives}] Skipping {archive.name}: {output_path.name} already exists", flush=True)
-                continue
+                try:
+                    payload = load_gzip_json(output_path)
+                except (OSError, EOFError, json.JSONDecodeError, zlib.error) as exc:
+                    print(
+                        f"[{index}/{total_archives}] Existing output is unreadable, rebuilding {archive.name}: "
+                        f"{output_path} ({exc})",
+                        flush=True,
+                    )
+                else:
+                    manifest.append(build_manifest_entry(payload, output_path))
+                    print(
+                        f"[{index}/{total_archives}] Skipping {archive.name}: {output_path.name} already exists",
+                        flush=True,
+                    )
+                    continue
 
         print(f"[{index}/{total_archives}] Queued {archive.name}...", flush=True)
         pending_tasks.append({
