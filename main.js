@@ -99787,6 +99787,9 @@ class PhononHighcharts {
     }
 
     ensureAtomTypeWeights(phonon) {
+        if (this.showModeWeights && phonon && typeof phonon.ensureAllEigenvectors === 'function') {
+            phonon.ensureAllEigenvectors();
+        }
         if (!phonon || !phonon.vec || !phonon.atom_numbers) {
             return { atomNumbers: [], weights: [] };
         }
@@ -99806,6 +99809,10 @@ class PhononHighcharts {
 
         let weights = [];
         for (let k = 0; k < phonon.vec.length; k++) {
+            if (!phonon.vec[k] || !phonon.vec[k].length) {
+                weights.push([]);
+                continue;
+            }
             let qpointWeights = [];
             for (let n = 0; n < phonon.vec[k].length; n++) {
                 let mode = phonon.vec[k][n];
@@ -100480,8 +100487,7 @@ MaterialsProjectDB.availabilityState = undefined;
 class LocalPhononDB {
     /*
     Interact with locally generated PhononDB materials stored in data/phonondb2017.
-    The visible list comes from the historical PhononDB 2018 catalog, but only
-    entries with locally generated files are exposed in the menu.
+    The visible list comes directly from the generated models manifests.
     */
 
     constructor() {
@@ -100489,7 +100495,6 @@ class LocalPhononDB {
         this.author = "A. Togo";
         this.year = 2018;
         this.url = "https://github.com/atztogo/phonondb";
-        this.catalog = "data/phonondb2017/catalog.json";
         this.generated = "data/phonondb2017/models.json";
         this.root = "data/phonondb2017";
     }
@@ -100497,11 +100502,8 @@ class LocalPhononDB {
     get_materials(callback) {
         let reference = this.author + ", " + "<a href=" + this.url + ">" + this.name + "</a> (" + this.year + ")";
         let name = this.name;
-        let root = this.root;
         let generated = this.generated;
-        let finishEmpty = function() {
-            callback([]);
-        };
+        let root = this.root;
         let normalizeMaterialId = function(value) {
             let text = String(value == null ? '' : value).trim();
             if (text.endsWith('.json.gz')) {
@@ -100526,72 +100528,76 @@ class LocalPhononDB {
             return 'mp-' + normalizedId + '.json.gz';
         };
 
-        function dothings(catalog) {
+        let loadGeneratedEntries = function(onDone) {
+            let localById = {};
             let request;
             try {
                 request = $.get(generated, function(localEntries) {
-                let localById = {};
-                for (let i = 0; i < localEntries.length; i++) {
-                    let entry = localEntries[i];
-                    if (typeof entry === "string") {
-                        let id = normalizeMaterialId(entry);
-                        localById[id] = {
-                            id: id,
-                            file: normalizeMaterialFile(entry, id)
-                        };
-                    } else if (entry && entry.id != null) {
-                        let id = normalizeMaterialId(entry.id);
-                        localById[id] = Object.assign({
-                            id: id,
-                            file: normalizeMaterialFile(entry.file || entry.id, id)
-                        }, entry);
+                    for (let i = 0; i < localEntries.length; i++) {
+                        let entry = localEntries[i];
+                        if (typeof entry === "string") {
+                            let id = normalizeMaterialId(entry);
+                            localById[id] = {
+                                id: id,
+                                file: normalizeMaterialFile(entry, id),
+                                root: root,
+                            };
+                        } else if (entry && entry.id != null) {
+                            let id = normalizeMaterialId(entry.id);
+                            localById[id] = Object.assign({
+                                id: id,
+                                file: normalizeMaterialFile(entry.file || entry.id, id),
+                                root: root,
+                            }, entry);
+                        }
                     }
-                }
-
-                let materials = [];
-                for (let i = 0; i < catalog.length; i++) {
-                    let catalogEntry = catalog[i];
-                    let localEntry = localById[normalizeMaterialId(catalogEntry.id)];
-                    if (!localEntry) {
-                        continue;
-                    }
-
-                    let m = Object.assign({}, catalogEntry, localEntry);
-                    m.source = name;
-                    m.type = "json";
-                    m.reference = reference;
-                    m.url = root + "/" + m.file;
-                    m.link = catalogEntry.url || m.link || ("https://materialsproject.org/materials/mp-" + m.id);
-                    materials.push(m);
-                }
-
-                callback(materials);
+                    onDone(localById);
                 });
             } catch (error) {
-                finishEmpty();
+                onDone(localById);
                 return;
             }
 
             if (request && typeof request.fail === "function") {
                 request.fail(function() {
-                    finishEmpty();
+                    onDone(localById);
                 });
             }
-        }
+        };
 
-        let request;
-        try {
-            request = $.get(this.catalog, dothings);
-        } catch (error) {
-            finishEmpty();
-            return;
-        }
+        loadGeneratedEntries(function(localById) {
+            let materialIds = Object.keys(localById);
+            if (!materialIds.length) {
+                callback([]);
+                return;
+            }
 
-        if (request && typeof request.fail === "function") {
-            request.fail(function() {
-                finishEmpty();
+            materialIds.sort(function(left, right) {
+                let leftValue = Number(left);
+                let rightValue = Number(right);
+                if (Number.isFinite(leftValue) && Number.isFinite(rightValue)) {
+                    return leftValue - rightValue;
+                }
+                return left.localeCompare(right);
             });
-        }
+
+            let materials = [];
+            for (let i = 0; i < materialIds.length; i++) {
+                let id = materialIds[i];
+                let localEntry = localById[id];
+                let m = Object.assign({}, localEntry);
+                m.id = localEntry.id != null ? localEntry.id : id;
+                m.name = localEntry.name || localEntry.formula || ('mp-' + id);
+                m.source = name;
+                m.type = "json";
+                m.reference = reference;
+                m.url = (m.root || "") + "/" + m.file;
+                m.link = m.link || ("https://materialsproject.org/materials/mp-" + m.id);
+                materials.push(m);
+            }
+
+            callback(materials);
+        });
     }
 }
 
@@ -107470,9 +107476,717 @@ var pako = {
 	constants: constants_1
 };
 
+function determinant3x3(matrix) {
+    return matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1])
+        - matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0])
+        + matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]);
+}
+
+function invert3x3(matrix) {
+    let det = determinant3x3(matrix);
+    if (Math.abs(det) < 1e-16) {
+        return null;
+    }
+    let invDet = 1 / det;
+    return [
+        [
+            (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) * invDet,
+            (matrix[0][2] * matrix[2][1] - matrix[0][1] * matrix[2][2]) * invDet,
+            (matrix[0][1] * matrix[1][2] - matrix[0][2] * matrix[1][1]) * invDet,
+        ],
+        [
+            (matrix[1][2] * matrix[2][0] - matrix[1][0] * matrix[2][2]) * invDet,
+            (matrix[0][0] * matrix[2][2] - matrix[0][2] * matrix[2][0]) * invDet,
+            (matrix[0][2] * matrix[1][0] - matrix[0][0] * matrix[1][2]) * invDet,
+        ],
+        [
+            (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]) * invDet,
+            (matrix[0][1] * matrix[2][0] - matrix[0][0] * matrix[2][1]) * invDet,
+            (matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0]) * invDet,
+        ],
+    ];
+}
+
+function multiplyMatrixByVector(matrix, vector) {
+    return [
+        matrix[0][0] * vector[0] + matrix[0][1] * vector[1] + matrix[0][2] * vector[2],
+        matrix[1][0] * vector[0] + matrix[1][1] * vector[1] + matrix[1][2] * vector[2],
+        matrix[2][0] * vector[0] + matrix[2][1] * vector[1] + matrix[2][2] * vector[2],
+    ];
+}
+
+function dot3(left, right) {
+    return left[0] * right[0] + left[1] * right[1] + left[2] * right[2];
+}
+
+function complexAddAssign(target, sourceReal, sourceImag) {
+    target[0] += sourceReal;
+    target[1] += sourceImag;
+}
+
+function complexScaleAssign(target, scale) {
+    target[0] *= scale;
+    target[1] *= scale;
+}
+
+function createComplexBlockTensor(natoms) {
+    let tensor = [];
+    for (let i = 0; i < natoms; i++) {
+        let row = [];
+        for (let j = 0; j < natoms; j++) {
+            let block = [];
+            for (let alpha = 0; alpha < 3; alpha++) {
+                let components = [];
+                for (let beta = 0; beta < 3; beta++) {
+                    components.push([0, 0]);
+                }
+                block.push(components);
+            }
+            row.push(block);
+        }
+        tensor.push(row);
+    }
+    return tensor;
+}
+
+function getDielectricPart(q, dielectric) {
+    let total = 0;
+    for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 3; j++) {
+            total += q[i] * dielectric[i][j] * q[j];
+        }
+    }
+    return total;
+}
+
+function getKKTensor(gVector, qCart, qDirectionCart, dielectric, lambda, tolerance) {
+    let qK = [
+        gVector[0] + qCart[0],
+        gVector[1] + qCart[1],
+        gVector[2] + qCart[2],
+    ];
+    let norm = Math.sqrt(dot3(qK, qK));
+    let kk = [
+        [0, 0, 0],
+        [0, 0, 0],
+        [0, 0, 0],
+    ];
+
+    if (norm < tolerance) {
+        if (!qDirectionCart) {
+            return kk;
+        }
+        let dielectricPart = getDielectricPart(qDirectionCart, dielectric);
+        if (!(Math.abs(dielectricPart) > 1e-16)) {
+            return kk;
+        }
+        for (let i = 0; i < 3; i++) {
+            for (let j = 0; j < 3; j++) {
+                kk[i][j] = qDirectionCart[i] * qDirectionCart[j] / dielectricPart;
+            }
+        }
+        return kk;
+    }
+
+    let dielectricPart = getDielectricPart(qK, dielectric);
+    if (!(Math.abs(dielectricPart) > 1e-16)) {
+        return kk;
+    }
+    let l2 = 4 * lambda * lambda;
+    let prefactor = Math.exp(-dielectricPart / l2) / dielectricPart;
+    for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 3; j++) {
+            kk[i][j] = qK[i] * qK[j] * prefactor;
+        }
+    }
+    return kk;
+}
+
+function getDdTensorPart(gList, qCart, qDirectionCart, dielectric, positionsCar, lambda, tolerance) {
+    let natoms = positionsCar.length;
+    let ddPart = createComplexBlockTensor(natoms);
+
+    for (let gIndex = 0; gIndex < gList.length; gIndex++) {
+        let gVector = gList[gIndex];
+        let kk = getKKTensor(gVector, qCart, qDirectionCart, dielectric, lambda, tolerance);
+
+        for (let i = 0; i < natoms; i++) {
+            for (let j = 0; j < natoms; j++) {
+                let phase = 0;
+                for (let axis = 0; axis < 3; axis++) {
+                    phase += (positionsCar[i][axis] - positionsCar[j][axis]) * gVector[axis];
+                }
+                phase *= 2 * Math.PI;
+                let cosPhase = Math.cos(phase);
+                let sinPhase = Math.sin(phase);
+
+                for (let alpha = 0; alpha < 3; alpha++) {
+                    for (let beta = 0; beta < 3; beta++) {
+                        let value = kk[alpha][beta];
+                        complexAddAssign(ddPart[i][j][alpha][beta], value * cosPhase, value * sinPhase);
+                    }
+                }
+            }
+        }
+    }
+
+    return ddPart;
+}
+
+function multiplyBorns(ddIn, born) {
+    let natoms = born.length;
+    let dd = createComplexBlockTensor(natoms);
+
+    for (let i = 0; i < natoms; i++) {
+        for (let j = 0; j < natoms; j++) {
+            for (let alpha = 0; alpha < 3; alpha++) {
+                for (let beta = 0; beta < 3; beta++) {
+                    let target = dd[i][j][alpha][beta];
+                    for (let alphaPrime = 0; alphaPrime < 3; alphaPrime++) {
+                        for (let betaPrime = 0; betaPrime < 3; betaPrime++) {
+                            let zz = born[i][alphaPrime][alpha] * born[j][betaPrime][beta];
+                            target[0] += ddIn[i][j][alphaPrime][betaPrime][0] * zz;
+                            target[1] += ddIn[i][j][alphaPrime][betaPrime][1] * zz;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return dd;
+}
+
+function getQCart(direction, primitiveLattice) {
+    let inverseLattice = invert3x3(primitiveLattice);
+    if (!inverseLattice) {
+        return null;
+    }
+    return multiplyMatrixByVector(inverseLattice, direction);
+}
+
+function getGonzeReciprocalCorrection(payload, qpoint, qDirection = null) {
+    if (!payload.nac || payload.nac.method !== 'gonze') {
+        return null;
+    }
+
+    let qCart = getQCart(qpoint, payload.primitive_lattice);
+    if (!qCart) {
+        return null;
+    }
+    let qDirectionCart = qDirection ? getQCart(qDirection, payload.primitive_lattice) : null;
+    let ddPart = getDdTensorPart(
+        payload.nac.g_list,
+        qCart,
+        qDirectionCart,
+        payload.nac.dielectric,
+        payload.nac.positions_car,
+        payload.nac.lambda,
+        payload.nac.q_direction_tolerance || 1e-5
+    );
+    let dd = multiplyBorns(ddPart, payload.nac.born);
+    let natoms = payload.masses.length;
+
+    for (let i = 0; i < natoms; i++) {
+        for (let alpha = 0; alpha < 3; alpha++) {
+            for (let beta = 0; beta < 3; beta++) {
+                dd[i][i][alpha][beta][0] -= payload.nac.dd_q0.real[i][alpha][beta];
+                dd[i][i][alpha][beta][1] -= payload.nac.dd_q0.imag[i][alpha][beta];
+            }
+        }
+    }
+
+    for (let i = 0; i < natoms; i++) {
+        for (let j = 0; j < natoms; j++) {
+            let scale = payload.nac.nac_factor / Math.sqrt(payload.masses[i] * payload.masses[j]);
+            for (let alpha = 0; alpha < 3; alpha++) {
+                for (let beta = 0; beta < 3; beta++) {
+                    complexScaleAssign(dd[i][j][alpha][beta], scale);
+                }
+            }
+        }
+    }
+
+    return dd;
+}
+
+async function Module(moduleArg={}){var moduleRtn;var Module=moduleArg;var ENVIRONMENT_IS_WEB=!!globalThis.window;var ENVIRONMENT_IS_WORKER=!!globalThis.WorkerGlobalScope;var ENVIRONMENT_IS_NODE=globalThis.process?.versions?.node&&globalThis.process?.type!="renderer";if(ENVIRONMENT_IS_NODE){const{createRequire}=await import('node:module');var require=createRequire(import.meta.url);}var _scriptName=import.meta.url;var scriptDirectory="";if(ENVIRONMENT_IS_NODE){require("node:fs");if(_scriptName.startsWith("file:")){scriptDirectory=require("node:path").dirname(require("node:url").fileURLToPath(_scriptName))+"/";}if(process.argv.length>1){process.argv[1].replace(/\\/g,"/");}process.argv.slice(2);}else if(ENVIRONMENT_IS_WEB||ENVIRONMENT_IS_WORKER){try{scriptDirectory=new URL(".",_scriptName).href;}catch{}}else;console.log.bind(console);var err=console.error.bind(console);var ABORT=false;function binaryDecode(bin){for(var i=0,l=bin.length,o=new Uint8Array(l),c;i<l;++i){c=bin.charCodeAt(i);o[i]=~c>>8&c;}return o}var readyPromiseResolve,readyPromiseReject;var HEAP8,HEAPU8,HEAP16,HEAP32,HEAPU32,HEAPF32,HEAPF64;var HEAP64;var runtimeInitialized=false;function updateMemoryViews(){var b=wasmMemory.buffer;HEAP8=new Int8Array(b);HEAP16=new Int16Array(b);HEAPU8=new Uint8Array(b);HEAP32=new Int32Array(b);HEAPU32=new Uint32Array(b);HEAPF32=new Float32Array(b);HEAPF64=new Float64Array(b);HEAP64=new BigInt64Array(b);new BigUint64Array(b);}function preRun(){if(Module["preRun"]){if(typeof Module["preRun"]=="function")Module["preRun"]=[Module["preRun"]];while(Module["preRun"].length){addOnPreRun(Module["preRun"].shift());}}callRuntimeCallbacks(onPreRuns);}function initRuntime(){runtimeInitialized=true;wasmExports["e"]();}function postRun(){if(Module["postRun"]){if(typeof Module["postRun"]=="function")Module["postRun"]=[Module["postRun"]];while(Module["postRun"].length){addOnPostRun(Module["postRun"].shift());}}callRuntimeCallbacks(onPostRuns);}function abort(what){Module["onAbort"]?.(what);what="Aborted("+what+")";err(what);ABORT=true;what+=". Build with -sASSERTIONS for more info.";var e=new WebAssembly.RuntimeError(what);readyPromiseReject?.(e);throw e}var wasmBinaryFile;function findWasmBinary(){return binaryDecode(' asm   S\r` ` ``|||| ` ` `\n ` `|||`| ```  aa  ab ac        	 \nA ¯!d e f g h i j k \nðþ®|  ¢"  ¢" !@  ¢"	  ¢"\n¡" a\r   a\r  D      ða"\r D      ða"r"@D         ¦   b!D         ¦   b!D      ð?D          ¦!D      ð?D         \r ¦!@ "D      ðb "D      ðbqE@D         ¦   b!D         ¦   b!D      ð?D         D      ða ¦!D      ð?D         D      ða ¦! \r @ D      ða\r  D      ða\r  	D      ða\r  \nD      ðb\rD         ¦   b!D         ¦   b!D         ¦   b!D         ¦   b!  ¢  ¢ D      ð¢!  ¢  ¢¡D      ð¢!   9   9 ß@  E\r   Ak"  Ak( "Axq" j!@ Aq\r  AqE\r  ( "k"A¸+( I\r   j! @@@A¼+(  G@ (! AÿM@  ("G\rA¨+A¨+( A~ Avwq6  (!  G@ (" 6  6 (" Aj ("E\r Aj!@ ! "Aj! ("\r  Aj! ("\r  A 6  ("AqAG\rA°+  6   A~q6   Ar6   6   6  6A ! E\r @ ("At"(Ø- F@ AØ-j 6  \rA¬+A¬+( A~ wq6 @  (F@  6  6 E\r  6 ("@  6  6 ("E\r   6  6  O\r  ("AqE\r @@@@ AqE@AÀ+(  F@AÀ+ 6 A´+A´+(   j" 6    Ar6 A¼+( G\rA°+A 6 A¼+A 6 A¼+( " F@A¼+ 6 A°+A°+(   j" 6    Ar6   j  6  Axq  j!  (! AÿM@ (" F@A¨+A¨+( A~ Avwq6   6  6 (!  G@ (" 6  6 (" Aj ("E\r Aj!@ ! "Aj! ("\r  Aj! ("\r  A 6   A~q6   Ar6   j  6 A ! E\r @ ("At"(Ø- F@ AØ-j 6  \rA¬+A¬+( A~ wq6 @  (F@  6  6 E\r  6 ("@  6  6 ("E\r   6  6   Ar6   j  6   G\r A°+  6   AÿM@  AøqAÐ+j!A¨+( "A  Avt" qE@A¨+   r6   (!   6   6  6   6A!  AÿÿÿM@  A&  Avg"kvAq AtkA>j!  6 B 7 AtAØ-j!@A¬+( "A t"qE@A¬+  r6   6 A!A  A AvkA  AGt! ( !@ "(Axq  F\r Av! At!  Aqj"("\r   6A! !A!  " (" 6  6A! A!A !  j 6   6   j 6 AÈ+AÈ+( Ak" A  6 Á\'# Ak"\n$ @@@@@@@@@@  AôM@A¨+( "A  AjAøq  AI"Av" v"Aq@@ AsAq  j"At"AÐ+j"  (Ø+"("F@A¨+ A~ wq6    6   6 Aj!   Ar6  j" (Ar6 A°+( "M\r @@A  t"A  kr   tqh"At"AÐ+j" (Ø+" ("F@A¨+ A~ wq"6   6  6   Ar6   j"  k"Ar6   j 6  @ AxqAÐ+j!A¼+( ! A Avt"qE@A¨+  r6   (!  6  6  6  6  Aj! A¼+ 6 A°+ 6 A¬+( "E\r hAt(Ø-"(Axq k! !@@ (" E@ (" E\r  (Axq k"   I"!    !  ! (!	  (" G@ ("  6   6\n (" Aj ("E\r Aj!@ ! " Aj!  ("\r   Aj!  ("\r  A 6 	A!  A¿K\r   Aj"Axq!A¬+( "E\r A!A  k!  AôÿÿM@ A& Avg" kvAq  AtkA>j!@@@ At(Ø-"E@A ! A !  A AvkA  AGt!@@ (Axq k" O\r  ! "\r A ! !    ("   AvAqj("F   !  At! \r    rE@A !A t" A   kr q" E\r  hAt(Ø-!   E\r@  (Axq k" I!   !    !  ("   (" \r  E\r  A°+(  kO\r  (!  (" G@ ("  6   6 (" Aj ("E\r Aj!@ ! " Aj!  ("\r   Aj!  ("\r  A 6  A°+( "M@A¼+( ! @  k"AO@   j" Ar6   j 6    Ar6   Ar6   j" (Ar6A !A !A°+ 6 A¼+ 6   Aj! 	 A´+( "I@A´+  k"6 AÀ+AÀ+( "  j"6   Ar6   Ar6  Aj! 	A !  A/j"A/( @A/( A/B7 A/B 7 A/ \nAjApqAØªÕªs6 A/A 6 Aä.A 6 A "j"A  k"q" M\rAà.( "@AØ.( " j"	 M\r	  	I\r	@Aä.-  AqE@@@@@AÀ+( "@Aè.! @  ( " M@    (jI\r  (" \r A 	"AF\r !A/( " Ak" q@  k  jA   kqj!  M\rAà.( " @AØ.( " j" M\r   I\r 	"  G\r  k q"	"  (   (jF\r !   AF\r A0j M@  !A/( "  kjA  kq"	AF\r  j!  ! AG\rAä.Aä.( Ar6  	!A 	!  AF\r  AF\r   M\r   k" A(jM\rAØ.AØ.(  j" 6 AÜ.(   I@AÜ.  6 @AÀ+( "@Aè.! @   ( "  ("jF\r  (" \r A¸+( " A    ME@A¸+ 6 A ! Aì. 6 Aè. 6 AÈ+A6 AÌ+A/( 6 Aô.A 6 @  At" AÐ+j"6Ø+  6Ü+  Aj" A G\r A´+ A(k" Ax kAq"k"6 AÀ+  j"6   Ar6   jA(6AÄ+A/( 6   M\r  K\r  (Aq\r    j6AÀ+ Ax kAq" j"6 A´+A´+(  j"  k" 6    Ar6  jA(6AÄ+A/( 6 A ! A ! A¸+(  K@A¸+ 6   j!Aè.! @@   ( "G@  (" \r  - AqE\rAè.! @@  ( " M@    (j"I\r  (! A´+ A(k" Ax kAq"k"6 AÀ+  j"6   Ar6   jA(6AÄ+A/( 6   A\' kAqjA/k"    AjI"A6 Að.) 7 Aè.) 7Að. Aj6 Aì. 6 Aè. 6 Aô.A 6  Aj! @  A6  Aj  Aj!  I\r   F\r   (A~q6   k"Ar6  6  AÿM@ AøqAÐ+j! A¨+( "A Avt"qE@A¨+  r6     (!   6  6A!AA!  AÿÿÿM@ A& Avg" kvAq  AtkA>j!    6 B 7  AtAØ-j!@@A¬+( "A  t"qE@A¬+  r6   6  A  AvkA   AGt!  ( !@ "(Axq F\r  Av!  At!   Aqj"("\r   6  6A! "! A ("  6  6   6A ! A!A j 6   j  6 A´+( "  M\r A´+   k"6 AÀ+AÀ+( "  j"6   Ar6   Ar6  Aj! A¤+A06 A !    6     ( j6 Ax kAqj" Ar6 Ax kAqj"  j"k!@AÀ+(  F@AÀ+ 6 A´+A´+(  j" 6    Ar6A¼+(  F@A¼+ 6 A°+A°+(  j" 6    Ar6   j  6  (" AqAF@  Axq!	 (!@  AÿM@ (" F@A¨+A¨+( A~  Avwq6   6  6 (!@  G@ ("  6   6@ ("  Aj (" E\r Aj!@ !  "Aj!  (" \r  Aj! (" \r  A 6 A ! E\r @ (" At"(Ø- F@ AØ-j 6  \rA¬+A¬+( A~  wq6 @  (F@  6  6 E\r  6 (" @   6   6 (" E\r    6   6  	j!  	j"(!    A~q6  Ar6  j 6  AÿM@ AøqAÐ+j! A¨+( "A Avt"qE@A¨+  r6     (!   6  6   6  6A! AÿÿÿM@ A& Avg" kvAq  AtkA>j!  6 B 7 AtAØ-j! @@A¬+( "A t"qE@A¬+  r6    6  A AvkA  AGt!  ( !@ " (Axq F\r Av! At!   Aqj"("\r   6   6  6  6  (" 6   6 A 6   6  6 Aj! @ E\r @ ("At"(Ø- F@ AØ-j  6   \rA¬+ A~ wq"6 @  (F@   6   6  E\r   6 ("@   6   6 ("E\r    6   6@ AM@   j" Ar6   j"   (Ar6  Ar6  j" Ar6  j 6  AÿM@ AøqAÐ+j! A¨+( "A Avt"qE@A¨+  r6     (!   6  6   6  6A!  AÿÿÿM@ A& Avg" kvAq  AtkA>j!    6 B 7  AtAØ-j!@@ A  t"qE@A¬+  r6   6   6 A  AvkA   AGt!  ( !@ "(Axq F\r  Av!  At!   Aqj"("\r   6  6  6  6 ("  6  6 A 6  6   6 Aj! @ 	E\r @ ("At"(Ø- F@ AØ-j  6   \rA¬+ A~ wq6 @  	(F@ 	  6 	  6  E\r   	6 ("@   6   6 ("E\r    6   6@ AM@   j" Ar6   j"   (Ar6  Ar6  j" Ar6  j 6  @ AxqAÐ+j! A¼+( !A Avt" qE@A¨+  r6     (!   6  6   6  6A¼+ 6 A°+ 6  Aj!  \nAj$   @  (  (l G@  ( "@ Ak(    A LA  AO\r AtAj"E\r Apq" 6 Aj6    6   6" A¸*6   A¤*6   AÜ*A  AÔ AÐ j@  ( G@  ( "@ Ak(    A LA  AO\r AtAj"E\r Apq" 6 Aj6    6" A¸*6   A¤*6   AÜ*A T~@A+( "­  ­B|Bøÿÿÿ|"BÿÿÿÿX@ §" ? AtM\r  \rA¤+A06 AA+  6  \n|@ A L\r  A L\r  (! ( ! Aþÿÿÿq! Aq!\rA !@  	Atj!A !\nA !@ AG@@   lAtj"+ !   Atj" +9  9    ArlAtj"+ !  +9  9 Aj! Aj! \nAj"\n G\r  \rE\r   lAtj"+ !   Atj" +9  9  Aj! 	Aj"	 G\r Õ$|# A k"$   ) 7  )7  ! !    AF!   AF! Axq! "AmAt!# Ak"$  "A J@  kAq!   	Atj!   	Atj! ! +!, +!-  Aj"F!@ A J@   lAtj!A !	@ (  Atj! ("\r 	ArlAt!  	 lAtj!\nD        !! ! D        !D        !D        !D        !D        !D        ! A !D        !"D        !.D        !/D        !0D        !1D        !2D        !#D        !3D        !4D        !5D        !6D        !7D        !8D        !9D        !: A J@@ :  +" \n+p"$¢  +" \n+x"%¢    +8" \n+ð"&¢  +0" \n+ø"\'¢    +X" \n+ð"(¢  +P" \n+ø")¢    +x" \n+ð"*¢  +p"  \n+ø"+¢  !: 9  $¢  %¢¡   &¢  \'¢¡   (¢  )¢¡    *¢  +¢¡ !9 8  \n+`"$¢  \n+h"%¢    \n+à"&¢  \n+è"\'¢    \n+à"(¢  \n+è")¢    \n+à"*¢   \n+è"+¢  !8 7  $¢  %¢¡   &¢  \'¢¡   (¢  )¢¡    *¢  +¢¡ !7 6  \n+P"$¢  \n+X"%¢    \n+Ð"&¢  \n+Ø"\'¢    \n+Ð"(¢  \n+Ø")¢    \n+Ð"*¢   \n+Ø"+¢  !6 5  $¢  %¢¡   &¢  \'¢¡   (¢  )¢¡    *¢  +¢¡ !5 4  \n+@"$¢  \n+H"%¢    \n+À"&¢  \n+È"\'¢    \n+À"(¢  \n+È")¢    \n+À"*¢   \n+È"+¢  !4 3  $¢  %¢¡   &¢  \'¢¡   (¢  )¢¡    *¢  +¢¡ !3 #  +" \n+0"$¢  + " \n+8"%¢    +(" \n+°"&¢  + " \n+¸"\'¢    +H" \n+°"(¢  +@" \n+¸")¢    +h" \n+°"*¢  +`"  \n+¸"+¢  !# 2  $¢  %¢¡   &¢  \'¢¡   (¢  )¢¡    *¢  +¢¡ !2 1  \n+ "$¢  \n+("%¢    \n+ "&¢  \n+¨"\'¢    \n+ "(¢  \n+¨")¢    \n+ "*¢   \n+¨"+¢  !1 0  $¢  %¢¡   &¢  \'¢¡   (¢  )¢¡    *¢  +¢¡ !0 /  \n+"$¢  \n+"%¢    \n+"&¢  \n+"\'¢    \n+"(¢  \n+")¢    \n+"*¢   \n+"+¢  !/ .  $¢  %¢¡   &¢  \'¢¡   (¢  )¢¡    *¢  +¢¡ !. "  \n+ "$¢  \n+"%¢    \n+"&¢  \n+"\'¢    \n+"(¢  \n+")¢    \n+"*¢   \n+"+¢  !" !  $¢  %¢¡   &¢  \'¢¡   (¢  )¢¡    *¢  +¢¡ !! \nAj!\n  Aj!  Aj" H\r  : # !# 9 2 !  8 1 ! 7 0 ! 6 / ! 5 . ! 3 ! !! 4 " !  "J@@ #  +" \n+0""¢  + " \n+8".¢  !#    "¢  .¢¡ !    \n+ ""¢  \n+(".¢  !   "¢  .¢¡ !   \n+""¢  \n+".¢  !   "¢  .¢¡ !   \n+ ""¢  \n+".¢  ! !  "¢  .¢¡ !!  Aj!  \nA@k!\n Aj" G\r  \r 	ArlAt \r 	ArlAt!  -¢ ! ,¢ !  j"\n+!" \n+ !. 	 \rlAt j"\r+!/ \r+ !0@ ! -¢  ,¢¡" a\r   a\r   - , !  +! + ! j!   j!  -¢  ,¢ ! /  ! 0  !!@  -¢  ,¢¡" a\r   a\r   - ,   +! + ! \r 9 \r !9  \n "  9 \n .  9   -¢  ,¢ !  +!  + !! + + !"@  -¢  ,¢¡" a\r   a\r   - ,   +! + ! # -¢   ,¢ !  ! "  !@   -¢ # ,¢¡" a\r   a\r   - ,   # +! + !  9  9      9   !  9  	Aj"	 H\r   H@   lAtj!	 !@ (  Atj ( lAt   lAtj!\nA !D        !D        ! 	!  A J@@   +" \n+ "¢  + "! \n+"#¢    +" \n+"¢  +" \n+" ¢    +("" \n+ ".¢  + "/ \n+("0¢    +8"1 \n+0"2¢  +0"3 \n+8"4¢    +H"5 \n+@"6¢  +@"7 \n+H"8¢    +X"9 \n+P":¢  +P"$ \n+X"%¢    +h"& \n+`"\'¢  +`"( \n+h")¢    +x"* \n+p"+¢  +p"; \n+x"<¢  !  ! ¢  #¢¡   ¢   ¢¡  / .¢ " 0¢¡  3 2¢ 1 4¢¡  7 6¢ 5 8¢¡  $ :¢ 9 %¢¡  ( \'¢ & )¢¡  ; +¢ * <¢¡ !  Aj!  \nAj!\n Aj" H\r j!@  N\r     +" \n+ "¢  + "! \n+"#¢  !  ! ¢  #¢¡ !  Aj!  \nAj!\n  ! \r @   +" \n+ "¢  + "! \n+"#¢    +" \n+"¢  +" \n+" ¢  !  ! ¢  #¢¡   ¢   ¢¡ !  A j!  \nA j!\n Aj" G\r   -¢  ,¢ ! +!! + !#@  -¢  ,¢¡" a\r   a\r   - ,   +! + !  !  9  #  9  Aj" G\r  Aj" G\r  Aj$  A j$ Õ$|# A k"$   ) 7  )7  ! !    AF!   AF! Axq! "AmAt!# Ak"$  "A J@  kAq!   	Atj!   	Atj! ! +!, +!-  Aj"F!@ A J@   lAtj!A !	@ (  Atj! ("\r 	ArlAt!  	 lAtj!\nD        !! ! D        !D        !D        !D        !D        !D        ! A !D        !"D        !.D        !/D        !0D        !1D        !2D        !#D        !3D        !4D        !5D        !6D        !7D        !8D        !9D        !: A J@@ :  +" \n+x"$¢  +" \n+p"%¢¡   +0" \n+ø"&¢  +8" \n+ð"\'¢¡   +P" \n+ø"(¢  +X" \n+ð")¢¡   +p" \n+ø"*¢  +x"  \n+ð"+¢¡ !: 9  %¢  $¢    \'¢  &¢    )¢  (¢    +¢   *¢  !9 8  \n+h"$¢  \n+`"%¢¡   \n+è"&¢  \n+à"\'¢¡   \n+è"(¢  \n+à")¢¡   \n+è"*¢   \n+à"+¢¡ !8 7  %¢  $¢    \'¢  &¢    )¢  (¢    +¢   *¢  !7 6  \n+X"$¢  \n+P"%¢¡   \n+Ø"&¢  \n+Ð"\'¢¡   \n+Ø"(¢  \n+Ð")¢¡   \n+Ø"*¢   \n+Ð"+¢¡ !6 5  %¢  $¢    \'¢  &¢    )¢  (¢    +¢   *¢  !5 4  \n+H"$¢  \n+@"%¢¡   \n+È"&¢  \n+À"\'¢¡   \n+È"(¢  \n+À")¢¡   \n+È"*¢   \n+À"+¢¡ !4 3  %¢  $¢    \'¢  &¢    )¢  (¢    +¢   *¢  !3 #  + " \n+8"$¢  +" \n+0"%¢¡   + " \n+¸"&¢  +(" \n+°"\'¢¡   +@" \n+¸"(¢  +H" \n+°")¢¡   +`" \n+¸"*¢  +h"  \n+°"+¢¡ !# 2  %¢  $¢    \'¢  &¢    )¢  (¢    +¢   *¢  !2 1  \n+("$¢  \n+ "%¢¡   \n+¨"&¢  \n+ "\'¢¡   \n+¨"(¢  \n+ ")¢¡   \n+¨"*¢   \n+ "+¢¡ !1 0  %¢  $¢    \'¢  &¢    )¢  (¢    +¢   *¢  !0 /  \n+"$¢  \n+"%¢¡   \n+"&¢  \n+"\'¢¡   \n+"(¢  \n+")¢¡   \n+"*¢   \n+"+¢¡ !/ .  %¢  $¢    \'¢  &¢    )¢  (¢    +¢   *¢  !. "  \n+"$¢  \n+ "%¢¡   \n+"&¢  \n+"\'¢¡   \n+"(¢  \n+")¢¡   \n+"*¢   \n+"+¢¡ !" !  %¢  $¢    \'¢  &¢    )¢  (¢    +¢   *¢  !! \nAj!\n  Aj!  Aj" H\r  : # !# 9 2 !  8 1 ! 7 0 ! 6 / ! 5 . ! 3 ! !! 4 " !  "J@@ #  + " \n+8""¢  +" \n+0".¢¡ !#    .¢  "¢  !    \n+(""¢  \n+ ".¢¡ !   .¢  "¢  !   \n+""¢  \n+".¢¡ !   .¢  "¢  !   \n+""¢  \n+ ".¢¡ ! !  .¢  "¢  !!  Aj!  \nA@k!\n Aj" G\r  \r 	ArlAt \r 	ArlAt!  -¢ ! ,¢ !  j"\n+!" \n+ !. 	 \rlAt j"\r+!/ \r+ !0@ ! -¢  ,¢¡" a\r   a\r   - , !  +! + ! j!   j!  -¢  ,¢ ! /  ! 0  !!@  -¢  ,¢¡" a\r   a\r   - ,   +! + ! \r 9 \r !9  \n "  9 \n .  9   -¢  ,¢ !  +!  + !! + + !"@  -¢  ,¢¡" a\r   a\r   - ,   +! + ! # -¢   ,¢ !  ! "  !@   -¢ # ,¢¡" a\r   a\r   - ,   # +! + !  9  9      9   !  9  	Aj"	 H\r   H@   lAtj!	 !@ (  Atj ( lAt   lAtj!\nA !D        !D        ! 	!  A J@@   + " \n+"¢  +"! \n+ "#¢¡   +" \n+"¢  +" \n+" ¢¡   + "" \n+(".¢  +("/ \n+ "0¢¡   +0"1 \n+8"2¢  +8"3 \n+0"4¢¡   +@"5 \n+H"6¢  +H"7 \n+@"8¢¡   +P"9 \n+X":¢  +X"$ \n+P"%¢¡   +`"& \n+h"\'¢  +h"( \n+`")¢¡   +p"* \n+x"+¢  +x"; \n+p"<¢¡ !   #¢ ! ¢     ¢  ¢   " 0¢ / .¢   1 4¢ 3 2¢   5 8¢ 7 6¢   9 %¢ $ :¢   & )¢ ( \'¢   * <¢ ; +¢  !  Aj!  \nAj!\n Aj" H\r j!@  N\r     + " \n+"¢  +"! \n+ "#¢¡ !   #¢ ! ¢  !  Aj!  \nAj!\n  ! \r @   + " \n+"¢  +"! \n+ "#¢¡   +" \n+"¢  +" \n+" ¢¡ !   #¢ ! ¢     ¢  ¢  !  A j!  \nA j!\n Aj" G\r   -¢  ,¢ ! +!! + !#@  -¢  ,¢¡" a\r   a\r   - ,   +! + !  !  9  #  9  Aj" G\r  Aj" G\r  Aj$  A j$ 	~@ A L\r  A L\r  Aþÿÿÿq!\n Aq!@A !A !	@ AG@@ At" ( j ( lAtj") !\r   Atj" )7  \r7  (  j ( lAtj")!\r  )7  \r7 Aj! Aj! 	Aj"	 \nG\r  E\r (  Atj ( lAtj") !\r   Atj" )7  \r7  Aj! Aj" G\r ² (!@@@@ ( "  (F@  ( F\r  rA H\r@ E\r  E\r  Aÿÿÿÿ mJ\r    l    ( G\r  ( G\rA¢#AéAA  " A¸*6   A¤*6   AÜ*A A«A¹AýA¿  @  ( G@  ( "@ Ak(    A LA  AO\r AtAj"E\r Apq" 6 Aj6    6" A¸*6   A¤*6   AÜ*A ² (!@@@@ ("  (F@  ( F\r  rA H\r@ E\r  E\r  Aÿÿÿÿ mJ\r    l    ( G\r  ( G\rA¢#AéAA  " A¸*6   A¤*6   AÜ*A A«A¹AýA¿  Ý AmAt!	@ AH\r  A L\r @ ( " (" ArlAtj!   ArlAtj!   ArlAtj!\r   lAtj!A !@   Atj"  At"j"\n)7  \n) 7    \rj"\n)7  \n) 7   j"\n)7(  \n) 7    j") 70  )78 Aj! Aj" G\r  Aj" 	H\r @  	L\r  A L\r  Aþÿÿÿq! Aq!\r@ (  ( 	lAtj!A !A !@ AG@@   Atj"  Atj")7  ) 7   )7  )7 Aj! Aj! Aj" G\r  \rE\r   Atj"  Atj")7  ) 7  Aj! 	Aj"	 G\r ï\nA +-  Aq@A+( !	A+( !\nA+( A !	A+A 6 A+B7 A +A:  A !\nA!@  ( " ( " ( "  H"  HA0H\r  "A A@j"AÀmAxq" AL"J@    "  n" lk"@   Asj  AtAjmAtk! 6  ( ! ( "   lAtk"  AtN@   AtnA  Atn" Aà  Atn"   HA|q" J@     m"  lk"     k AtAjmAtk  6   G\r  !  lAt" AN@ \nAà  	A G  AIq" !AÀ  AÀN   !   A0ln"    J" E\r      m"  lk"     k Ajmk  6 µ2|# A°k"$  +! + !@@@@@@@@@@  ("AF@  ("A H\r E\rD         ¡!D      ð? ¡!  ( !  ((!A !A!@ A J@   lAtj!A !@   Atj"+ "¢  +"	¢ !@  ¢  	¢¡" a\r   a\r    	    (! +! + !  9  9  Aj" H\r   (! Aj" H\r  D        a D        aq\r    ("(6  6 (A H\r  ( !  Ak"16X  Aj6T  (6\\ ( 1rA HA  \r	   )7h   (6x   )7p   ) 7` B7|  (l(6 A L\r ( !  ("6  6   )7  )7  (6  )T7   )\\7(  )d70  )l78  )t7@  )|7H  (6P  1G\r (( (G\r@ (E\r  (At"E\r  A  ü  B 7  Bø?7# Að k"$ @@@@ ((AF@ (! ( ! ( "A  ($"A H\r  G\r@ E\r  A L\r + " +"¢ +" + "¢¡!  ¢  ¢ !A! AF\r @   At" j"!+ "   j" +"¢ !+"  + "	¢¡ !   	¢  ¢  ! Aj" G\r   +"¢  + "	¢ !@  ¢  	¢¡" a\r   a\r  A(j  	   +0! +(! ("  +  9    + 9  (P6X  )H7P  )@7H  )87@  )078  )(70  ) 7(  (6h  )7`  (6   )7  )7  ) 7A !# A@j"$  (!/ (! (@!  (0!+ (,!$ ((!! + " +"D        ¢ !\n@  D        ¢¡"\r \ra\r  \n \na\r  A0j  D      ð?D         +8!\n +0!\r \n \rD        ¢¡!@ \r \nD        ¢ " a\r   a\r  A0j \r \nD      ð?D        +8! +0!@ /AI@@A ! E@ /At!@ /AÀ M@  AjApqk"$  Aj"E\r Apq" 6 Aj! !   (64  !60 A6,  6( (`" @ (hA H\r  9  9   )7  ) 7# Ak"$  +Ak!, (0!0@ (4"!AtAúK\r  +AH\r  +Ak!) +! +! $A L!%@@ %@D        !	D        !D        !D        !D        !D        !D        !D        !D        !D        !D        !D        !D        !D        !D        !\nD        !\r ((!*D        !\rA ! Ar !lAt!& Ar !lAt!- Ar !lAt!. Ar !lAt!\' Ar !lAt!2 Ar !lAt!3 Ar !lAt!4  !lAt!5D        !\nD        !D        !D        !D        !D        !D        !D        !D        !D        !D        !D        !D        !D        !D        !	@  0 At"#j"" &j"6+" # *j"#+ "¢ 6+ " #+"¢¡ ! 	  ¢  ¢  !	  " -j"#+" ¢ #+ " ¢¡ !   ¢  ¢  !  " .j"#+" ¢ #+ " ¢¡ !   ¢  ¢  !  " \'j"#+" ¢ #+ " ¢¡ !   ¢  ¢  !  " 2j"#+" ¢ #+ " ¢¡ !   ¢  ¢  !  " 3j"#+" ¢ #+ " ¢¡ !   ¢  ¢  !  " 4j"#+" ¢ #+ " ¢¡ !   ¢  ¢  ! \r " 5j""+" ¢ "+ " ¢¡ !\r \n  ¢  ¢  !\n Aj" $G\r  \r ¢ \n ¢ !@ \n ¢ \r ¢¡" a\r   a\r     \n \r +! + !   Atj"  +  9    + 9  ¢  ¢ !@  ¢  ¢¡" a\r   a\r       +! + !   ArAtj"  +  9    + 9  ¢  ¢ !@  ¢  ¢¡" a\r   a\r       +! + !   ArAtj"  +  9    + 9  ¢  ¢ !@  ¢  ¢¡" a\r   a\r       +! + !   ArAtj"  +  9    + 9  ¢  ¢ !@  ¢  ¢¡" a\r   a\r       +! + !   ArAtj"  +  9    + 9  ¢  ¢ !@  ¢  ¢¡" a\r   a\r       +! + !   ArAtj"  +  9    + 9  ¢  ¢ !@  ¢  ¢¡" a\r   a\r       +! + !   ArAtj"  +  9    + 9  ¢ 	 ¢ !@ 	 ¢  ¢¡" a\r   a\r     	  +! + !   ArAtj"  +  9    + 9 ) Aj"J\r   ,H@ +! +! $A L!)@@ )@D        !	D        !D        !D        !D        !D        !D        !D        ! ((!%D        !A ! Aj !lAt!* Aj !lAt!& Aj !lAt!-  !lAt!.D        !D        !D        !D        !D        !D        !D        !	@  0 At"\'j"" *j"2+"\n % \'j"\'+ "¢ 2+ "\r \'+"¢¡ ! 	 \r ¢  \n¢  !	  " &j"\'+"\n ¢ \'+ "\r ¢¡ !  \r ¢  \n¢  !  " -j"\'+"\n ¢ \'+ "\r ¢¡ !  \r ¢  \n¢  !  " .j""+"\n ¢ "+ "\r ¢¡ !  \r ¢  \n¢  ! Aj" $G\r   ¢  ¢ !@  ¢  ¢¡" a\r   a\r       +! + !   Atj"  +  9    + 9  ¢  ¢ !@  ¢  ¢¡" a\r   a\r       +! + !   AjAtj"  +  9    + 9  ¢  ¢ !@  ¢  ¢¡" a\r   a\r       +! + !   AjAtj"  +  9    + 9  ¢ 	 ¢ !@ 	 ¢  ¢¡" a\r   a\r     	  +! + !   AjAtj"  +  9    + 9 Aj" ,H\r  +Ak"" J@ +! +! $A L!,@@ ,@D        !	D        !D        !D        ! ((!)D        !A ! Aj !lAt!%  !lAt!*D        !D        !D        !	@  0 At"&j"- %j".+"\n & )j"&+ "¢ .+ " &+"¢¡ !   ¢  \n¢  ! 	 * -j"&+"\n ¢ &+ " ¢¡ !	   ¢  \n¢  ! Aj" $G\r  	 ¢  ¢ !@  ¢ 	 ¢¡" a\r   a\r      	 +! + !   Atj"  +  9    + 9  ¢  ¢ !@  ¢  ¢¡" a\r   a\r       +! + !   AjAtj"  +  9    + 9 Aj" "H\r   +H@ +! +! $A L!"@@ "@D        !D        ! 0  !lAtj!, ((!)D        !A !D        !@  , At"%j"*+" % )j"%+ "	¢ *+ " %+"¢¡ !   	¢  ¢  ! Aj" $G\r   ¢  ¢ !@  ¢  ¢¡"	 	a\r   a\r       +! + !	   Atj" 	 +  9    + 9 Aj" +G\r  Aj$ @ /AÀ I\r  E\r  Ak(  A@k$ " A¸*6   A¤*6   AÜ*A  Að j$ AñAÎAÒ A  A¥AAA    ( "A   ("A H\r	  (A L\r ( G\r@ A J@  ((! (!A !@ AG@ Aq Aþÿÿÿq!@  Atj"    lAtj"$+   +  9    $+  + 9  Ar"$Atj"    $lAtj"$+   +  9    $+  + 9 Aj! 7Aj"7 G\r E\r  Atj"   lAtj"+  +  9   + + 9  (A L\r  (G\r\n +! + ! (!  ((!A !@   Atj" + "¢   +"	¢ !@  ¢  	¢¡" a\r   a\r      	 +! + !   lAtj"   +  ¡9     + ¡9 Aj" G\r  A H\r  (G\r	 (" A H\r  (68  )70  )7(  ) 7    6  ) 7  )7  )7@  (6H 1 ($"G\r ( (HG\rA !# A k" $  At"AM@   AjApqk"$  A@k( !    !@@ (\\"A J@ ("A H\r ( ! A !@ (l(! (T"A  (X"!A H\r\r  (\\N\r\n  !G\r @   lAtj!!  Atj"+! + !A !@    At"j"+ "¢  +"	¢ !@  ¢  	¢¡" a\r   a\r   Aj    	  +!  +!  !j" +  ¡9   + ¡9 Aj" G\r  Aj" G\r @ - AG\r  ( "E\r  Ak(   A j$  (TE\r (XA N\r\n A°j$ AAßA¦A  AÚA¸AA  AéAýAâ A  A\'AAA  AíA°\rA°Aä  A¶A¸Aú A  AAAÊ AÐ  AíA¹AòA¿  AAßA²A  ö~|@ "  "\r  \rd  b"½"	B4"\nBÿQ\r  D        aD      ðÿ!\r  	BZ@ \n§Aÿk·! 	 	y"	Bõÿÿÿ|B4§Aÿq 	§kAôk·!@ ½Bÿÿÿÿÿÿÿÿÿ Bÿÿÿÿÿÿÿ÷ÿ V@A  ü"k!@ D        a\r  ½"\nB4§Aÿq"AÿF\r  \nBÿÿÿÿÿÿÿ!	 E@A 	y"§k! 	 Bõÿÿÿ|Bÿÿÿÿÿÿÿw!	  j"AuAxs  A H  Js"AÿN@D      à ¦"  ! \nB!\n A L@ 	 \nB¿Ax  AxLAþj­B4¿¢! ­B4 \n 	¿! D        a\r  ½"\nB4§Aÿq"AÿF\r  \nBÿÿÿÿÿÿÿ!	 E@A 	y"§k! 	 Bõÿÿÿ|Bÿÿÿÿÿÿÿw!	  j"AuAxs  A H  Js"AÿN@D      à ¦"  ! \nB!\n A L@ 	 \nB¿Ax  AxLAþj­B4¿¢! ­B4 \n 	¿!A  k!@  ¢  ¢   ¢  ¢ "£"D        a\r  ½"\nB4§Aÿq"AÿF\r  \nBÿÿÿÿÿÿÿ!	 E@A 	y"§k! 	 Bõÿÿÿ|Bÿÿÿÿÿÿÿw!	  j"AuAxs  A H  Js"AÿN@D      à ¦"  ! \nB!\n A L@ 	 \nB¿Ax  AxLAþj­B4¿¢! ­B4 \n 	¿!@@  ¢  ¢¡ £"\rD        a\r  \r½"\nB4§Aÿq"AÿF\r  \nBÿÿÿÿÿÿÿ!	 E@A 	y"§k! 	 Bõÿÿÿ|Bÿÿÿÿÿÿÿw!	  j"AuAxs  A H  Js"AÿN@D      à \r¦"  !\r \nB!\n A L@ 	 \nB¿Ax  AxLAþj­B4¿¢!\r ­B4 \n 	¿!\r  a\r  \r \ra\r @ D        b\r   b  bq\r  D      ð ¦"¢!\r  ¢!@ "D      ðb "D      ðbq\r  ½Bÿÿÿÿÿÿÿÿÿ Bÿÿÿÿÿÿÿ÷ÿ V\r  ½Bÿÿÿÿÿÿÿÿÿ Bÿÿÿÿÿÿÿ÷ÿ V\r D        D      ð? D      ðb ¦" ¢D        D      ð? D      ðb ¦" ¢ D      ð¢!\r  ¢  ¢ D      ð¢! ½Bÿÿÿÿÿÿÿÿÿ Bÿÿÿÿÿÿÿ÷ÿ V\r  ½Bÿÿÿÿÿÿÿÿÿ Bÿÿÿÿÿÿÿ÷ÿ V\r  D      ðb\r  D      ð?D         D      ða ¦"¢ D      ð?D         D      ða ¦"¢¡D        ¢!\r  ¢  ¢ D        ¢!   \r9   9 ¬|~# A k"$ @  " " ½ ½T""½"B4"BÿQ\r    ! @ P\r   ½"B4"	BÿQ\r  	§ §kAÁ N@   !| Bðß Z@ D      0¢!  D      0¢! D      °kD      ð? Bÿÿÿÿÿÿÿç#V\r  D      °k¢!  D      °k¢! D      0 Aj Aj   Aj   +  +  +  + ¢!  ! A j$  º+#|# A°k"$  +!) + !*@@@@@@@@@@  ("AF@  ("A H\r	 E\rD         )¡!)D      ð? *¡!*  ( !  ((!	A !A!@ A J@   	lAtj!\nA !@ ) \n Atj"+ "+¢ * +".¢ !\'@ * +¢ ) .¢¡"( (a\r  \' \'a\r  Aj + . * )  (! +!\' +!(  \'9  (9  Aj" H\r   (! Aj" H\r  *D        a )D        aq\r    ("6  6 A H\r  ( !  ((!	  Ak"6`   	Atj6X  6\\  rA HA  \r   )7l   (6|   )7t   ) 7d B7  (p(6 A L\r  (68  )70  )x7(  )p7   )h7  )`7  )X7  (6T  )7L  )7D  ) 7<  (G\r  (G\r@ E\r  At"E\r  A  ü  B 7  Bø?7# A0k"$  (! (!@@@@ ("AF@ A  A H\r ( !\n (<"	A  (@"A H\r  G\r@ E\r  A L\r +"\' 	+ ")¢ + "* 	+"+¢ !( * )¢ + \'¢¡!\'A! AF\r  \n(!\n@ (   \nlAtj"\r+") 	 Atj"+ "*¢ \r+ "+ +".¢  !( \' + *¢ . )¢¡ !\' Aj" G\r  ( +"+¢ \' + ".¢ !)@ \' +¢ ( .¢¡"* *a\r  ) )a\r  A j + . \' ( +(!) + !* (" * +  9   ) + 9 (<!	 ( !\n + ") +"*D        ¢ !\'@ * )D        ¢¡"( (a\r  \' \'a\r  A j * )D      ð?D         +(!\' + !( \' (D        ¢ !)@ ( \'D        ¢¡"* *a\r  ) )a\r  A j ( \'D      ð?D         +(!) + !*  \n(6  6 A6  	6 (!	  *9   )9(  ) 7   )(7A !\n# Ak"$  "\rA J@ AA ("AtAúI AH! Ak! Ak! Ak!  Ak!! + !( (! +".!/ AH!"@ \r \n" j"\n \n \rJ!A ! "E@ (! (!@  At"j"Að j! Aà j! AÐ j! A@k! A0j! A j!# Aj!$D        !+ !D        !*D        !\'D        !)D        !0D        !1D        !2D        !3D        !6D        !7D        !8D        !9D        !:D        !;D        !<D        !=@ <   lAt"j"+"4   lAtj"%+ ",¢ %+"- + "5¢  !< = 5 ,¢ 4 -¢¡ != :  j"+"4 ,¢ - + "5¢  !: ; 5 ,¢ 4 -¢¡ !; 8  j"+"4 ,¢ - + "5¢  !8 9 5 ,¢ 4 -¢¡ !9 6  j"+"4 ,¢ - + "5¢  !6 7 5 ,¢ 4 -¢¡ !7 2  j"+"4 ,¢ - + "5¢  !2 3 5 ,¢ 4 -¢¡ !3 0  #j"+"4 ,¢ - + "5¢  !0 1 5 ,¢ 4 -¢¡ !1 \'  $j"+"4 ,¢ - + "5¢  !\' ) 5 ,¢ 4 -¢¡ !) +  j"+"4 ,¢ - + "5¢  !+ * 5 ,¢ 4 -¢¡ !* Aj" H\r  	 j" + (¢ . *¢  + 9  * (¢ + /¢  +  9   ) (¢ \' /¢  + 9  \' (¢ . )¢  + 9  1 (¢ 0 /¢  +  9   0 (¢ . 1¢  +( 9(  3 (¢ 2 /¢  +0 90  2 (¢ . 3¢  +8 98  7 (¢ 6 /¢  +@ 9@  6 (¢ . 7¢  +H 9H +P!\'  8 (¢ . 9¢  +X 9X  \' 9 (¢ 8 /¢  9P +`!\'  : (¢ . ;¢  +h 9h  \' ; (¢ : /¢  9` +p!\'  < (¢ . =¢  +x 9x  \' = (¢ < /¢  9p Aj" !H\r    H@  At"j"A0j! A j! Aj! (! (!D        !+ !D        !*D        !\'D        !)D        !0D        !1D        !2D        !3@ 2   lAt"j"+"6   lAtj"+ ",¢ +"- + "7¢  !2 3 7 ,¢ 6 -¢¡ !3 0  j"+"6 ,¢ - + "7¢  !0 1 7 ,¢ 6 -¢¡ !1 \'  j"+"6 ,¢ - + "7¢  !\' ) 7 ,¢ 6 -¢¡ !) +  j"+"6 ,¢ - + "7¢  !+ * 7 ,¢ 6 -¢¡ !* Aj" H\r  	 j" + (¢ . *¢  + 9  * (¢ + /¢  +  9   ) (¢ \' /¢  + 9  \' (¢ . )¢  + 9  1 (¢ 0 /¢  +  9   0 (¢ . 1¢  +( 9(  3 (¢ 2 /¢  +0 90  2 (¢ . 3¢  +8 98 Ar!  H@  At"j"A j! Aj! (! (!D        !+ !D        !*D        !\'D        !)D        !0D        !1@ 0   lAt"j"+"2   lAtj"+ ",¢ +"- + "3¢  !0 1 3 ,¢ 2 -¢¡ !1 \'  j"+"2 ,¢ - + "3¢  !\' ) 3 ,¢ 2 -¢¡ !) +  j"+"2 ,¢ - + "3¢  !+ * 3 ,¢ 2 -¢¡ !* Aj" H\r  	 j" + (¢ . *¢  + 9  * (¢ + /¢  +  9   ) (¢ \' /¢  + 9  \' (¢ . )¢  + 9  1 (¢ 0 /¢  +  9   0 (¢ . 1¢  +( 9( Aj!  H@  At"j"Aj! (! (!D        !+ !D        !*D        !\'D        !)@ \'   lAt"j"+"0   lAtj"+ ",¢ +"- + "1¢  !\' ) 1 ,¢ 0 -¢¡ !) +  j"+"0 ,¢ - + "1¢  !+ * 1 ,¢ 0 -¢¡ !* Aj" H\r  	 j" + (¢ . *¢  + 9  * (¢ + /¢  +  9   ) (¢ \' /¢  + 9  \' (¢ . )¢  + 9 Aj!  J@  At"j! (! (!D        !\' !D        !)@ )   lAtj"+"*   lAtj"+ "+¢ +", + "-¢  !) \' - +¢ * ,¢¡ !\' Aj" H\r  	 j" ) (¢ . \'¢  + 9  \' (¢ ) /¢  +  9  Aj!  J@@  At"j! (! (!D        !\' !D        !)@ )   lAtj"+"*   lAtj"+ "+¢ + ", +"-¢  !) \' , +¢ * -¢¡ !\' Aj" H\r  ( )¢ . \'¢ !*@ ( \'¢ . )¢¡"+ +a\r  * *a\r   ( . \' ) +!* + !+ 	 j" + +  9   * + 9 Aj" G\r  \n \rH\r  Aj$  A0j$ AñAÎAÒ A  A¥AAA    ( "A   ("A H\r  (A L\r ( G\r	@ A J@ (!	A !@ AG@ Aq Aþÿÿÿq!@ 	 At"\rj"\n  \rj"+  \n+  9  \n + \n+ 9 	 \rAr"\rj"\n  \rj"\r+  \n+  9  \n \r+ \n+ 9 Aj! &Aj"& G\r E\r 	 At"\nj"  \nj"	+  +  9   	+ + 9  (A L\r	  (G\r +!) + !* (!	A !@ ) 	 At" j"\n+ "+¢ * \n+".¢ !\'@ * +¢ ) .¢¡"( (a\r  \' \'a\r  Aj * ) + . +!\' +!(   j"   +  (¡9     + \'¡9 Aj" G\r  ("A N\r\n A H\r	  (G\r\nA !  - : 0  )7(  6  ) 7  )7   ) 78  )7@  )7H  (6P  (,G\r  (<G\rA !# A k" $  Aj"($At"AM@   AjApqk"$  (8!	    !@@ (`"\nA J@ ("A H\r ( !\rA !@ (p(! (X"A  (\\"A H\r\n  (`N\r  G\r\r @   lAtj! 	 Atj"+ !) +"*!/A !@ ) \r At"j"+"+¢ * + ".¢¡!\'@ ) .¢ * +¢ "( (a\r  \' \'a\r   Aj ) / . +  +!\'  +!(  j" +  (¡9   + \'¡9 Aj" G\r  Aj" \nG\r @ - AG\r  ( "E\r  Ak(   A j$  (XE\r	 (\\A N\r	 A°j$ AAßA¦A  AÚA¸AA  AéAýAâ A  A\'AAA  AíA°\rA°Aä  AAßA²A  A¶A¸Aú A  AAAÊ AÐ  AíA¹AòA¿  ¢|@  ( "A   ("A HE@ A H\r   (" N\r A H\r   L\r@ A L\r  +"D        b + "D      ð?brE\r    lAtj!    lAtj!A !@ + !     +"	¢  +"\n¢¡9     + "¢  ¢¡9    	¢  \n¢ 9   ¢  ¢ 9  Aj!  Aj!  Aj" G\r AAßA²A  A¶A¸Aú A  E|    ¢"9    D      A¢"  ¡ "¡" ¢    ¢  ¢ ¡  9 \'| # A k" $  ($!1 ( !+  (!,  (!  (!-  ( !2 +" +"D        ¢¡!@  D        ¢ " a\r   a\r   Aj  D      ð?D         +!  +! +" + "	D        ¢ !@ 	 D        ¢¡" a\r   a\r   Aj 	 D      ð?D          +!  +!  ¢  ¢ !@  ¢  ¢¡"	 	a\r   a\r   Aj      +!  +!	   9   	9  1AI@@A ! +E@ 1At! @ 1AÀ M@    AjApqk"$   Aj" E\r  Apq"  6 Aj! !+ ,(!3 ( !4# A0k"$ @@@ 2A  -   -J", -rA HE@ -A H\r A H\r ,A J@ ,!@A , .k"   AN!  A J@AA  AN" AL!!A !@ Ak!  .j!   Asj"A J@   - kN\r  AjAt" 2   3lAtjj"+"  +j"%+ "¢ + " %+"	¢¡!@  ¢  	¢ " a\r   a\r  A j    	 +(! + !A! AG@A  AL!@  At"#j"$+" # %j"#+ "	¢ $+ "\n #+"¢¡!@ \n 	¢  ¢ " a\r   a\r  A j \n  	  +(! + !   !   ! Aj" G\r    + "¢   +"	¢ !@  ¢  	¢¡" a\r   a\r  A j  	   +(! + ! 4  Atj"  +  9    + 9 +  Atj"+ "  +"¢ +"  + "	¢¡!@  	¢  ¢ " a\r   a\r  A j 	    +(! + ! 4  Atj"    +  9      + 9 Aj" !G\r  -  .j"k" A J@  36$  2 At"j . 3lAtj6  A6   +j6   ) 7   )7 4 .Atj!A !# Ak"$  Ak!# ( !%@ ($"AtAúK\r  AH\r  Ak!$ +! +!  A L!&@@ &@D        !	D        !D        !\nD        !D        !D        !\rD        !D        !D        !D        !D        !D        !D        !D        !D        !D        ! (!\' (!(D        !A !! Ar lAt!) Ar lAt!/ Ar lAt!0 Ar lAt!* Ar lAt!5 Ar lAt!6 Ar lAt!7  lAt!8D        !D        !D        !D        !D        !D        !D        !D        !D        !D        !\rD        !D        !D        !\nD        !D        !	@  % !Atj" )j""+" ( ! \'lAtj"9+ "¢ "+ " 9+"¢¡ ! 	  ¢  ¢  !	   /j""+" ¢ "+ " ¢¡ ! \n  ¢  ¢  !\n \r  0j""+" ¢ "+ " ¢¡ !\r   ¢  ¢  !   *j""+" ¢ "+ " ¢¡ !   ¢  ¢  !   5j""+" ¢ "+ " ¢¡ !   ¢  ¢  !   6j""+" ¢ "+ " ¢¡ !   ¢  ¢  !   7j""+" ¢ "+ " ¢¡ !   ¢  ¢  !   8j"+" ¢ + " ¢¡ !   ¢  ¢  ! !Aj"!  G\r   ¢  ¢ !@  ¢  ¢¡" a\r   a\r       +! + !  Atj"  +  9    + 9  ¢  ¢ !@  ¢  ¢¡" a\r   a\r       +! + !  ArAtj"  +  9    + 9  ¢  ¢ !@  ¢  ¢¡" a\r   a\r       +! + !  ArAtj"  +  9    + 9  ¢  ¢ !@  ¢  ¢¡" a\r   a\r       +! + !  ArAtj"  +  9    + 9  ¢  ¢ !@  ¢  ¢¡" a\r   a\r       +! + !  ArAtj"  +  9    + 9 \r ¢  ¢ !@  ¢ \r ¢¡" a\r   a\r      \r +! + !  ArAtj"  +  9    + 9  ¢ \n ¢ !@ \n ¢  ¢¡" a\r   a\r     \n  +! + !  ArAtj"  +  9    + 9  ¢ 	 ¢ !@ 	 ¢  ¢¡" a\r   a\r     	  +! + !  ArAtj"  +  9    + 9 $ Aj"J\r   #H@ +! +!  A L!$@@ $@D        !	D        !D        !\nD        !D        !D        !\rD        !D        ! (!& (!\'D        !A ! Aj lAt!( Aj lAt!) Aj lAt!/  lAt!0D        !D        !\rD        !D        !D        !\nD        !D        !	@  % Atj"! (j"*+" \'  &lAtj"5+ "¢ *+ " 5+"¢¡ ! 	  ¢  ¢  !	  ! )j"*+" ¢ *+ " ¢¡ ! \n  ¢  ¢  !\n \r ! /j"*+" ¢ *+ " ¢¡ !\r   ¢  ¢  !  ! 0j"!+" ¢ !+ " ¢¡ !   ¢  ¢  ! Aj"  G\r   ¢  ¢ !@  ¢  ¢¡" a\r   a\r       +! + !  Atj"  +  9    + 9 \r ¢  ¢ !@  ¢ \r ¢¡" a\r   a\r      \r +! + !  AjAtj"  +  9    + 9  ¢ \n ¢ !@ \n ¢  ¢¡" a\r   a\r     \n  +! + !  AjAtj"  +  9    + 9  ¢ 	 ¢ !@ 	 ¢  ¢¡" a\r   a\r     	  +! + !  AjAtj"  +  9    + 9 Aj" #H\r  Ak"! J@ +! +!  A L!#@@ #@D        !	D        !D        !\nD        ! (!$ (!&D        !A ! Aj lAt!\'  lAt!(D        !\nD        !D        !	@ \n % Atj") \'j"/+" &  $lAtj"0+ "¢ /+ "\r 0+"¢¡ !\n  \r ¢  ¢  ! 	 ( )j")+" ¢ )+ "\r ¢¡ !	  \r ¢  ¢  ! Aj"  G\r  	 ¢  ¢ !@  ¢ 	 ¢¡" a\r   a\r      	 +! + !  Atj"  +  9    + 9 \n ¢  ¢ !@  ¢ \n ¢¡" a\r   a\r      \n +! + !  AjAtj"  +  9    + 9 Aj" !H\r   J@ +! +!  A L!!@@ !@D        !D        ! %  lAtj!# (!$ (!&D        !A !D        !@  # Atj"\'+" &  $lAtj"(+ "	¢ \'+ "\n (+"¢¡ !  \n 	¢  ¢  ! Aj"  G\r   ¢  ¢ !@  ¢  ¢¡"	 	a\r   a\r       +! + !	  Atj" 	 +  9    + 9 Aj" G\r  Aj$  Ak! .Aj". ,H\r  A0j$ AAßA²A  AÚA¸AA  AAßA¦A  @ 1AÀ I\r  E\r  Ak(   A j$ " A¸*6   A¤*6   AÜ*A |# Ak"$  ($!@@@@ "E@ At"Aj"E\r Apq" 6 Aj!   6   6  A N\rAAßA²A   \r   6A !  A 6  Aÿÿÿÿ qE\r AqE\rAÝ!AßAÇA  " A¸*6   A¤*6   AÜ*A    E:  ($ F@ A J@ ( ! +!	 +!\nA !@ 	  At"j"+ "¢ \n +"\r¢ !@ \n ¢ 	 \r¢¡" a\r   a\r   \n 	  \r +! + !  j" 9  9  Aj" G\r  Aj$   A\'AAA   #  #   kApq" $      $ ÄäF|~# AÐ k"7$ A!@@@@@@@@@@@@@@@  A L\r  E\r  E\r  E\r  7  6H 7  6D 7 6@ 7Aj!# Ak"$  7A4j"A 6 B 7  7A@k"(!@@@ ("E\r  E\r  Aÿÿÿÿ mJ\r  rA N\r  rA H\r   l   ( !  @ ( (l"A L\r  ( ! Aq! AO@ Aüÿÿÿq!@  \nAt"j"	) !_  j" 	)7  _7   Ar"	j") !_  	j"	 )7 	 _7   A r"	j") !_  	j"	 )7 	 _7   A0r"j"	) !_  j" 	)7  _7  \nAj!\n Aj" G\r  E\r@  \nAt"j") !_  j" )7  _7  \nAj!\n Aj" G\r  Aj$  "H"(! (! A 6 B 7 @  rA N@@ E\r  E\r  Aÿÿÿÿ mJ\r   l   (! B 7 A H\r Aj")   (! B 7 AjA  ALAk"  (! B 7 AjA  ALAk"  A ;(A !A !# AÐ k"$ @@@ (" (F@ A H\r )  @ AF@ ( !   ( ! ( (l"A J@ Aq!A !@ AO@ Aüÿÿÿq!@  At"j"  j"	)7  	) 7   Ar"j"	  j")7 	 ) 7   A r"j"	  j")7 	 ) 7   A0r"j"  j")7  ) 7  Aj! Aj" G\r  E\r@  At"j"  j")7  ) 7  Aj! Aj" G\r  ( ! )(  + 9  ( (lAG@ Ak( A "E\r Apq" 6  Aj6  B7 B 78 Bø?70 B7(  A(j ( ! (! (!  )87  )07@  l"A L\r @ Aq"E@ !A ! !@  )7  )7  Ak! Aj! Aj" G\r  AI\r @  )7  )7   )7  )7  )7(  )7   )70  )78 A@k! AJ Ak!\r  A 6$  6( (!@@ ("E\r  E\r  Aÿÿÿÿ mJ\r  rA N\r  rA H\r   l   (("(! ( !@ (" (G\r  ( G\r    rA H\r@ E\r  E\r  Aÿÿÿÿ mJ\r   l   (! (! A J@ ( ! At!	 !@A !    H"A J@ At"@  	 ljA  ü  ! (!@  L\r   At"j  lAtj"  j  lAtj")7  ) 7  Aj" ("N\r    lAtj!   lAtj!@  At"j"  j")7  ) 7  Aj" ("H\r  Aj" (H\r  ("A L\r ("A L\rA! ( "+  +!J AG@@  Atj"+  +"L J J Lc!J Aj" G\r A! AG@@   lAtj!A !@  Atj"+  +"L J J Lc!J Aj" G\r  Aj" G\r   6 )"_BB R\r B 7@ D      ð? J JD        a"U98  6,  _§"60  6$  6   Aj6  Aj6  A(j6  A j6A !# Ak"$  (( "(A J@@ ("   J!  H@ ("(! ( !  At" ("(j ( lAtj"+  + + + + !J  j  lAtj" +9  J9  (( "(! Aj!  H@@ ("(! ( !  At" ("(j ( lAtj"+  + + + + !J  j  lAtj" +9  J9  Aj" (( "(H\r  Aj" (H\r  Aj$  E\r\r Aj"4 Ak"  Aj"   (" (""G\r ( G\r ( AkG\rA !\n# A k"8$ A !# Ak"$ @@  F@ AG@  ( AjG\r AN@ Ak!@ B 7ð B 7è (!@ ( "E\r  A N\r   (N\r  6ä  6Ø  6Ô A 6Ð  6Ì  6Ä   Asj"6¸   k"6Ü    lAtj"6À   Atj"6´  rA H\r  Ak6<  Aj68 A LA  \r  (ä6t  )Ü7l  )Ô7d  )Ì7\\  )Ä7T  )¼7L  )´7D A6x  (\\(6  F\rD        !K# Ak"$ @@ (¸"A J"A (´"@ E\r Aj!| Ak"@ +"J J¢ +"J J¢ !KA!@ AF\r  AG@ Aq AþÿÿÿqAk!A !@ K  Atj"	+ "J J¢ 	+"J J¢   	+"J J¢ 	+"J J¢  !K Aj!  F Aj!E\r E\r K  Atj"+ "J J¢ +"J J¢  !K + !J +"L KD       e\r L L¢!M + !J +"L L¢"MD       eE\r B 7ð B 7è  J9ø (<"A H\r E\r At"E\r (8A  ü   J J¢ M  K "K K JD        f"K9ø (< G\r @ J K¡!K (8!A !@   At"j"	+  	+ K L + !M  j" +9  M9  Aj" G\r  +ø!K  L K£9ð  K J¡ K£9è Aj$  ( "A  ("A H\r  ("N\r   lAtj" Aj"At" j"B 7 Bø?7   k" rA H\r  k" rA H\r  (N\r  6¨  6   6  6 A 6  6  6  6|  +è9h  6`  6P  6L  6H  6D  6@  6<   At"j  lAtj68  +ð9p  6   j6x (!  ( "6Ì  6À  6¸   k"6Ä   Atj"6´  rA H\r At"@ A  ü  B 7  Bø?7# A0k"! $ @ (¸ (<F@ + "L +"KD        ¢ !N@ K LD        ¢¡"J Ja\r  N Na\r  A j K LD      ð?D         +(!N + !J +p"K +h"MD        ¢ !O@ M KD        ¢¡"L La\r  O Oa\r  A j M KD      ð?D         +(!O + !L N L¢ J O¢ !K@ J L¢ N O¢¡"M Ma\r  K Ka\r  A j J N L O +(!K + !M (¸"AO\rA (´"\r  At! AÀ M@  AjApqk""$ A  Aj"E\r Apq" 6 Aj! (´A G (|"AO\rA (x"\r  At! AÀ M@  AjApqk"$ A  Aj"E\r Apq" 6 Aj! (xA G!= (8! (<!\r (D(!  M9  K9  )7   )7 !# Ak"	$ A \r \rALAþÿÿÿq"Ak! +!K + !M A	O@A !@ K  At"j"+ "J¢ M +"O¢ !L  lAt Ar" lAt!@ M J¢ K O¢¡"N Na\r  L La\r  	 M K J O 	+!L 	+ !N j!  j! K  At"j"+ "O¢ M +"P¢ !Q@ M O¢ K P¢¡"J Ja\r  Q Qa\r  	 M K O P 	+!Q 	+ !J  j" N  j+ "O¢ +  9   L O¢ + 9  j" J  j+ "O¢ +  "P9   Q O¢ + "O9  O  j"+"O N¢ L + "R¢  9  P R N¢ O L¢¡ 9 D        !O + "R +"S¢ +"T + "V¢¡D         !P R V¢ T S¢ D         !R \r Aj"L|D         L!]  At"j!  j!  j!  j! Q!^D        !T !D        !VD        !WD        !X@ +!O + !S  +"Y N¢ L + "Z¢  +"[ J¢ Q + "\\¢  +  9  Z N¢ Y ]¢  \\ J¢ [ ^¢  +   9  W \\ O¢ [ S¢¡ !W X \\ S¢ [ O¢  !X T Z O¢ Y S¢¡ !T V Z S¢ Y O¢  !V Aj! Aj! Aj! Aj! Aj" \rG\r  XD         !O T P !P V R !R WD         !N K R¢ M P¢ !J@ M R¢ K P¢¡"L La\r  J Ja\r  	 M K R P 	+!J 	+ !L  L +  9   J + 9 K O¢ M N¢ !J@ M O¢ K N¢¡"L La\r  J Ja\r  	 M K O N 	+!J 	+ !L  L +  9   J + 9  K\r   \rH@@ K  At"j"+ "N¢ M +"O¢ !J   lAtj!@ M N¢ K O¢¡"L La\r  J Ja\r  	 M K N O 	+!J 	+ !L  j" L  j+ "N¢ +  9   J N¢ + 9D        !OD        !N \r Aj"J@ J!Q !@  At"j" +   j"+ "P L¢ +"R Q¢  9   R L¢ J P¢  + 9 N + "P  j"+"R¢ +"S + "T¢¡ !N O P T¢ S R¢  !O Aj" \rH\r  K O¢ M N¢ !J@ M O¢ K N¢¡"L La\r  J Ja\r  	 M K O N 	+!J 	+ !L  L +  9   J + 9  \rG\r  	Aj$ @ AÀ I\r  =\r  Ak(  AÀ IrE@ Ak(  A0j$ A¶Aí\rAºAä   (  k" rA H\r +ð!J +è ( ( "A  ("A H\r  (N\r  k"	 rA H\r Atj"+ "K   l"Atj 	Atj"	+"N¢ +"O 	+ "Q¢¡!M K Q¢ O N¢ !KA! AG@@ M  At"j"+ "N 	 j"+"O¢ +"Q + "P¢¡ !M K N P¢ Q O¢  !K Aj" G\r D      à¿¢"N M¢ JD      à?¢"O K¢ !J@ N K¢ O M¢¡"L La\r  J Ja\r  A8j N O K M (" l! ( ! +@!J +8!L A  A H\r  (N\r  k" rA H\r (  k" rA H\r  Atj Atj! ( Atj!A !@ J  At"j"+ "N¢ L +"O¢ !K@ L N¢ J O¢¡"M Ma\r  K Ka\r  A8j L J N O +@!K +8!M  j" M +  9   K + 9 Aj" G\r  (" k" rA H\r (" k" rA H\r ( !  6À  6¼  6¸  6È  6Ì  6Ä   At"	j  lAtj6´ A HA  \r  N\r  6h  6\\  6X A 6T  6P  6H  6<  6`    lAtj"6D   	j68 (!  ( "60  6$  6   k"6(   Atj6  rA H\r B 7 Bø¿7# Að k"$  +"K +"MD        ¢ !J@ M KD        ¢¡"L La\r  J Ja\r  A(j M KD      ð?D         +0!J +(!L J LD        ¢¡!K@ L JD        ¢ "M Ma\r  K Ka\r  A(j L JD      ð?D        +0!K +(!M  K9h  M9` (´! (À(!  (h6X  )`7P  )X7H  )P7@  )H78  )@70  )87(  (06   )(7  ) 7  )7A !# A k"$  (,"A J@@ +`"L At" ((j"+"K"O¢ +h"M + "N¢¡!J@ L N¢ M K¢¡"K Ka\r  J Ja\r  A8j L M N O +@!J +8!K (  k"k" rA H\r ( ("\r j"+ "N +h"O¢ +"Q +`"P¢¡!L@ N P¢ Q O¢ "M Ma\r  L La\r  A8j P O N Q +@!L +8!M (, k" rA H\r (@! ((!  6    lAtj j"6  \r Atj6`  J9P  K9H(!   Atj6  L9  M9x  6h  (6  64  6,  Aj6(  Aj6$  A8j6   A,j6A !# Ak"$  ((("\rA J@@ ( "+"L At"	 ((j"+ "M¢ +"N +"O¢ !J (( !@ N M¢ L O¢¡"K Ka\r  J Ja\r   N L M O +!J + !K +H"N (X 	j"+ "O¢ +@"Q +"P¢ !L@ Q O¢ N P¢¡"M Ma\r  L La\r   Q N O P +!L + !M 	 j" K M  +  9   J L  + 9 Aj" \rG\r  Aj$  Aj" G\r  A j$  Að j$  +ø!J ( "A  ("A H\r  (N\r   lAtj  j"B 7  J9  ( Atj" )ð7  )è7  " G\r  Aj$ A¢AºAãA¤  AAºAäA¤   ("A H\r ("A H\r ( !@@    K" )(G@ )   )( G\r@ E\r  )( ! Aq!A ! AO@ Aüÿÿÿq!@  Atj  Atj  lAtj+ 9   Ar"Atj  Atj  lAtj+ 9   Ar"Atj  Atj  lAtj+ 9   Ar"Atj  Atj  lAtj+ 9  Aj! \nAj"\n G\r  E\r@  Atj  Atj  lAtj+ 9  Aj! Aj" G\r  ("AH\r ("A L\r ( !@ Ak"   J" 4(G@ A H\r 4   4( G\r@ A L\r  4( ! Aq!A !A ! AO@ Aüÿÿÿq!A !\n@  Atj  Atj  lAtj+9   Ar"Atj  Atj  lAtj+9   Ar"Atj  Atj  lAtj+9   Ar"Atj  Atj  lAtj+9  Aj! \nAj"\n G\r  E\r@  Atj  Atj  lAtj+9  Aj! Aj" G\r  8A :  8 6 8 6 (! 8A6 8 Ak6 8Aj"( ("@ Aÿÿÿÿ mJ\r A H\r Aÿÿÿÿ nK\r   l  A !# Ak"=$ @@@@@ ( (" (F@ ( F\r A H\r @ Aÿÿÿÿ nK\r   l   ( (" (G\r  ("G\r =B 7 A H\r =Aj"  # AÐ k"$ @@ ( ("A N@    (! ( "(!@ ( " ( G\r  (" G\r  ("A H\r A H\r    K"@ Aq!A !A !@ AO@ Aüÿÿÿq!	A !@  Atj  lAtj"B 7 Bø?7   Ar"Atj  lAtj"B 7 Bø?7   Ar"Atj  lAtj"B 7 Bø?7   Ar"Atj  lAtj"B 7 Bø?7  Aj! Aj" 	G\r  E\r@  Atj  lAtj"B 7 Bø?7  Aj! Aj" G\r  (! (!  rA H\r A J@ ( ! At!A !@ ("   J"A J@ At"@   ljA  ü  (! Aj" H\r  A L\r !@ Ak! ( "(  (j"kAj!@ - AF@ ( !	 (! (!\n  6<  68  	  k"Atj  \n k"\nlAtj64 A HA  	\r  6L  6@  \n6H  6D  rA H\r!  \nrA H\r!  (J\r	 ( !  (" k"	6   Atj  lAtj6 	A HA  \r  60  6,  6$  6(  	rA H\r!  (J\r! ((  Atj"+!J  + 9  J9 A4j Aj Aj (  ( !	 (! (!\n  6<  68  	  k"Atj  \n k"\nlAtj64 A HA  	\r  6L  6@  \n6H  6D  rA H\r   \nrA H\r   (J\r ( !  (" k"	6   Atj  lAtj6 	A HA  \r  60  6,  6$  6(  	rA H\r   (J\r  ((  Atj"+!J  + 9  J9 A4j Aj Aj (  ( "A  ("A H\r  (J\r A  ( (" k"A H"	\r  k" rA H\r 	\r@  F\r  At"E\r    lAtj AtjA  ü  AK !\r # Ak"$ @ A N@@ E"\r  \r  Aÿÿÿÿ mJ\r   l   (!  ("6  6   rA H\r  @ ("A L\r  ("A L\r  ( !\n Aüÿÿÿq! Aq!	@ \n  lAtj!A !A !@ AO@@  Atj"\rB 7 \rD      ð?D          F9   Ar"\rAtj"B 7 D      ð?D         \r F9   Ar"\rAtj"B 7 D      ð?D         \r F9   Ar"\rAtj"B 7 D      ð?D         \r F9  Aj! Aj" G\r  ! 	E\rA !@  Atj"\rB 7 \rD      ð?D          F9  Aj! Aj" 	G\r  Aj" G\r  Aj$ ! A1N@A !A !# AÐ k"$  - AqE!E (!@@@ ("A0H\r  AH\r A0 AjAv Aà O!F@ - "AF@  Fj"   H!   k" Fk"A  A J! (! ( "( !	 (!   k"6<    j"k"68  	 Atj  lAtj64 	A   r"	A H\r   6L  6@  6H  6D  	r rA H\r  ( kJ\r (! ( ! (!\n  6   \n E"	6      kj"Atj  A  E"lAtj6 A   	rA H\r   60  6,  6$  6(  rA H\r   kJ\r  	rA H\r  \n 	kJ\r  ("6   6  6  ( kJ\r Aj! As!-# Ak"$  A4j"(! A 6h B 7`@@@ A N@ @ Aÿÿÿÿ nK\r Aà j"  l  @ -@# A°k"$ @ (" (G\r$ ( G\r$ ( H\r$ A J@ Ak"!	@@  	As"\rj"E\r  	 (N\r) ( (  (Atj 	Atj"\n+!J \n+ !L ("(!\n ("A HA  ( "\r*  (6  ) 7 	 ("N\r+ \r j"A N"\rA E\r*  	Aj"rA H\r, \rE\r(  k" rA H\r,  (6(  ) 7   (6  )7  (68  )70 ( "A  ("\rA H\r* 	 (N\r+ \r k" rA H\r,  	 \nlAtj" At"j!  	 \rlAtj" Atj! At" @ A   ü  B 7H Bø?7@  \r6¬  6¨  \r6  A 6  	6  6  \r6  6  6  6ü  6Ð  6Ì   j \n lAtj6È  ((6Ü  ) 7Ô  6à  (6ì  )7ä  \n6ø  6ô  6ð  6  6|  6t  6p  J9h  L9`  6\\  )7  ) 7  6  (86   )07  \n6¸  6°  \n6¬  	6¨ A 6¤ AÈj AÐ j Aüj A@k 	 "N\r @ 	 ("\nN\r  ("\rN\r  \nN\r At" ( " 	 \rlAtjj"+"K   \rlAtj j"\r+ "N¢ + "M \r+"O¢ !J@ M N¢ K O¢¡"L La\r  J Ja\r  AÐ j M K N O (!\n +X!J +P!L 	 \nN\r  ("\nN\r  ( " 	 \nlAtj"j"\r J9 \r L9   Asj"\rA J@  (N\r- \n \rk" \rrA H\r. At"   \nlAtjj!  j!A !\n@ K  \nAt"j"+ "N¢ M +"O¢ !J@ M N¢ K O¢¡"L La\r  J Ja\r  AÐ j M K N O +X!J +P!L  j" L +  9   J + 9 \nAj"\n \rG\r  Ak" 	J\r  	 (N\r( 	 (N\r 	 ("N\r 	At"\n ( (  (Atjj"\r+ !J (   	lAtj \nj" \r+9  J9  	A J 	Ak!	\r  A°j$ )  ( 6  )7  (6 Aà j!# A°k"$ @ ("\n (dG\r# (h \nG\r# ( \nH\r# \nA J@ \nAk"!@@ \n As"j"E\r   (N\r( ((  (Atj Atj"	+!J 	+ !L ("(!	 ("A HA  ( "\r)  (6  ) 7  ("N\r*  j"\rA N"A E\r) \r Aj"rA H\r+ E\r\'  k" rA H\r+  (6(  ) 7   (6  )7  (68  )70 (`"A  (h"A H\r)  (dN\r*  k" rA H\r+   	lAtj" At"j!   lAtj" Atj! At" @ A   ü  B 7H Bø?7@  6¬  6¨  6  A 6  6  6  6  6  6  6ü  6Ð  \r6Ì   j 	 lAtj6È  ((6Ü  ) 7Ô  6à  (6ì  )7ä  	6ø  6ô  6ð  6  6|  \r6t  6p  J9h  L9`  \r6\\  )7  ) 7  6  (86   )07  	6¸  6°  	6¬  6¨ A 6¤ AÈj AÐ j Aüj A@k  "N\r @  (d"	N\r-  (h"N\r-  	N\r- At"\r (`"  lAtjj"+"K   lAtj \rj"+ "N¢ + "M +"O¢ !J@ M N¢ K O¢¡"L La\r  J Ja\r  AÐ j M K N O (d!	 +X!J +P!L  	N\r-  (h"	N\r- \r (`"  	lAtj"j" J9  L9  \n Asj"A J@  (dN\r, 	 k"\r rA H\r- \rAt"\r   	lAtjj! \r j!A !	@ K  	At"\rj"+ "N¢ M +"O¢ !J@ M N¢ K O¢¡"L La\r  J Ja\r  AÐ j M K N O +X!J +P!L \r j"\r L \r+  9  \r J \r+ 9 	Aj"	 G\r  Ak" J\r   (N\r\'  (dN\r+  (h"N\r+ At"	 ((  (Atjj"+ !J (`  lAtj 	j" +9  J9  A J Ak!\r  A°j$   ( !C (!5 (!  )7X  )7P  )7  )7  6  56  C6  (6@  )78  )70  ) 7( 5 (G\r A 6L B 7D (0!@@ E\r  E\r  Aÿÿÿÿ mJ\r  rA N\r+  rA H\r* AÄ j"  l   Að j!	A !\n# A0k"\r$  Aj"((!@@ (" (F@ ( F\r  rA H\r+@ E\r  E\r  Aÿÿÿÿ mJ\r+   l   (! (! \rB 7 \rB 7 \r 6  \r 6  rA H\r#  \r ( ! (! (! \r \r)7( \r \r)7 @  l"A L\r @ Aq"E@ ! !@  \r)(7  \r) 7  Ak! Aj! \nAj"\n G\r  AI\r @  \r)(7  \r) 7   \r)(7  \r) 7  \r)(7(  \r) 7   \r) 70  \r)(78 A@k! AJ Ak!\r  \rB 7 \rBø?7 # A@j"$  ( (! (! ( !& \r+"K \r+ "MD        ¢¡!J@ M KD        ¢ "L La\r  J Ja\r  Aj M KD      ð?D        +!J +!L J LD        ¢ !K@ L JD        ¢¡"M Ma\r  K Ka\r  Aj L JD      ð?D         +!K +!M  K90  M9( ((!  6  6     J"6 B 7  6< Aj Aj A<j  (" (l6   (l6 (! ( !9 (,(!: ( !" (!$# AÀk"!\n $ @ ("    H"    H"# ("l"(AO\r*A ("\r  (At! (AÀ M@  AjApqk""$ A  Aj"E\r+ Apq" 6 Aj! (A G!;  l"*AO\r*A ("\r  *At! *AÀ M@  AjApqk"$ A  Aj"E\r+ Apq" 6 Aj! (A G!< \nAÐ jA Aàü  \nB 7¸ \nBø?7° \nBø?7  \nBø?7 \nBø?7 \nBø?7ð \nBø?7à \nBø?7Ð \nB 7H \nBø?7@ A J@A #   #J" AN!%    H"   H"   H!.   k!/A !@ \n :68 \n 9 At"+j64  \nA4j   k   k"  J"  H  j  Jq">" @  N\r  A L\r  " +j!? &  lAtj!@A ! !@  j!! %  k"  %J"A J@A .   .J" AN!A & !Atj!BA !@@ E\r  B At"j!\' \nA@k j!,A ! AG@ Aq Aþÿÿÿq!1A !6@ , Atj"2 \'  !j lAtj"G)7 2 G) 7  , Ar"2Atj"G \' ! 2j lAtj"2)7 G 2) 7  Aj! 6Aj"6 1G\r E\r , Atj", \'  !j lAtj")7 , ) 7  Aj" AG\r  \nA68 \n \nA@k64  \nA4j"  \r \n $68 \n " !At"j64 \n )(7  \n )07(       \nA j    A J@ \n 68 \n  @j64    \r \n $68 \n ?64 \n )(7 \n )07       \nAj     %k!  %j" H\r       J"A J@ & +j!A !@ \n 68 \n   lAtj64  \nA4j"    #j"  J k"!\r \n $68 \n " Atj64 \n )(7  \n )07    !   \nAAA  " H\r  /  > j" H\r @ *AÀ I\r  E <r\r  Ak( @ (AÀ I\r  E ;r\r  Ak(  \nAÀj$   ("@ Ak(  ("@ Ak(  A@k$  \rA0j$  @ -@ (H (h  6t  Aà j6pG\rA ! A 6 B 7A !# A0k"\r$  	("(!\n@@ 	( (" (F@ ( \nF\r  \nrA H\r-@ E\r  \nE\r  Aÿÿÿÿ \nmJ\r-   \nl  \n (!\n (! 	(! \rB 7 \rB 7 \r 6  \r \n6  \nrA H\r%  \r ( !\n (! (! \r \r)7( \r \r)7 @  l"A L\r @ Aq"E@ ! !@ \n \r)(7 \n \r) 7  Ak! \nAj!\n Aj" G\r  AI\r @ \n \r)(7 \n \r) 7  \n \r)(7 \n \r) 7 \n \r)(7( \n \r) 7  \n \r) 70 \n \r)(78 \nA@k!\n AJ Ak!\r  \rB 7 \rBø?7  	( !# A@j"$  \r+"K \r+ "MD        ¢ !J@ M KD        ¢¡"L La\r  J Ja\r  Aj M KD      ð?D         +!J +!L J LD        ¢ !K@ L JD        ¢¡"M Ma\r  K Ka\r  Aj L JD      ð?D         +!K +!M  K90  M9( (! (!  ("6  6 B 7     J"6  6< Aj Aj A<j  (" (l6   (l6  ( !& (! ( !6 (!9 ( !" (!$# AÀk"!\n $ @ ("    H"    H"# ("l"(AO\r,A ("\r  (At!	 (AÀ M@  	AjApqk""$ A  	Aj"	E\r- 	Apq" 	6 Aj! (A G!:  l"*AO\r,A ("\r  *At!	 *AÀ M@  	AjApqk"$ A  	Aj"E\r- Apq"	 6 	Aj! (A G!; \nAÐ jA Aàü  \nB 7¸ \nBø?7° \nBø?7  \nBø?7 \nBø?7 \nBø?7ð \nBø?7à \nBø?7Ð \nB 7H \nBø?7@ A J@A #   #J" AN!%    H"   H"   H!-   k!<A !@ \n 968 \n 6 At".j64  \nA4j   k   k"  J"  H  j  Jq"/"	 @  N\r  	A L\r  " .j!> &  lAtj!? 	!A !@  j!! % 	 k"  %J"A J@A -   -J" AN!@A !@ \nA@k Atj"\' Atj" &  !j"+Atj",  +lAtj"+)7  +) 7 @ E\r A ! AG@ Aq Aþÿÿÿq!BA !+@ \' Atj"0 ,  !j lAtj"1)7 0 1) 7  \' Ar"0Atj"1 , ! 0j lAtj"0)7 1 0) 7  Aj! +Aj"+ BG\r E\r \' Atj"\' ,  !j lAtj")7 \' ) 7  Aj" @G\r  \nA68 \n \nA@k64  \nA4j"  \r \n $68 \n " !At"j64 \n )(7  \n )07(       \nA j  	  A J@ \n 68 \n  ?j64    \r \n $68 \n >64 \n )(7 \n )07       \nAj  	   %k!  %j" 	H\r       J"A J@ & .j!A !@ \n 68 \n   lAtj64  \nA4j" 	   #j"  J k"!\r \n $68 \n " Atj64 \n )(7  \n )07    ! 	  \nAAA  " H\r  <  / j" H\r @ *AÀ I\r  E ;r\r  Ak( @ (AÀ I\r  E :r\r  Ak(  \nAÀj$   ("@ Ak(  ("@ Ak(  A@k$  \rA0j$   (!  @ (L (Hl"A L\r  (D! Aq!	 AO@ Aüÿÿÿq!\nA !@  At"j"  j"\r)7  \r) 7   Ar"j"\r  j")7 \r ) 7   A r"j"\r  j")7 \r ) 7   A0r"j"  j")7  ) 7  Aj! Aj" \nG\r  	E\rA !@  At"j"\n  j")7 \n ) 7  Aj! Aj" 	G\r  ("E\r Ak(  (H (d  AÄ j",6x  Aà j6pG\rA ! A 6 B 7A !\nA !%# A0k"\r$  (x"(!@@ (p(" Aj"-"	(F@ 	( F\r  rA H\r,@ E\r  E\r  Aÿÿÿÿ mJ\r, 	  l   	(! 	(! (x! \rB 7 \rB 7 \r 6  \r 6  rA H\r$ 	 \r 	( ! 	(! 	(! \r \r)7( \r \r)7 @  l"A L\r @ Aq"E@ ! !@  \r)(7  \r) 7  Ak! Aj! \nAj"\n G\r  AI\r @  \r)(7  \r) 7   \r)(7  \r) 7  \r)(7(  \r) 7   \r) 70  \r)(78 A@k! AJ Ak!\r  \rB 7 \rBø?7 # A@j"$  (p! \r+"K \r+ "MD        ¢¡!J@ M KD        ¢ "L La\r  J Ja\r  Aj M KD      ð?D        +!J +!L J LD        ¢ !K@ L JD        ¢¡"M Ma\r  K Ka\r  Aj L JD      ð?D         +!K +!M  K90  M9( (! (!  ("6  6 B 7     J"6  6< Aj Aj A<j  (" (l6   (l6  ( ! (! ( !. (!+ 	( !& 	(!"# AÀk"!\n $ @ ("   H"$ ("l"#AO\r+A ("\r  #At! #AÀ M@  AjApqk""$ A  Aj"E\r, Apq"	 6 	Aj! (A G!6  l"(AO\r+A ("\r  (At! (AÀ M@  AjApqk"$ A  Aj"E\r, Apq" 6 Aj! (A G!9 \nAÐ jA Aàü  \nB 7¸ \nBø?7° \nBø?7  \nBø?7 \nBø?7 \nBø?7ð \nBø?7à \nBø?7Ð \nB 7H \nBø?7@    H"A J@    H"   H!A  Atk!: AtAj!;A $   $J" AN" At"<Aj"/l!> A L!?@ \n +68 \n .     J"k"*Atj64  \nA4j   ?E@  ; % :lj * <lj Atkj!@A !  !A !@  k"    J"k!\'  *j!! A J@A     lk"  J" ANAtAk!AA    J" AN!B @   >lj!0A !	@ 	"At"1 \nA@kj Atj"	   !j"2Atj  2lAtj"2)7 	 2) 7 @ Aj"	 N\r  A 1k"1E\r  Al \njAÐ j 0  /lj 1ü\n   	 BG\r  \nA68 \n \nA@k64  \nA4j"  \n \n "68 \n & !Atj64 \n )(7  \n )07(       \nA j    \'A J@ \n 68 \n   !jAt"	j  !lAtj64    \'\n \n "68 \n 	 &j64 \n )(7 \n )07    \'   \nAj     k!  Aj!   j" H\r   H@   *lAtj!	 !@ \n 68 \n 	 At"j64  \nA4j"    $j"  J k"\n \n "68 \n  &j64 \n )(7  \n )07       \nAAA  " H\r  %Aj!%  k"A J\r @ (AÀ I\r  E 9r\r  Ak( @ #AÀ I\r  E 6r\r  Ak(  \nAÀj$   ("@ Ak(  ("@ Ak(  A@k$  \rA0j$   (! , -@ (L (Hl"A L\r  (D! Aq!	 AO@ Aüÿÿÿq!\nA !@  At"j"  j"\r)7  \r) 7   Ar"j"\r  j")7 \r ) 7   A r"j"\r  j")7 \r ) 7   A0r"j"  j")7  ) 7  Aj! Aj" \nG\r  	E\rA !@  At"j"\n  j")7 \n ) 7  Aj! Aj" 	G\r  ("E\r  Ak(   56  C6  )P7  )X7  6 (H  AÄ j"6$ G\r ( 5G\r ( (LG\r B 7x Bø¿7pA !# A@j"	$  +x"K +p"MD        ¢ !J@ M KD        ¢¡"L La\r  J Ja\r  	Aj M KD      ð?D         	+!J 	+!L J LD        ¢ !K@ L JD        ¢¡"M Ma\r  K Ka\r  	Aj L JD      ð?D         	+!K 	+!M 	 K90 	 M9( (! (!\n 	 ("6 	 \n6 	B 7 	 \n   \nJ"6 	 6< 	Aj 	Aj 	A<j 	 	(" 	(l6 	  	(l6  (! ((! ( !* (!\' ( ! ((!# AÀk"! $ @ 	(" \n  \nH" 	("l" AO\r)A 	("\r\r   At!  AÀ M@  AjApqk"\r"$ A  Aj"E\r* Apq" 6 Aj!\r 	(A G!,  l"!AO\r)A 	("\r  !At! !AÀ M@  AjApqk"$ A  Aj"E\r* Apq" 6 Aj! 	(A G!- AÐ jA Aàü  B 7¸ Bø?7° Bø?7  Bø?7 Bø?7 Bø?7ð Bø?7à Bø?7Ð B 7H Bø?7@  \n  \nH"A J@    H" \n  \nH!A  Atk!C AtAj!.A    J" AN" At"+Aj"5l!6 A L!9@  \'68  *     J"k"%Atj64  A4j   9E@  .  Clj % +lj Atkj!:A ! !A !@  k"    J"k!&@ A L\r A    lk"  J" ANAtAk!" :  6lj!$A !    J"#AG@A # #AN"#Aq #A~q!<A !(@@ Ar"# N\r  " Atk"/E\r  Al jAÐ j $  5lj /ü\n  @ Aj" N\r  " #Atk"/E\r  #Al jAÐ j $ # 5lj /ü\n   (Aj"( <G\r E\r Aj N\r  " Atk""E\r  Al jAÐ j $  5lj "ü\n   A68  A@k64 \r A4j"  \n  68    %j""Atj64  	)(7   	)07(  \r     A j    &A J@  68    "jAt"$j  "lAtj64 \r   &\n  68   $j64  	)(7  	)07  \r  &   Aj     k! Aj!  j" H\r   \nH@   %lAtj! !@  68   At"j64 \r A4j"  \n  j"  \nJ k"\n  68   j64  	)(7   	)07  \r     AAA  " \nH\r  Aj!  k"A J\r @ !AÀ I\r  E -r\r  Ak( @  AÀ I\r  \rE ,r\r  \rAk(  AÀj$   	("@ Ak(  	("@ Ak(  	A@k$  (D"@ Ak(  (`"@ Ak(  Aj$ (AíA°\rA°Aä  AéAýAâ A    Fj" ("H\r  A H\r    ("A L\r @ ( ! (! (!\n  ( "(   Asj - " (j"\rk"68   \n E"	6<    k"Atj  \n 	k"\nlAtj64  	rA HA  \r  6L  6@  \n6H  6D  rA H\r 	 \nrA H\r A H\r	  N\r	 ( !  (" \rAj"k"	6   Atj  lAtj6 	A HA  \r  60  6,  6$  6(  	rA H\r  (N\r ((  Atj"+!J  + 9   J9 A4j Aj  (  Aj" ("H\r  AÐ j$  A L\r@ Ak! ( "(  (j"kAj!@ - AF@ ( ! (! (!  6<  68    k"	Atj   k"lAtj64 A HA  \r  6L  6@  6H  	6D  	rA H\r   rA H\r   (J\r ( !  (" k"6   Atj  lAtj6 A HA  \r  60  6,  6$  6(  rA H\r   (J\r  ((  Atj"+!J  + 9  J9 A4j Aj Aj (  ( ! (! (!  6<  68    k"	Atj   k"lAtj64 A HA  \r  6L  6@  6H  	6D  	rA H\r  rA H\r  (J\r ( !  (" k"6   Atj  lAtj6 A HA  \r  60  6,  6$  6(  rA H\r  (J\r ((  Atj"+!J  + 9  J9 A4j Aj Aj (  AK !\r  ( "(" L\r A !@ (!@ ( "E\r  A N\r   (N\r  Asj"A N"A E\r  k" rA H\r E\r @ At"@   lAtj AtjA  ü  ( ! Aj" (" kH\r  AÐ j$  =("@ Ak(  =Aj$ AíA¹AÍAä  " A¸*6   A¤*6   AÜ*A AAÇAçAÆ\n   8A j$ A«A¹AýA¿   A !A !# A k"$ @@ )("	AN@ 	Al"\nA  \nA J"Aj! 	Ak"!@ 4( !  H@ )( ! )(! !@@@ A N@  4(H\r@@  At"j"+ "JD       c@ B 7  Aj!  N\r Aj" O\r  j+   Atj+   JD      0C¢"J J¢fE\r  B 7   F\r 4( ! 4(! !@@@@ "A L\r  J\r  Ak"At"j+ "JD        a\r   G\r ! \n H"E\rAA   Aj! !@@ "AI@A !A! Ak" N\r Ak!  Atj+ D        b\r| J"M )( " j+   Atj+ "O¡D      à?¢"KD        a\r D      ð!L@ MD      ða\r  K"ND      ða\r  K Kb J Jbr@D      ø!L M N M Nd""L N M  L£"L L¢D      ð? ¢!L J K L L KD        d "L J££ J J¢"JD        a\r  J L£!J " M\r  At"j"\r+ "LD        a\r@ |  j"+ "M O J¡¡"JD        b@ J LdE@ D      ð¿ J L£"K K¢D      ð? "J J LD        c£"J9  J K¢"K9 D      ð? L J£"N N¢D      ð? "K K JD        c£"K9 K N¢ B 7D        !KD      ð?D      ð¿ LD        c"J9 ( !  K K M¢ J L¢"N¡¢ J L K¢"O J  At"j"+ "Q¢¡¢¡9   J J M¢ O "M¢ K N K Q¢ "N¢ 9  \r K M¢ J N¢¡"M9   I@  j" K + "L¢9  L J¢!L @  	6  	6  6     Aj  O\r LD        a\r@@ MD        a@ B 7D        !J D      ð?D      ð¿ LD        c"K9 M Ld@ D      ð? L M£"K K¢D      ð? "J J MD        c£"J9  J K¢"K9 D      ð¿ M L£"J J¢D      ð? "K K LD        c£"K9  K J¢"J9  At"j"\r J J \r+ "M¢ K  j"\r+ "N¢"O¡¢ K J N¢"N K  Aj"At"j"+ "Q¢¡¢¡9   K K M¢ N "M¢ J O J Q¢ "N¢ 9  \r J M¢ K N¢¡"M9   I@ \rAk"\r J \r+ ¢ K L¢¡9   I@  j"\r J \r+ "J¢9  J K¢!L @  	6  	6  6     Aj  O\r ! LD        b\r  	Ak!@@ 3 )(" 	 3k"kJ\r@ AF\r   3k"Aq!A!A !A ! )( " 3Atj"+ "L!J@  3kAO@ A|q!A !@  Aj"\nAtj+ "K  Aj"\rAtj+ "M  Aj"Atj+ "N  Atj+ "O J J Od""J J Nd""J J Md""J J Kd"!J \n \r       ! Aj! Aj" G\r  E\r@  Atj+ "K J J Kd"!J   ! Aj! Aj" G\r  E\r   3j" O\r   Atj"+ 9   L9  ( "A  ("A H\r 3 ("N\r  O\r A L\r    3lAtj!   lAtj!A !@   At"j")7  ) 7   j")7  ) 7   )7  )7  Aj" G\r  3Aj"3 G\r A  	AlAvAq A j$ AA¤AAà  6$ ("A H\r E\r  )( ! Aq!A !A ! AO@ Aüÿÿÿq!A !@  Atj" U + ¢9   U +¢9  U +¢9  U +¢9 Aj! Aj" G\r  E\r@  Atj" U + ¢9  Aj! Aj" G\r  A: ( A: ) AÐ j$ AAôA«A  A¥AAA  A³AºA±A¤   "- (E\r ($A   (G\r (!  Aq!A !@  AO@  Aüÿÿÿq!@  At"j  j+ 9   Ar"j  j+ 9   Ar"j  j+ 9   Ar"j  j+ 9  Aj! IAj"I G\r  E\r@  At"j  j+ 9  Aj! DAj"D G\r  - )E\r   (G\r (  G\r ( !A !A !@    l" AO@  Aq  Aüÿÿÿq!A !D@  At" j"   j")7  ) 7    Ar"j"  j")7  ) 7    A r"j"  j")7  ) 7    A0r" j"   j" )7   ) 7  Aj! DAj"D G\r E\r@  At" j"   j" )7   ) 7  " Aj! Aj!  \r A ! (" @  Ak(  (" @  Ak(  (" @  Ak(  ( " @  Ak(  H( " E\r   Ak(  7AÐ j$  A÷\'AôAëAß  A±&AôAA  A\'AAA  AÝAAË A÷  AAéA°A  Aé	A½A6AÖ\n  AAAÊ AÐ  AA¤AµAæ  AAßA²A  A¶A¸Aú A  AÚA¸AA  A±A¤AïAæ  " A¸*6   A¤*6   AÜ*A A¢#AéAA   # A#checkSanity redux dot Product eigenvectors dst.rows() == dstRows && dst.cols() == dstCols startRow >= 0 && blockRows >= 0 && startRow <= xpr.rows() - blockRows && startCol >= 0 && blockCols >= 0 && startCol <= xpr.cols() - blockCols triFactor.rows() == nbVecs && triFactor.cols() == nbVecs && vectors.rows()>=nbVecs %s:%d: %s essentialVector make_block_householder_triangular_factor blas_data_mapper /emsdk/emscripten/system/lib/libcxxabi/src/private_typeinfo.cpp CwiseNullaryOp info run std::exception Diagonal Block k >= 0 && k < m_length /opt/local/include/eigen3/Eigen/src/Core/Redux.h /opt/local/include/eigen3/Eigen/src/Core/Dot.h /opt/local/include/eigen3/Eigen/src/Core/Product.h /opt/local/include/eigen3/Eigen/src/Core/ProductEvaluators.h /opt/local/include/eigen3/Eigen/src/Core/products/SelfadjointMatrixVector.h /opt/local/include/eigen3/Eigen/src/Core/AssignEvaluator.h /opt/local/include/eigen3/Eigen/src/Eigenvalues/SelfAdjointEigenSolver.h /opt/local/include/eigen3/Eigen/src/Householder/BlockHouseholder.h /opt/local/include/eigen3/Eigen/src/Core/CwiseNullaryOp.h /opt/local/include/eigen3/Eigen/src/Eigenvalues/Tridiagonalization.h /opt/local/include/eigen3/Eigen/src/Core/util/BlasUtil.h /opt/local/include/eigen3/Eigen/src/Core/products/GeneralBlockPanelKernel.h /opt/local/include/eigen3/Eigen/src/Core/Diagonal.h /opt/local/include/eigen3/Eigen/src/Core/Block.h /opt/local/include/eigen3/Eigen/src/Core/PlainObjectBase.h /opt/local/include/eigen3/Eigen/src/Core/DenseCoeffsBase.h /opt/local/include/eigen3/Eigen/src/Core/MapBase.h /opt/local/include/eigen3/Eigen/src/Core/DenseBase.h /opt/local/include/eigen3/Eigen/src/Householder/HouseholderSequence.h resize compute MapBase tridiagonalization_inplace resize_if_allowed std::bad_alloc operator[] catching a class without an object? incr==1 n==hCoeffs.size()+1 || n==1 mat.cols()==mat.rows() && diag.size()==mat.rows() && subdiag.size()==mat.rows()-1 ((SizeAtCompileTime == Dynamic && (MaxSizeAtCompileTime==Dynamic || size<=MaxSizeAtCompileTime)) || SizeAtCompileTime == size) && size>=0 vecSize >= 0 rows >= 0 && (RowsAtCompileTime == Dynamic || RowsAtCompileTime == rows) && cols >= 0 && (ColsAtCompileTime == Dynamic || ColsAtCompileTime == cols) ((!PanelMode) && stride==0 && offset==0) || (PanelMode && stride>=depth && offset<=stride) (dataPtr == 0) || ( rows >= 0 && (RowsAtCompileTime == Dynamic || RowsAtCompileTime == rows) && cols >= 0 && (ColsAtCompileTime == Dynamic || ColsAtCompileTime == cols)) (i>=0) && ( ((BlockRows==1) && (BlockCols==XprType::ColsAtCompileTime) && i<xpr.rows()) ||((BlockRows==XprType::RowsAtCompileTime) && (BlockCols==1) && i<xpr.cols())) a_index <= m_matrix.cols() && -a_index <= m_matrix.rows() matrix.cols() == matrix.rows() dest.rows()==a_lhs.rows() && dest.cols()==a_rhs.cols() dst.rows() == src.rows() && dst.cols() == src.cols() n==matA.cols() row >= 0 && row < rows() && col >= 0 && col < cols() operator() size() == other.size() index >= 0 && index < size() this->rows()>0 && this->cols()>0 && "you are using an empty matrix" lhs.cols() == rhs.rows() && "invalid matrix product" && "if you wanted a coeff-wise or a dot product use the respective explicit functions" (options&~(EigVecMask|GenEigMask))==0 && (options&EigVecMask)!=EigVecMask && "invalid option parameter" ( ((internal::UIntPtr(m_data) % internal::traits<Derived>::Alignment) == 0) || (cols() * rows() * minInnerStride * sizeof(Scalar)) < internal::traits<Derived>::Alignment ) && "data is not aligned" (!(RowsAtCompileTime!=Dynamic) || (rows==RowsAtCompileTime)) && (!(ColsAtCompileTime!=Dynamic) || (cols==ColsAtCompileTime)) && (!(RowsAtCompileTime==Dynamic && MaxRowsAtCompileTime!=Dynamic) || (rows<=MaxRowsAtCompileTime)) && (!(ColsAtCompileTime==Dynamic && MaxColsAtCompileTime!=Dynamic) || (cols<=MaxColsAtCompileTime)) && rows>=0 && cols>=0 && "Invalid sizes when resizing a matrix or array." m_eigenvectorsOk && "The eigenvectors have not been computed together with the eigenvalues." rows == this->rows() && cols == this->cols() && "DenseBase::resize() does not actually allow to resize." m_isInitialized && "SelfAdjointEigenSolver is not initialized."  È  D  x  N10__cxxabiv116__shim_type_infoE    È  t  8  N10__cxxabiv117__class_type_infoE       h                       	       è     \n                  \r   È  ô  h  N10__cxxabiv120__si_class_type_infoE        \\               D              L  St9exception    È  h  D  St9bad_alloc         St9type_info A+ ')}function getBinarySync(file){return file}function instantiateSync(file,info){var module;var binary=getBinarySync(file);module=new WebAssembly.Module(binary);var instance=new WebAssembly.Instance(module,info);return [instance,module]}function getWasmImports(){var imports={a:wasmImports};return imports}function createWasm(){function receiveInstance(instance,module){wasmExports=instance.exports;assignWasmExports(wasmExports);updateMemoryViews();return wasmExports}var info=getWasmImports();if(Module["instantiateWasm"]){return new Promise((resolve,reject)=>{Module["instantiateWasm"](info,(inst,mod)=>{resolve(receiveInstance(inst));});})}wasmBinaryFile??=findWasmBinary();var result=instantiateSync(wasmBinaryFile,info);return receiveInstance(result[0])}var callRuntimeCallbacks=callbacks=>{while(callbacks.length>0){callbacks.shift()(Module);}};var onPostRuns=[];var addOnPostRun=cb=>onPostRuns.push(cb);var onPreRuns=[];var addOnPreRun=cb=>onPreRuns.push(cb);function getValue(ptr,type="i8"){if(type.endsWith("*"))type="*";switch(type){case"i1":return HEAP8[ptr];case"i8":return HEAP8[ptr];case"i16":return HEAP16[ptr>>1];case"i32":return HEAP32[ptr>>2];case"i64":return HEAP64[ptr>>3];case"float":return HEAPF32[ptr>>2];case"double":return HEAPF64[ptr>>3];case"*":return HEAPU32[ptr>>2];default:abort(`invalid type for getValue: ${type}`);}}function setValue(ptr,value,type="i8"){if(type.endsWith("*"))type="*";switch(type){case"i1":HEAP8[ptr]=value;break;case"i8":HEAP8[ptr]=value;break;case"i16":HEAP16[ptr>>1]=value;break;case"i32":HEAP32[ptr>>2]=value;break;case"i64":HEAP64[ptr>>3]=BigInt(value);break;case"float":HEAPF32[ptr>>2]=value;break;case"double":HEAPF64[ptr>>3]=value;break;case"*":HEAPU32[ptr>>2]=value;break;default:abort(`invalid type for setValue: ${type}`);}}var stackRestore=val=>__emscripten_stack_restore(val);var stackSave=()=>_emscripten_stack_get_current();var UTF8Decoder=globalThis.TextDecoder&&new TextDecoder;var findStringEnd=(heapOrArray,idx,maxBytesToRead,ignoreNul)=>{var maxIdx=idx+maxBytesToRead;if(ignoreNul)return maxIdx;while(heapOrArray[idx]&&!(idx>=maxIdx))++idx;return idx};var UTF8ArrayToString=(heapOrArray,idx=0,maxBytesToRead,ignoreNul)=>{var endPtr=findStringEnd(heapOrArray,idx,maxBytesToRead,ignoreNul);if(endPtr-idx>16&&heapOrArray.buffer&&UTF8Decoder){return UTF8Decoder.decode(heapOrArray.subarray(idx,endPtr))}var str="";while(idx<endPtr){var u0=heapOrArray[idx++];if(!(u0&128)){str+=String.fromCharCode(u0);continue}var u1=heapOrArray[idx++]&63;if((u0&224)==192){str+=String.fromCharCode((u0&31)<<6|u1);continue}var u2=heapOrArray[idx++]&63;if((u0&240)==224){u0=(u0&15)<<12|u1<<6|u2;}else {u0=(u0&7)<<18|u1<<12|u2<<6|heapOrArray[idx++]&63;}if(u0<65536){str+=String.fromCharCode(u0);}else {var ch=u0-65536;str+=String.fromCharCode(55296|ch>>10,56320|ch&1023);}}return str};var UTF8ToString=(ptr,maxBytesToRead,ignoreNul)=>ptr?UTF8ArrayToString(HEAPU8,ptr,maxBytesToRead,ignoreNul):"";var ___assert_fail=(condition,filename,line,func)=>abort(`Assertion failed: ${UTF8ToString(condition)}, at: `+[filename?UTF8ToString(filename):"unknown filename",line,func?UTF8ToString(func):"unknown function"]);class ExceptionInfo{constructor(excPtr){this.excPtr=excPtr;this.ptr=excPtr-24;}set_type(type){HEAPU32[this.ptr+4>>2]=type;}get_type(){return HEAPU32[this.ptr+4>>2]}set_destructor(destructor){HEAPU32[this.ptr+8>>2]=destructor;}get_destructor(){return HEAPU32[this.ptr+8>>2]}set_caught(caught){caught=caught?1:0;HEAP8[this.ptr+12]=caught;}get_caught(){return HEAP8[this.ptr+12]!=0}set_rethrown(rethrown){rethrown=rethrown?1:0;HEAP8[this.ptr+13]=rethrown;}get_rethrown(){return HEAP8[this.ptr+13]!=0}init(type,destructor){this.set_adjusted_ptr(0);this.set_type(type);this.set_destructor(destructor);}set_adjusted_ptr(adjustedPtr){HEAPU32[this.ptr+16>>2]=adjustedPtr;}get_adjusted_ptr(){return HEAPU32[this.ptr+16>>2]}}var exceptionLast=0;var ___cxa_throw=(ptr,type,destructor)=>{var info=new ExceptionInfo(ptr);info.init(type,destructor);exceptionLast=ptr;throw exceptionLast};var getHeapMax=()=>2147483648;var alignMemory=(size,alignment)=>Math.ceil(size/alignment)*alignment;var growMemory=size=>{var oldHeapSize=wasmMemory.buffer.byteLength;var pages=(size-oldHeapSize+65535)/65536|0;try{wasmMemory.grow(pages);updateMemoryViews();return 1}catch(e){}};var _emscripten_resize_heap=requestedSize=>{var oldSize=HEAPU8.length;requestedSize>>>=0;var maxHeapSize=getHeapMax();if(requestedSize>maxHeapSize){return false}for(var cutDown=1;cutDown<=4;cutDown*=2){var overGrownHeapSize=oldSize*(1+.2/cutDown);overGrownHeapSize=Math.min(overGrownHeapSize,requestedSize+100663296);var newSize=Math.min(maxHeapSize,alignMemory(Math.max(requestedSize,overGrownHeapSize),65536));var replacement=growMemory(newSize);if(replacement){return true}}return false};var getCFunc=ident=>{var func=Module["_"+ident];return func};var writeArrayToMemory=(array,buffer)=>{HEAP8.set(array,buffer);};var lengthBytesUTF8=str=>{var len=0;for(var i=0;i<str.length;++i){var c=str.charCodeAt(i);if(c<=127){len++;}else if(c<=2047){len+=2;}else if(c>=55296&&c<=57343){len+=4;++i;}else {len+=3;}}return len};var stringToUTF8Array=(str,heap,outIdx,maxBytesToWrite)=>{if(!(maxBytesToWrite>0))return 0;var startIdx=outIdx;var endIdx=outIdx+maxBytesToWrite-1;for(var i=0;i<str.length;++i){var u=str.codePointAt(i);if(u<=127){if(outIdx>=endIdx)break;heap[outIdx++]=u;}else if(u<=2047){if(outIdx+1>=endIdx)break;heap[outIdx++]=192|u>>6;heap[outIdx++]=128|u&63;}else if(u<=65535){if(outIdx+2>=endIdx)break;heap[outIdx++]=224|u>>12;heap[outIdx++]=128|u>>6&63;heap[outIdx++]=128|u&63;}else {if(outIdx+3>=endIdx)break;heap[outIdx++]=240|u>>18;heap[outIdx++]=128|u>>12&63;heap[outIdx++]=128|u>>6&63;heap[outIdx++]=128|u&63;i++;}}heap[outIdx]=0;return outIdx-startIdx};var stringToUTF8=(str,outPtr,maxBytesToWrite)=>stringToUTF8Array(str,HEAPU8,outPtr,maxBytesToWrite);var stackAlloc=sz=>__emscripten_stack_alloc(sz);var stringToUTF8OnStack=str=>{var size=lengthBytesUTF8(str)+1;var ret=stackAlloc(size);stringToUTF8(str,ret,size);return ret};var ccall=(ident,returnType,argTypes,args,opts)=>{var toC={string:str=>{var ret=0;if(str!==null&&str!==undefined&&str!==0){ret=stringToUTF8OnStack(str);}return ret},array:arr=>{var ret=stackAlloc(arr.length);writeArrayToMemory(arr,ret);return ret}};function convertReturnValue(ret){if(returnType==="string"){return UTF8ToString(ret)}if(returnType==="boolean")return Boolean(ret);return ret}var func=getCFunc(ident);var cArgs=[];var stack=0;if(args){for(var i=0;i<args.length;i++){var converter=toC[argTypes[i]];if(converter){if(stack===0)stack=stackSave();cArgs[i]=converter(args[i]);}else {cArgs[i]=args[i];}}}var ret=func(...cArgs);function onDone(ret){if(stack!==0)stackRestore(stack);return convertReturnValue(ret)}ret=onDone(ret);return ret};var cwrap=(ident,returnType,argTypes,opts)=>{var numericArgs=!argTypes||argTypes.every(type=>type==="number"||type==="boolean");var numericRet=returnType!=="string";if(numericRet&&numericArgs&&!opts){return getCFunc(ident)}return (...args)=>ccall(ident,returnType,argTypes,args)};for(var base64ReverseLookup=new Uint8Array(123),i=25;i>=0;--i){base64ReverseLookup[48+i]=52+i;base64ReverseLookup[65+i]=i;base64ReverseLookup[97+i]=26+i;}base64ReverseLookup[43]=62;base64ReverseLookup[47]=63;{if(Module["noExitRuntime"])Module["noExitRuntime"];if(Module["print"])Module["print"];if(Module["printErr"])err=Module["printErr"];if(Module["wasmBinary"])Module["wasmBinary"];if(Module["arguments"])Module["arguments"];if(Module["thisProgram"])Module["thisProgram"];if(Module["preInit"]){if(typeof Module["preInit"]=="function")Module["preInit"]=[Module["preInit"]];while(Module["preInit"].length>0){Module["preInit"].shift()();}}}Module["cwrap"]=cwrap;Module["setValue"]=setValue;Module["getValue"]=getValue;var __emscripten_stack_restore,__emscripten_stack_alloc,_emscripten_stack_get_current,wasmMemory;function assignWasmExports(wasmExports){Module["_solve_hermitian_eigen"]=wasmExports["f"];Module["_free"]=wasmExports["g"];Module["_malloc"]=wasmExports["h"];__emscripten_stack_restore=wasmExports["i"];__emscripten_stack_alloc=wasmExports["j"];_emscripten_stack_get_current=wasmExports["k"];wasmMemory=wasmExports["d"];wasmExports["__indirect_function_table"];}var wasmImports={a:___assert_fail,b:___cxa_throw,c:_emscripten_resize_heap};function run(){preRun();function doRun(){Module["calledRun"]=true;if(ABORT)return;initRuntime();readyPromiseResolve?.(Module);Module["onRuntimeInitialized"]?.();postRun();}if(Module["setStatus"]){Module["setStatus"]("Running...");setTimeout(()=>{setTimeout(()=>Module["setStatus"](""),1);doRun();},1);}else {doRun();}}var wasmExports;wasmExports=createWasm();run();if(runtimeInitialized){moduleRtn=Module;}else {moduleRtn=new Promise((resolve,reject)=>{readyPromiseResolve=resolve;readyPromiseReject=reject;});}
+return moduleRtn}
+
+let modulePromise = null;
+let moduleInstance = null;
+let solveHermitianEigen = null;
+
+async function initEigenWasmSolver() {
+    if (moduleInstance) {
+        return moduleInstance;
+    }
+    if (!modulePromise) {
+        modulePromise = Promise.resolve(Module())
+            .then((module) => {
+                moduleInstance = module;
+                solveHermitianEigen = module.cwrap(
+                    'solve_hermitian_eigen',
+                    'number',
+                    ['number', 'number', 'number', 'number']
+                );
+                return moduleInstance;
+            })
+            .catch((error) => {
+                modulePromise = null;
+                throw error;
+            });
+    }
+    return modulePromise;
+}
+
+async function solveComplexHermitianWithEigenWasm(matrixReal, matrixImag) {
+    let module = await initEigenWasmSolver();
+    let size = matrixReal.length;
+    if (!size) {
+        return {
+            values: [],
+            vectors: [],
+        };
+    }
+
+    let matrixPtr = module._malloc(size * size * 16);
+    let valuesPtr = module._malloc(size * 8);
+    let vectorsPtr = module._malloc(size * size * 16);
+
+    try {
+        for (let col = 0; col < size; col++) {
+            for (let row = 0; row < size; row++) {
+                let offset = 16 * (col * size + row);
+                module.setValue(matrixPtr + offset, matrixReal[row][col], 'double');
+                module.setValue(matrixPtr + offset + 8, matrixImag[row][col], 'double');
+            }
+        }
+
+        let status = solveHermitianEigen(size, matrixPtr, valuesPtr, vectorsPtr);
+        if (status !== 0) {
+            throw new Error(`Eigen wasm solver failed with status ${status}`);
+        }
+
+        let values = [];
+        for (let modeIndex = 0; modeIndex < size; modeIndex++) {
+            values.push(module.getValue(valuesPtr + modeIndex * 8, 'double'));
+        }
+        let vectors = [];
+        for (let modeIndex = 0; modeIndex < size; modeIndex++) {
+            let vector = [];
+            for (let row = 0; row < size; row++) {
+                let offset = 16 * (modeIndex * size + row);
+                vector.push([
+                    module.getValue(vectorsPtr + offset, 'double'),
+                    module.getValue(vectorsPtr + offset + 8, 'double'),
+                ]);
+            }
+            vectors.push(vector);
+        }
+
+        return {
+            values: values,
+            vectors: vectors,
+        };
+    } finally {
+        module._free(vectorsPtr);
+        module._free(valuesPtr);
+        module._free(matrixPtr);
+    }
+}
+
+function dotShortestVectorWithQ(shortestVector, qpoint) {
+    return shortestVector[0] * qpoint[0] + shortestVector[1] * qpoint[1] + shortestVector[2] * qpoint[2];
+}
+
+function cloneCompactForceConstants(forceConstants) {
+    let cloned = new Array(forceConstants.length);
+    for (let i = 0; i < forceConstants.length; i++) {
+        cloned[i] = new Array(forceConstants[i].length);
+        for (let j = 0; j < forceConstants[i].length; j++) {
+            cloned[i][j] = [
+                forceConstants[i][j][0].slice(),
+                forceConstants[i][j][1].slice(),
+                forceConstants[i][j][2].slice(),
+            ];
+        }
+    }
+    return cloned;
+}
+
+function imposeTranslationalInvariancePerIndex(forceConstants, index) {
+    let primaryLength = index === 0 ? forceConstants[0].length : forceConstants.length;
+    let correctionLength = index === 0 ? forceConstants.length : forceConstants[0].length;
+
+    for (let primaryIndex = 0; primaryIndex < primaryLength; primaryIndex++) {
+        for (let axisRow = 0; axisRow < 3; axisRow++) {
+            for (let axisCol = 0; axisCol < 3; axisCol++) {
+                let drift = 0;
+                for (let correctionIndex = 0; correctionIndex < correctionLength; correctionIndex++) {
+                    if (index === 0) {
+                        drift += forceConstants[correctionIndex][primaryIndex][axisRow][axisCol];
+                    } else {
+                        drift += forceConstants[primaryIndex][correctionIndex][axisRow][axisCol];
+                    }
+                }
+                drift /= correctionLength;
+                for (let correctionIndex = 0; correctionIndex < correctionLength; correctionIndex++) {
+                    if (index === 0) {
+                        forceConstants[correctionIndex][primaryIndex][axisRow][axisCol] -= drift;
+                    } else {
+                        forceConstants[primaryIndex][correctionIndex][axisRow][axisCol] -= drift;
+                    }
+                }
+            }
+        }
+    }
+}
+
+function getAcousticSumRuleMode(payload) {
+    if (!payload || payload.acoustic_sum_rule === false || payload.acoustic_sum_rule === 'off') {
+        return 'off';
+    }
+    if (typeof payload.acoustic_sum_rule === 'string') {
+        return payload.acoustic_sum_rule;
+    }
+    return payload && payload.format === 'phonopy-dynamical-matrix-v1'
+        ? 'translational'
+        : 'off';
+}
+
+function getAsrCorrectedCompactForceConstants(payload) {
+    if (!payload || !payload.force_constants_compact) {
+        return null;
+    }
+    if (getAcousticSumRuleMode(payload) !== 'translational') {
+        return payload.force_constants_compact;
+    }
+    if (!payload._cached_asr_force_constants_compact) {
+        let corrected = cloneCompactForceConstants(payload.force_constants_compact);
+        // Compact force constants are stored as (primitive atom, supercell atom).
+        // The dominant translational drift relevant for matching the pre-generated
+        // path is along the supercell-atom index, which is the one directly used
+        // in the dynamical-matrix sum.
+        imposeTranslationalInvariancePerIndex(corrected, 1);
+        payload._cached_asr_force_constants_compact = corrected;
+    }
+    return payload._cached_asr_force_constants_compact;
+}
+
+function buildDynamicalMatrixBlocks(payload, qpoint, qDirection = null) {
+    let masses = payload.masses;
+    let forceConstants = getAsrCorrectedCompactForceConstants(payload);
+    let shortestVectors = payload.shortest_vectors;
+    let multiplicity = payload.multiplicity;
+    let s2ppMap = payload.s2pp_map;
+    let natoms = masses.length;
+    payload.supercell_natoms / payload.primitive_natoms;
+    let nacCorrection = null;
+
+    if (payload.nac) {
+        if (payload.nac.method !== 'gonze') {
+            throw new Error(`Unsupported NAC method: ${payload.nac.method}`);
+        }
+        nacCorrection = getGonzeReciprocalCorrection(payload, qpoint, qDirection);
+    }
+
+    let matrixReal = [];
+    let matrixImag = [];
+    for (let row = 0; row < natoms * 3; row++) {
+        matrixReal.push(new Array(natoms * 3).fill(0));
+        matrixImag.push(new Array(natoms * 3).fill(0));
+    }
+
+    for (let i = 0; i < natoms; i++) {
+        for (let j = 0; j < natoms; j++) {
+            let sqrtMass = Math.sqrt(masses[i] * masses[j]);
+            let blockReal = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+            let blockImag = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+
+            if (nacCorrection) {
+                for (let axisRow = 0; axisRow < 3; axisRow++) {
+                    for (let axisCol = 0; axisCol < 3; axisCol++) {
+                        blockReal[axisRow][axisCol] += nacCorrection[i][j][axisRow][axisCol][0];
+                        blockImag[axisRow][axisCol] += nacCorrection[i][j][axisRow][axisCol][1];
+                    }
+                }
+            }
+
+            for (let superIndex = 0; superIndex < s2ppMap.length; superIndex++) {
+                if (s2ppMap[superIndex] !== j) {
+                    continue;
+                }
+
+                let count = multiplicity[superIndex][i][0];
+                let address = multiplicity[superIndex][i][1];
+                let phaseReal = 0;
+                let phaseImag = 0;
+                for (let vectorIndex = 0; vectorIndex < count; vectorIndex++) {
+                    let phase = 2 * Math.PI * dotShortestVectorWithQ(shortestVectors[address + vectorIndex], qpoint);
+                    phaseReal += Math.cos(phase);
+                    phaseImag += Math.sin(phase);
+                }
+
+                let factor = 1 / (sqrtMass * count);
+                let fcBlock = forceConstants[i][superIndex];
+                for (let axisRow = 0; axisRow < 3; axisRow++) {
+                    for (let axisCol = 0; axisCol < 3; axisCol++) {
+                        let value = fcBlock[axisRow][axisCol];
+                        value *= factor;
+                        blockReal[axisRow][axisCol] += value * phaseReal;
+                        blockImag[axisRow][axisCol] += value * phaseImag;
+                    }
+                }
+            }
+
+            for (let axisRow = 0; axisRow < 3; axisRow++) {
+                for (let axisCol = 0; axisCol < 3; axisCol++) {
+                    let row = i * 3 + axisRow;
+                    let col = j * 3 + axisCol;
+                    matrixReal[row][col] = blockReal[axisRow][axisCol];
+                    matrixImag[row][col] = blockImag[axisRow][axisCol];
+                }
+            }
+        }
+    }
+
+    for (let i = 0; i < natoms * 3; i++) {
+        for (let j = i + 1; j < natoms * 3; j++) {
+            let symReal = 0.5 * (matrixReal[i][j] + matrixReal[j][i]);
+            let symImag = 0.5 * (matrixImag[i][j] - matrixImag[j][i]);
+            matrixReal[i][j] = symReal;
+            matrixReal[j][i] = symReal;
+            matrixImag[i][j] = symImag;
+            matrixImag[j][i] = -symImag;
+        }
+        matrixImag[i][i] = 0;
+    }
+
+    return { real: matrixReal, imag: matrixImag };
+}
+
+function eigenvalueToFrequencyCm1(value, payload = null) {
+    if (!Number.isFinite(value)) {
+        return NaN;
+    }
+    let conversionFactor = payload && Number.isFinite(Number(payload.frequency_conversion_factor))
+        ? Number(payload.frequency_conversion_factor)
+        : 1.0;
+    let magnitude = Math.sqrt(Math.abs(value));
+    let signed = value < 0 ? -magnitude : magnitude;
+    return signed * conversionFactor * 33.35641;
+}
+
+async function solveHermitianEigenSystem(payload, qpoint, qDirection = null) {
+    let blocks = buildDynamicalMatrixBlocks(payload, qpoint, qDirection);
+    let eigenSystem = await solveComplexHermitianWithEigenWasm(blocks.real, blocks.imag);
+    return {
+        eigenvectors: eigenSystem.vectors,
+        eigenvaluesRaw: eigenSystem.values,
+        eigenvaluesCm1: eigenSystem.values.map((value) => eigenvalueToFrequencyCm1(value, payload)),
+    };
+}
+
 var thz2cm1 = 33.35641;
 
 class PhononJson {
+
+    getDefaultEigenvalueMatchToleranceCm1() {
+        return 0.5;
+    }
+
+    getComplexVectorOverlapAbs(left, right) {
+        let leftNorm2 = 0;
+        let rightNorm2 = 0;
+        for (let i = 0; i < left.length; i++) {
+            leftNorm2 += left[i][0] * left[i][0] + left[i][1] * left[i][1];
+            rightNorm2 += right[i][0] * right[i][0] + right[i][1] * right[i][1];
+        }
+        if (leftNorm2 <= 0 || rightNorm2 <= 0) {
+            return 0;
+        }
+        let norm = 1 / Math.sqrt(leftNorm2 * rightNorm2);
+        let real = 0;
+        let imag = 0;
+        for (let i = 0; i < left.length; i++) {
+            real += left[i][0] * right[i][0] + left[i][1] * right[i][1];
+            imag += left[i][0] * right[i][1] - left[i][1] * right[i][0];
+        }
+        return Math.sqrt(real * real + imag * imag) * norm;
+    }
+
+    estimateRuntimeBandConnection(prevEigenvectors, eigenvectors, prevBandOrder) {
+        let metric = [];
+        for (let i = 0; i < prevEigenvectors.length; i++) {
+            let row = [];
+            for (let j = 0; j < eigenvectors.length; j++) {
+                row.push(this.getComplexVectorOverlapAbs(prevEigenvectors[i], eigenvectors[j]));
+            }
+            metric.push(row);
+        }
+
+        let connectionOrder = [];
+        for (let i = 0; i < metric.length; i++) {
+            let overlaps = metric[i];
+            let maxValue = 0;
+            let maxIndex = 0;
+            for (let candidateIndex = metric.length - 1; candidateIndex >= 0; candidateIndex--) {
+                let value = overlaps[candidateIndex];
+                if (connectionOrder.indexOf(candidateIndex) !== -1) {
+                    continue;
+                }
+                if (value > maxValue) {
+                    maxValue = value;
+                    maxIndex = candidateIndex;
+                }
+            }
+            connectionOrder.push(maxIndex);
+        }
+
+        let bandOrder = [];
+        for (let i = 0; i < prevBandOrder.length; i++) {
+            bandOrder.push(connectionOrder[prevBandOrder[i]]);
+        }
+        return bandOrder;
+    }
+
+    warnRuntimeEigenvalueMismatch(qIndex, runtimeEigenvalues) {
+        let storedEigenvalues = this.stored_eigenvalues && this.stored_eigenvalues[qIndex]
+            ? this.stored_eigenvalues[qIndex]
+            : (this.eigenvalues && this.eigenvalues[qIndex]);
+        if (
+            !storedEigenvalues ||
+            !runtimeEigenvalues ||
+            storedEigenvalues.length !== runtimeEigenvalues.length
+        ) {
+            return;
+        }
+
+        let maxDifference = 0;
+        for (let i = 0; i < storedEigenvalues.length; i++) {
+            maxDifference = Math.max(
+                maxDifference,
+                Math.abs(Number(storedEigenvalues[i]) - Number(runtimeEigenvalues[i]))
+            );
+        }
+
+        if (maxDifference > this.getDefaultEigenvalueMatchToleranceCm1()) {
+            console.warn(
+                `Runtime eigenvalue mismatch at q-point ${qIndex}: max |Δω| = ${maxDifference.toFixed(3)} cm^-1`
+            );
+        }
+    }
+
+    async solveRuntimeEigenSystem(qIndex) {
+        let qDirection = this.getNacQDirection(qIndex);
+        return solveHermitianEigenSystem(this.dynamical_matrix, this.kpoints[qIndex], qDirection);
+    }
+
+    async yieldForRuntimeSolve() {
+        if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+            await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+            return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    async computeRuntimeBandConnectedEigenSolutionAsync(progressCallback = null) {
+        if (!this.canComputeEigenvectorsOnDemand() || !this.kpoints || !this.kpoints.length) {
+            return null;
+        }
+
+        let rawEigenvectors = [];
+        let rawEigenvalues = [];
+        let totalQpoints = this.kpoints.length;
+        for (let qIndex = 0; qIndex < this.kpoints.length; qIndex++) {
+            let eigenSystem = await this.solveRuntimeEigenSystem(qIndex);
+            rawEigenvectors.push(eigenSystem.eigenvectors);
+            rawEigenvalues.push(eigenSystem.eigenvaluesCm1);
+            if (progressCallback) {
+                progressCallback({
+                    phase: 'compute',
+                    loaded: qIndex + 1,
+                    total: totalQpoints,
+                });
+            }
+            if ((qIndex + 1) % 4 === 0 || qIndex + 1 === totalQpoints) {
+                await this.yieldForRuntimeSolve();
+            }
+        }
+
+        let bandOrder = null;
+        let orderedEigenvectors = [];
+        let orderedEigenvalues = [];
+        let mismatchSummary = [];
+        for (let qIndex = 0; qIndex < rawEigenvectors.length; qIndex++) {
+            if (qIndex === 0 || bandOrder === null) {
+                bandOrder = [];
+                for (let modeIndex = 0; modeIndex < rawEigenvectors[qIndex].length; modeIndex++) {
+                    bandOrder.push(modeIndex);
+                }
+            } else {
+                bandOrder = this.estimateRuntimeBandConnection(
+                    rawEigenvectors[qIndex - 1],
+                    rawEigenvectors[qIndex],
+                    bandOrder
+                );
+            }
+
+            let qOrderedEigenvectors = bandOrder.map((modeIndex) => rawEigenvectors[qIndex][modeIndex]);
+            let qOrderedEigenvalues = bandOrder.map((modeIndex) => rawEigenvalues[qIndex][modeIndex]);
+            let storedEigenvalues = this.stored_eigenvalues && this.stored_eigenvalues[qIndex]
+                ? this.stored_eigenvalues[qIndex]
+                : (this.eigenvalues && this.eigenvalues[qIndex] ? this.eigenvalues[qIndex] : null);
+            let maxDeltaCm1 = null;
+            if (storedEigenvalues && storedEigenvalues.length === qOrderedEigenvalues.length) {
+                maxDeltaCm1 = 0;
+                for (let modeIndex = 0; modeIndex < storedEigenvalues.length; modeIndex++) {
+                    maxDeltaCm1 = Math.max(
+                        maxDeltaCm1,
+                        Math.abs(Number(storedEigenvalues[modeIndex]) - Number(qOrderedEigenvalues[modeIndex]))
+                    );
+                }
+            }
+
+            orderedEigenvectors.push(qOrderedEigenvectors);
+            orderedEigenvalues.push(qOrderedEigenvalues);
+            mismatchSummary.push({
+                qIndex: qIndex,
+                maxDeltaCm1: maxDeltaCm1,
+            });
+        }
+
+        return {
+            eigenvectors: orderedEigenvectors,
+            eigenvalues: orderedEigenvalues,
+            mismatchSummary: mismatchSummary,
+        };
+    }
+
+    async computeAllRuntimeEigenvectorsWithBandConnectionAsync(progressCallback = null) {
+        if (!this.vec || !this.vec.length || !this.canComputeEigenvectorsOnDemand()) {
+            return false;
+        }
+
+        let solution = await this.computeRuntimeBandConnectedEigenSolutionAsync(progressCallback);
+        if (!solution) {
+            return false;
+        }
+
+        for (let qIndex = 0; qIndex < solution.eigenvectors.length; qIndex++) {
+            let orderedComplexEigenvectors = solution.eigenvectors[qIndex];
+            this.warnRuntimeEigenvalueMismatch(qIndex, solution.eigenvalues[qIndex]);
+            let eivecq = this.convertComplexEigenvectorsToInternal(orderedComplexEigenvectors);
+            this.applyModeAmplitudeConventionToEigenvectors(eivecq);
+            this.normalizeEigenvectorSet(eivecq);
+            this.vec[qIndex] = eivecq;
+        }
+
+        this.eigenvalues = solution.eigenvalues;
+        this.invalidateEigenvectorCaches();
+        return true;
+    }
 
     decodeBase64Bytes(base64Text) {
         if (typeof base64Text !== 'string') {
@@ -107553,6 +108267,9 @@ class PhononJson {
 
         for (let q=0; q<this.vec.length; q++) {
             let eivecq = this.vec[q];
+            if (!eivecq || !eivecq.length) {
+                continue;
+            }
             for (let n=0; n<eivecq.length; n++) {
                 let eivecqn = eivecq[n];
                 let modeNormSq = 0;
@@ -107579,6 +108296,215 @@ class PhononJson {
         }
     }
 
+    normalizeEigenvectorSet(eivecq) {
+        if (!eivecq || !eivecq.length) {
+            return;
+        }
+
+        for (let n=0; n<eivecq.length; n++) {
+            let eivecqn = eivecq[n];
+            let modeNormSq = 0;
+            for (let i=0; i<eivecqn.length; i++) {
+                modeNormSq += eivecqn[i][0][0] * eivecqn[i][0][0] + eivecqn[i][0][1] * eivecqn[i][0][1];
+                modeNormSq += eivecqn[i][1][0] * eivecqn[i][1][0] + eivecqn[i][1][1] * eivecqn[i][1][1];
+                modeNormSq += eivecqn[i][2][0] * eivecqn[i][2][0] + eivecqn[i][2][1] * eivecqn[i][2][1];
+            }
+
+            if (!(modeNormSq > 0)) {
+                continue;
+            }
+
+            let norm = 1.0 / Math.sqrt(modeNormSq);
+            for (let i=0; i<eivecqn.length; i++) {
+                eivecqn[i][0][0] *= norm;
+                eivecqn[i][1][0] *= norm;
+                eivecqn[i][2][0] *= norm;
+                eivecqn[i][0][1] *= norm;
+                eivecqn[i][1][1] *= norm;
+                eivecqn[i][2][1] *= norm;
+            }
+        }
+    }
+
+    invalidateEigenvectorCaches() {
+        this.atomTypeWeightsCache = null;
+    }
+
+    canComputeEigenvectorsOnDemand() {
+        return !!(
+            this.dynamical_matrix &&
+            this.dynamical_matrix.force_constants_compact &&
+            this.dynamical_matrix.shortest_vectors &&
+            this.dynamical_matrix.multiplicity &&
+            this.dynamical_matrix.s2pp_map &&
+            this.dynamical_matrix.primitive_lattice &&
+            (!this.dynamical_matrix.nac ||
+                (
+                    this.dynamical_matrix.nac.method === 'gonze' &&
+                    this.dynamical_matrix.nac.g_list &&
+                    this.dynamical_matrix.nac.positions_car &&
+                    this.dynamical_matrix.nac.dd_q0
+                )) &&
+            this.kpoints
+        );
+    }
+
+    getSegmentForQpoint(qIndex) {
+        if (!this.line_breaks) {
+            return null;
+        }
+        for (let i = 0; i < this.line_breaks.length; i++) {
+            let start = this.line_breaks[i][0];
+            let end = this.line_breaks[i][1];
+            if (qIndex >= start && qIndex < end) {
+                return [start, end];
+            }
+        }
+        return null;
+    }
+
+    getNacQDirection(qIndex) {
+        if (!this.dynamical_matrix || !this.dynamical_matrix.nac || !this.kpoints || !this.kpoints[qIndex]) {
+            return null;
+        }
+
+        let qpoint = this.kpoints[qIndex];
+        let qNormSq = qpoint[0] * qpoint[0] + qpoint[1] * qpoint[1] + qpoint[2] * qpoint[2];
+        if (qNormSq > 1e-16) {
+            return null;
+        }
+
+        let segment = this.getSegmentForQpoint(qIndex);
+        if (!segment) {
+            return null;
+        }
+
+        let start = segment[0];
+        let end = segment[1] - 1;
+        if (start < 0 || end < 0 || start >= this.kpoints.length || end >= this.kpoints.length) {
+            return null;
+        }
+
+        let startQ = this.kpoints[start];
+        let endQ = this.kpoints[end];
+        let direction = [
+            Number(startQ[0]) - Number(endQ[0]),
+            Number(startQ[1]) - Number(endQ[1]),
+            Number(startQ[2]) - Number(endQ[2]),
+        ];
+        let directionNormSq = direction[0] * direction[0] + direction[1] * direction[1] + direction[2] * direction[2];
+        if (directionNormSq > 1e-16) {
+            return direction;
+        }
+
+        if (qIndex > start) {
+            let previousQ = this.kpoints[qIndex - 1];
+            direction = [
+                Number(previousQ[0]) - Number(qpoint[0]),
+                Number(previousQ[1]) - Number(qpoint[1]),
+                Number(previousQ[2]) - Number(qpoint[2]),
+            ];
+            directionNormSq = direction[0] * direction[0] + direction[1] * direction[1] + direction[2] * direction[2];
+            if (directionNormSq > 1e-16) {
+                return direction;
+            }
+        }
+
+        if (qIndex + 1 < segment[1]) {
+            let nextQ = this.kpoints[qIndex + 1];
+            direction = [
+                Number(qpoint[0]) - Number(nextQ[0]),
+                Number(qpoint[1]) - Number(nextQ[1]),
+                Number(qpoint[2]) - Number(nextQ[2]),
+            ];
+            directionNormSq = direction[0] * direction[0] + direction[1] * direction[1] + direction[2] * direction[2];
+            if (directionNormSq > 1e-16) {
+                return direction;
+            }
+        }
+
+        return null;
+    }
+
+    convertComplexEigenvectorsToInternal(complexEigenvectors) {
+        let natoms = this.natoms;
+        let modes = [];
+        for (let modeIndex = 0; modeIndex < complexEigenvectors.length; modeIndex++) {
+            let vector = complexEigenvectors[modeIndex];
+            let atoms = [];
+            for (let atomIndex = 0; atomIndex < natoms; atomIndex++) {
+                atoms.push([
+                    [vector[atomIndex * 3 + 0][0], vector[atomIndex * 3 + 0][1]],
+                    [vector[atomIndex * 3 + 1][0], vector[atomIndex * 3 + 1][1]],
+                    [vector[atomIndex * 3 + 2][0], vector[atomIndex * 3 + 2][1]],
+                ]);
+            }
+            modes.push(atoms);
+        }
+        return modes;
+    }
+
+    applyModeAmplitudeConventionToEigenvectors(eivecq) {
+        if (
+            !eivecq ||
+            this.mode_amplitude_convention !== 'avg-mass-normalized' ||
+            !this.dynamical_matrix ||
+            !this.dynamical_matrix.masses
+        ) {
+            return eivecq;
+        }
+
+        let masses = this.dynamical_matrix.masses;
+        let averageMass = Number(this.average_mass);
+        if (!Number.isFinite(averageMass) || averageMass <= 0) {
+            return eivecq;
+        }
+
+        for (let modeIndex = 0; modeIndex < eivecq.length; modeIndex++) {
+            for (let atomIndex = 0; atomIndex < eivecq[modeIndex].length; atomIndex++) {
+                let atomMass = Number(masses[atomIndex]);
+                if (!Number.isFinite(atomMass) || atomMass <= 0) {
+                    continue;
+                }
+                let scale = Math.sqrt(averageMass / atomMass);
+                for (let axis = 0; axis < 3; axis++) {
+                    eivecq[modeIndex][atomIndex][axis][0] *= scale;
+                    eivecq[modeIndex][atomIndex][axis][1] *= scale;
+                }
+            }
+        }
+
+        return eivecq;
+    }
+
+    ensureQpointEigenvectors(qIndex) {
+        if (!this.vec || qIndex < 0 || qIndex >= this.vec.length) {
+            return false;
+        }
+        if (this.vec[qIndex] && this.vec[qIndex].length) {
+            return true;
+        }
+        if (!this.canComputeEigenvectorsOnDemand()) {
+            return false;
+        }
+        return false;
+    }
+
+    ensureAllEigenvectors() {
+        if (!this.vec || !this.vec.length) {
+            return false;
+        }
+
+        let changed = false;
+        for (let qIndex = 0; qIndex < this.vec.length; qIndex++) {
+            if (this.vec[qIndex] && this.vec[qIndex].length) {
+                continue;
+            }
+            changed = this.ensureQpointEigenvectors(qIndex) || changed;
+        }
+        return changed;
+    }
+
     static showCompressedLoadError(message) {
         if (PhononJson.lastCompressedLoadError === message) {
             return;
@@ -107598,7 +108524,7 @@ class PhononJson {
         }
 
         function onLoadEndHandler(text) {
-            this.getFromJson(text,callback);
+            this.getFromJson(text,callback,hooks);
         }
         hooks.onStart && hooks.onStart();
         let request;
@@ -107677,7 +108603,7 @@ class PhononJson {
                     return textPromise;
                 })
                 .then(function(text) {
-                    this.getFromString(text,callback);
+                    this.getFromString(text,callback,hooks);
                     hooks.onFinish && hooks.onFinish();
                 }.bind(this))
                 .catch(function(error) {
@@ -107722,16 +108648,16 @@ class PhononJson {
 
     }
 
-    getFromString(string,callback) {
+    getFromString(string,callback,hooks={}) {
         /*
         string is the content of the ".json" file as a string
         */
 
         let json = JSON.parse(string);
-        this.getFromJson(json,callback);
+        this.getFromJson(json,callback,hooks);
     }
 
-    getFromJson(json,callback) {
+    getFromJson(json,callback,hooks={}) {
         if (json.hasOwnProperty('@class')) {
             this.getFromPMGJson(json,callback);
         } else if (
@@ -107741,10 +108667,10 @@ class PhononJson {
             json.hasOwnProperty('structure')
         ) {
             this.getFromOpenDataJson(json,callback);
-        } else { this.getFromInternalJson(json,callback); }
+        } else { this.getFromInternalJson(json,callback,hooks); }
     }
 
-    getFromInternalJson(data,callback) {
+    getFromInternalJson(data,callback,hooks={}) {
         /*
         It was determined the json dictionary is the internal format
         */
@@ -107764,10 +108690,22 @@ class PhononJson {
         this.kpoints = data["qpoints"];
         this.distances = data["distances"];
         this.formula = data["formula"];
-        this.eigenvalues = data["eigenvalues"];
+        this.eigenvalues = data["eigenvalues"] || null;
+        this.stored_eigenvalues = data["eigenvalues"]
+            ? data["eigenvalues"].map((row) => row.slice())
+            : null;
         this.repetitions = data["repetitions"];
         this.average_mass = data["average_mass"];
         this.mode_amplitude_convention = data["mode_amplitude_convention"];
+        this.dynamical_matrix = data["dynamical_matrix"] || null;
+        this.masses = data["masses"] || (this.dynamical_matrix ? this.dynamical_matrix.masses : null);
+        if (this.dynamical_matrix && !this.dynamical_matrix.primitive_lattice && this.lat) {
+            this.dynamical_matrix.primitive_lattice = this.lat;
+        }
+
+        if (!this.vec && this.canComputeEigenvectorsOnDemand()) {
+            this.vec = new Array(this.kpoints.length).fill(null);
+        }
 
         //get qindex
         this.qindex = {};
@@ -107785,8 +108723,23 @@ class PhononJson {
         //get line breaks
         this.getLineBreaks(data);
 
-        this.normalizeEigenvectors();
-        callback();
+        let finalize = function() {
+            if (this.vec) {
+                this.normalizeEigenvectors();
+            }
+            this.invalidateEigenvectorCaches();
+            callback();
+        }.bind(this);
+
+        if (this.canComputeEigenvectorsOnDemand() && this.vec && this.vec.length && !this.vec[0]) {
+            this.computeAllRuntimeEigenvectorsWithBandConnectionAsync(function(progress) {
+                hooks.onComputeProgress && hooks.onComputeProgress(progress);
+            })
+                .finally(finalize);
+            return;
+        }
+
+        finalize();
     }
 
     parseOpenDataComplex(value) {
@@ -108573,6 +109526,9 @@ class PhononWebpage {
     }
 
     getModeMaxDisplacementNorm() {
+        if (!this.phonon || typeof this.phonon.ensureQpointEigenvectors === 'function') {
+            this.phonon && this.phonon.ensureQpointEigenvectors(this.k);
+        }
         if (!this.phonon || !this.phonon.vec || !this.phonon.vec[this.k] || !this.phonon.vec[this.k][this.n]) {
             return 0;
         }
@@ -108807,6 +109763,9 @@ class PhononWebpage {
             onProgress: function(progress) {
                 this.updateLoadingFeedback(progress);
             }.bind(this),
+            onComputeProgress: function(progress) {
+                this.updateLoadingFeedback(progress);
+            }.bind(this),
             onError: function(error) {
                 this.failLoadingFeedback(error);
             }.bind(this),
@@ -108850,7 +109809,10 @@ class PhononWebpage {
         }
 
         if (progressInfo && progressInfo.total) {
-            this.loadingState.progress = Math.max(0, Math.min(1, progressInfo.loaded / progressInfo.total));
+            let ratio = Math.max(0, Math.min(1, progressInfo.loaded / progressInfo.total));
+            this.loadingState.progress = progressInfo.phase === 'compute'
+                ? 0.7 + 0.3 * ratio
+                : 0.7 * ratio;
         } else if (progressInfo && progressInfo.loaded && !progressInfo.total) {
             this.loadingState.progress = null;
         }
@@ -109024,6 +109986,9 @@ class PhononWebpage {
         Calculate the vibration patterns for all the atoms
         */
         let phonon = this.phonon;
+        if (phonon && typeof phonon.ensureQpointEigenvectors === 'function') {
+            phonon.ensureQpointEigenvectors(this.k);
+        }
         let veckn = phonon.vec[this.k][this.n];
         let vibrations = [];
         let kpt = phonon.kpoints[this.k];
@@ -109127,6 +110092,9 @@ class PhononWebpage {
         this.k = Math.max(0, Math.min(limits.maxK, k));
         this.n = Math.max(0, Math.min(limits.maxN, n));
         this.updateModeSelectionInputs();
+        if (typeof this.phonon.ensureQpointEigenvectors === 'function') {
+            this.phonon.ensureQpointEigenvectors(this.k);
+        }
 
         this.setVibrations();
         this.syncVisualizerModeScaleDefaults(false);
@@ -109170,6 +110138,9 @@ class PhononWebpage {
         this.vibrations = this.getVibrations(this.nx,this.ny,this.nz);
         this.phonon.nndist = this.getBondingDistance();
         this.syncVisualizerModeScaleDefaults(!this.visualizer.modeScaleAutoInitialized);
+        if (typeof this.phonon.ensureQpointEigenvectors === 'function') {
+            this.phonon.ensureQpointEigenvectors(this.k);
+        }
 
         //update page
         this.updatePage();
