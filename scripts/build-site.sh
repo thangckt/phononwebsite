@@ -9,6 +9,10 @@ mkdir -p build/test
 
 python3 python/phononweb/scripts/render_homepage.py --output build/index.html
 
+if command -v emcc >/dev/null 2>&1; then
+  sh ./scripts/build-eigen-wasm.sh
+fi
+
 rollup -c
 
 terser build/main.js -c -m --source-map "content=build/main.js.map,url=main.min.js.map" -o build/main.min.js

@@ -26,6 +26,7 @@ if __package__ in (None, ""):
 from phononweb.jsonencoder import JsonEncoder
 from phononweb.lattice import red_car
 from phononweb.phonopyphonon import PhonopyPhonon
+from phononweb.runtime_dynamical_matrix import get_runtime_dynamical_matrix_payload
 from phononweb.units import atomic_numbers
 from phononweb.units import atomic_mass
 from phononweb.utils import estimate_band_connection
@@ -104,7 +105,7 @@ def parse_args():
     )
     parser.add_argument(
         "--vector-format",
-        choices=["json", "q11-int16-base64"],
+        choices=["json", "q11-int16-base64", "runtime"],
         default="q11-int16-base64",
         help="How eigenvectors are stored in the generated JSON payload.",
     )
@@ -283,6 +284,7 @@ def get_structure_metadata(phonopy_phonon):
         "atom_pos_car": atom_pos_car,
         "atom_numbers": [int(number) for number in atom_numbers_list],
         "atom_types": atom_types,
+        "masses": [float(mass) for mass in primitive.masses],
         "formula": formula,
     }
 
@@ -328,6 +330,7 @@ def convert_band_yaml_to_site_json(
         "repetitions": repetitions,
         "atom_pos_red": structure["atom_pos_red"],
         "atom_pos_car": structure["atom_pos_car"],
+        "masses": structure["masses"],
         "eigenvalues": [],
         "distances": [],
         "highsym_qpts": [],
@@ -482,8 +485,14 @@ def prepare_archive(
         apply_average_mass_normalization(payload)
         if vector_format == "json":
             quantize_payload(payload, vector_decimals)
-        else:
+        elif vector_format == "q11-int16-base64":
             encode_vectors_q11_int16_base64(payload)
+        else:
+            del payload["vectors"]
+
+        if vector_format == "runtime":
+            del payload["eigenvalues"]
+            payload["dynamical_matrix"] = get_runtime_dynamical_matrix_payload(phonopy_phonon.phonon)
 
         output_stem = choose_output_stem(archive_path, payload, name_mode)
         payload["name"] = payload["formula"]

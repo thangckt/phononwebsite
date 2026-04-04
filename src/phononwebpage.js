@@ -41,6 +41,9 @@ export class PhononWebpage {
     }
 
     getModeMaxDisplacementNorm() {
+        if (!this.phonon || typeof this.phonon.ensureQpointEigenvectors === 'function') {
+            this.phonon && this.phonon.ensureQpointEigenvectors(this.k);
+        }
         if (!this.phonon || !this.phonon.vec || !this.phonon.vec[this.k] || !this.phonon.vec[this.k][this.n]) {
             return 0;
         }
@@ -275,6 +278,9 @@ export class PhononWebpage {
             onProgress: function(progress) {
                 this.updateLoadingFeedback(progress);
             }.bind(this),
+            onComputeProgress: function(progress) {
+                this.updateLoadingFeedback(progress);
+            }.bind(this),
             onError: function(error) {
                 this.failLoadingFeedback(error);
             }.bind(this),
@@ -320,7 +326,10 @@ export class PhononWebpage {
         }
 
         if (progressInfo && progressInfo.total) {
-            this.loadingState.progress = Math.max(0, Math.min(1, progressInfo.loaded / progressInfo.total));
+            let ratio = Math.max(0, Math.min(1, progressInfo.loaded / progressInfo.total));
+            this.loadingState.progress = progressInfo.phase === 'compute'
+                ? 0.7 + 0.3 * ratio
+                : 0.7 * ratio;
         } else if (progressInfo && progressInfo.loaded && !progressInfo.total) {
             this.loadingState.progress = null;
         }
@@ -494,6 +503,9 @@ export class PhononWebpage {
         Calculate the vibration patterns for all the atoms
         */
         let phonon = this.phonon;
+        if (phonon && typeof phonon.ensureQpointEigenvectors === 'function') {
+            phonon.ensureQpointEigenvectors(this.k);
+        }
         let veckn = phonon.vec[this.k][this.n];
         let vibrations = [];
         let kpt = phonon.kpoints[this.k];
@@ -597,6 +609,9 @@ export class PhononWebpage {
         this.k = Math.max(0, Math.min(limits.maxK, k));
         this.n = Math.max(0, Math.min(limits.maxN, n));
         this.updateModeSelectionInputs();
+        if (typeof this.phonon.ensureQpointEigenvectors === 'function') {
+            this.phonon.ensureQpointEigenvectors(this.k);
+        }
 
         this.setVibrations();
         this.syncVisualizerModeScaleDefaults(false);
@@ -640,6 +655,9 @@ export class PhononWebpage {
         this.vibrations = this.getVibrations(this.nx,this.ny,this.nz);
         this.phonon.nndist = this.getBondingDistance();
         this.syncVisualizerModeScaleDefaults(!this.visualizer.modeScaleAutoInitialized);
+        if (typeof this.phonon.ensureQpointEigenvectors === 'function') {
+            this.phonon.ensureQpointEigenvectors(this.k);
+        }
 
         //update page
         this.updatePage();

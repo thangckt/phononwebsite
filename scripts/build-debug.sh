@@ -9,6 +9,10 @@ mkdir -p build
 
 python3 python/phononweb/scripts/render_homepage.py --output build/index.html
 
+if command -v emcc >/dev/null 2>&1; then
+  sh ./scripts/build-eigen-wasm.sh
+fi
+
 rollup -c
 
 cp -r figures css libs data README.md phonon.html exciton.html structure.html favicon.svg favicon.ico build/

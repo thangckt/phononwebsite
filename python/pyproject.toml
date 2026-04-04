@@ -25,6 +25,7 @@ read_anaddb_phonon = "phononweb.scripts.read_anaddb_phonon:main"
 read_vasp_phonon = "phononweb.scripts.read_vasp_phonon:main"
 phononwebsite = "phononweb.scripts.phononwebsite:main"
 prepare_phonondb = "phononweb.scripts.prepare_phonondb:main"
+export_phonopy_runtime = "phononweb.scripts.export_phonopy_runtime:main"
 
 [project.urls]
 "Homepage" = "https://henriquemiranda.github.io/phononwebsite/"

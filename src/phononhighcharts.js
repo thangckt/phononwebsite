@@ -178,6 +178,9 @@ export class PhononHighcharts {
     }
 
     ensureAtomTypeWeights(phonon) {
+        if (this.showModeWeights && phonon && typeof phonon.ensureAllEigenvectors === 'function') {
+            phonon.ensureAllEigenvectors();
+        }
         if (!phonon || !phonon.vec || !phonon.atom_numbers) {
             return { atomNumbers: [], weights: [] };
         }
@@ -197,6 +200,10 @@ export class PhononHighcharts {
 
         let weights = [];
         for (let k = 0; k < phonon.vec.length; k++) {
+            if (!phonon.vec[k] || !phonon.vec[k].length) {
+                weights.push([]);
+                continue;
+            }
             let qpointWeights = [];
             for (let n = 0; n < phonon.vec[k].length; n++) {
                 let mode = phonon.vec[k][n];

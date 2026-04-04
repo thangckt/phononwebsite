@@ -51,3 +51,36 @@ def test_prepare_archive_writes_compressed_internal_json(tmp_path):
     assert written['name'] == 'Si2'
     assert written['vectors_compressed']['format'] == 'q11-int16-base64'
     assert written['atom_pos_car'][1] != written['atom_pos_red'][1]
+
+
+def test_prepare_archive_runtime_mode_writes_dynamical_matrix_payload(tmp_path):
+    fixture_root = (
+        Path(__file__).resolve().parents[3]
+        / 'test'
+        / 'fixtures'
+        / 'phonondb'
+        / '2015'
+        / 'mp-149'
+        / 'gruneisen-00'
+    )
+
+    archive_path = tmp_path / 'mp-149.tar.lzma'
+    import tarfile
+    with tarfile.open(archive_path, mode='w:xz') as tf:
+        tf.add(fixture_root, arcname='mp-149')
+
+    payload, output_path = prepare_archive(
+        archive_path,
+        output_dir=tmp_path,
+        repetitions=[3, 3, 3],
+        band_points=21,
+        name_mode='mp-id',
+        vector_format='runtime',
+    )
+
+    assert output_path.exists()
+    assert 'vectors' not in payload
+    assert 'vectors_compressed' not in payload
+    assert 'eigenvalues' not in payload
+    assert payload['dynamical_matrix']['format'] == 'phonopy-dynamical-matrix-v1'
+    assert len(payload['dynamical_matrix']['masses']) == payload['natoms']
