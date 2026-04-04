@@ -36,9 +36,83 @@ function invert3x3(matrix) {
     ];
 }
 
+function cloneCompactForceConstants(forceConstants) {
+    let cloned = new Array(forceConstants.length);
+    for (let i = 0; i < forceConstants.length; i++) {
+        cloned[i] = new Array(forceConstants[i].length);
+        for (let j = 0; j < forceConstants[i].length; j++) {
+            cloned[i][j] = [
+                forceConstants[i][j][0].slice(),
+                forceConstants[i][j][1].slice(),
+                forceConstants[i][j][2].slice(),
+            ];
+        }
+    }
+    return cloned;
+}
+
+function imposeTranslationalInvariancePerIndex(forceConstants, index) {
+    let primaryLength = index === 0 ? forceConstants[0].length : forceConstants.length;
+    let correctionLength = index === 0 ? forceConstants.length : forceConstants[0].length;
+
+    for (let primaryIndex = 0; primaryIndex < primaryLength; primaryIndex++) {
+        for (let axisRow = 0; axisRow < 3; axisRow++) {
+            for (let axisCol = 0; axisCol < 3; axisCol++) {
+                let drift = 0;
+                for (let correctionIndex = 0; correctionIndex < correctionLength; correctionIndex++) {
+                    if (index === 0) {
+                        drift += forceConstants[correctionIndex][primaryIndex][axisRow][axisCol];
+                    } else {
+                        drift += forceConstants[primaryIndex][correctionIndex][axisRow][axisCol];
+                    }
+                }
+                drift /= correctionLength;
+                for (let correctionIndex = 0; correctionIndex < correctionLength; correctionIndex++) {
+                    if (index === 0) {
+                        forceConstants[correctionIndex][primaryIndex][axisRow][axisCol] -= drift;
+                    } else {
+                        forceConstants[primaryIndex][correctionIndex][axisRow][axisCol] -= drift;
+                    }
+                }
+            }
+        }
+    }
+}
+
+function getAcousticSumRuleMode(payload) {
+    if (!payload || payload.acoustic_sum_rule === false || payload.acoustic_sum_rule === 'off') {
+        return 'off';
+    }
+    if (typeof payload.acoustic_sum_rule === 'string') {
+        return payload.acoustic_sum_rule;
+    }
+    return payload && payload.format === 'phonopy-dynamical-matrix-v1'
+        ? 'translational'
+        : 'off';
+}
+
+export function getAsrCorrectedCompactForceConstants(payload) {
+    if (!payload || !payload.force_constants_compact) {
+        return null;
+    }
+    if (getAcousticSumRuleMode(payload) !== 'translational') {
+        return payload.force_constants_compact;
+    }
+    if (!payload._cached_asr_force_constants_compact) {
+        let corrected = cloneCompactForceConstants(payload.force_constants_compact);
+        // Compact force constants are stored as (primitive atom, supercell atom).
+        // The dominant translational drift relevant for matching the pre-generated
+        // path is along the supercell-atom index, which is the one directly used
+        // in the dynamical-matrix sum.
+        imposeTranslationalInvariancePerIndex(corrected, 1);
+        payload._cached_asr_force_constants_compact = corrected;
+    }
+    return payload._cached_asr_force_constants_compact;
+}
+
 export function buildDynamicalMatrixBlocks(payload, qpoint, qDirection = null) {
     let masses = payload.masses;
-    let forceConstants = payload.force_constants_compact;
+    let forceConstants = getAsrCorrectedCompactForceConstants(payload);
     let shortestVectors = payload.shortest_vectors;
     let multiplicity = payload.multiplicity;
     let s2ppMap = payload.s2pp_map;
@@ -95,9 +169,6 @@ export function buildDynamicalMatrixBlocks(payload, qpoint, qDirection = null) {
                 for (let axisRow = 0; axisRow < 3; axisRow++) {
                     for (let axisCol = 0; axisCol < 3; axisCol++) {
                         let value = fcBlock[axisRow][axisCol];
-                        if (nacCorrection) {
-                            value += nacCorrection[i][s2ppMap[superIndex]][axisRow][axisCol][0] / primitiveToSupercellRatio;
-                        }
                         value *= factor;
                         blockReal[axisRow][axisCol] += value * phaseReal;
                         blockImag[axisRow][axisCol] += value * phaseImag;

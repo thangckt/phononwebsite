@@ -1,8 +1,7 @@
 export class LocalPhononDB {
     /*
     Interact with locally generated PhononDB materials stored in data/phonondb2017.
-    The visible list comes from the historical PhononDB 2018 catalog, but only
-    entries with locally generated files are exposed in the menu.
+    The visible list comes directly from the generated models manifests.
     */
 
     constructor() {
@@ -10,7 +9,6 @@ export class LocalPhononDB {
         this.author = "A. Togo";
         this.year = 2018;
         this.url = "https://github.com/atztogo/phonondb";
-        this.catalog = "data/phonondb2017/catalog.json";
         this.generated = "data/phonondb2017/models.json";
         this.root = "data/phonondb2017";
     }
@@ -18,8 +16,8 @@ export class LocalPhononDB {
     get_materials(callback) {
         let reference = this.author + ", " + "<a href=" + this.url + ">" + this.name + "</a> (" + this.year + ")";
         let name = this.name;
-        let root = this.root;
         let generated = this.generated;
+        let root = this.root;
         let finishEmpty = function() {
             callback([]);
         };
@@ -47,71 +45,75 @@ export class LocalPhononDB {
             return 'mp-' + normalizedId + '.json.gz';
         };
 
-        function dothings(catalog) {
+        let loadGeneratedEntries = function(onDone) {
+            let localById = {};
             let request;
             try {
                 request = $.get(generated, function(localEntries) {
-                let localById = {};
-                for (let i = 0; i < localEntries.length; i++) {
-                    let entry = localEntries[i];
-                    if (typeof entry === "string") {
-                        let id = normalizeMaterialId(entry);
-                        localById[id] = {
-                            id: id,
-                            file: normalizeMaterialFile(entry, id)
-                        };
-                    } else if (entry && entry.id != null) {
-                        let id = normalizeMaterialId(entry.id);
-                        localById[id] = Object.assign({
-                            id: id,
-                            file: normalizeMaterialFile(entry.file || entry.id, id)
-                        }, entry);
+                    for (let i = 0; i < localEntries.length; i++) {
+                        let entry = localEntries[i];
+                        if (typeof entry === "string") {
+                            let id = normalizeMaterialId(entry);
+                            localById[id] = {
+                                id: id,
+                                file: normalizeMaterialFile(entry, id),
+                                root: root,
+                            };
+                        } else if (entry && entry.id != null) {
+                            let id = normalizeMaterialId(entry.id);
+                            localById[id] = Object.assign({
+                                id: id,
+                                file: normalizeMaterialFile(entry.file || entry.id, id),
+                                root: root,
+                            }, entry);
+                        }
                     }
-                }
-
-                let materials = [];
-                for (let i = 0; i < catalog.length; i++) {
-                    let catalogEntry = catalog[i];
-                    let localEntry = localById[normalizeMaterialId(catalogEntry.id)];
-                    if (!localEntry) {
-                        continue;
-                    }
-
-                    let m = Object.assign({}, catalogEntry, localEntry);
-                    m.source = name;
-                    m.type = "json";
-                    m.reference = reference;
-                    m.url = root + "/" + m.file;
-                    m.link = catalogEntry.url || m.link || ("https://materialsproject.org/materials/mp-" + m.id);
-                    materials.push(m);
-                }
-
-                callback(materials);
+                    onDone(localById);
                 });
             } catch (error) {
-                finishEmpty();
+                onDone(localById);
                 return;
             }
 
             if (request && typeof request.fail === "function") {
                 request.fail(function() {
-                    finishEmpty();
+                    onDone(localById);
                 });
             }
-        }
+        };
 
-        let request;
-        try {
-            request = $.get(this.catalog, dothings);
-        } catch (error) {
-            finishEmpty();
-            return;
-        }
+        loadGeneratedEntries(function(localById) {
+            let materialIds = Object.keys(localById);
+            if (!materialIds.length) {
+                callback([]);
+                return;
+            }
 
-        if (request && typeof request.fail === "function") {
-            request.fail(function() {
-                finishEmpty();
+            materialIds.sort(function(left, right) {
+                let leftValue = Number(left);
+                let rightValue = Number(right);
+                if (Number.isFinite(leftValue) && Number.isFinite(rightValue)) {
+                    return leftValue - rightValue;
+                }
+                return left.localeCompare(right);
             });
-        }
+
+            let materials = [];
+            for (let i = 0; i < materialIds.length; i++) {
+                let id = materialIds[i];
+                let localEntry = localById[id];
+                let m = Object.assign({}, localEntry);
+                m.id = localEntry.id != null ? localEntry.id : id;
+                m.name = localEntry.name || localEntry.formula || ('mp-' + id);
+                m.source = name;
+                m.type = "json";
+                m.reference = reference;
+                m.url = (m.root || "") + "/" + m.file;
+                m.link = m.link || ("https://materialsproject.org/materials/mp-" + m.id);
+                materials.push(m);
+            }
+
+            callback(materials);
+        });
     }
 }

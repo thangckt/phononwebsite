@@ -41,6 +41,7 @@ describe('PhononJson runtime eigenvectors', () => {
         line_breaks: [[0, 1]],
         dynamical_matrix: {
           format: 'phonopy-dynamical-matrix-v1',
+          acoustic_sum_rule: 'off',
           primitive_natoms: 1,
           supercell_natoms: 1,
           primitive_lattice: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
@@ -155,6 +156,7 @@ describe('PhononJson runtime eigenvectors', () => {
         line_breaks: [[0, 2]],
         dynamical_matrix: {
           format: 'phonopy-dynamical-matrix-v1',
+          acoustic_sum_rule: 'off',
           primitive_natoms: 1,
           supercell_natoms: 1,
           primitive_lattice: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],

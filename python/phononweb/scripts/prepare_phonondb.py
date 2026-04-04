@@ -27,7 +27,10 @@ if __package__ in (None, ""):
 from phononweb.jsonencoder import JsonEncoder
 from phononweb.lattice import red_car
 from phononweb.phonopyphonon import PhonopyPhonon
-from phononweb.runtime_dynamical_matrix import get_runtime_dynamical_matrix_payload
+from phononweb.runtime_dynamical_matrix import (
+    get_runtime_dynamical_matrix_payload,
+    prepare_phonon_for_runtime_export,
+)
 from phononweb.units import atomic_numbers
 from phononweb.units import atomic_mass
 from phononweb.utils import estimate_band_connection
@@ -532,6 +535,7 @@ def prepare_archive(
         structure = get_structure_metadata(phonopy_phonon)
 
         if vector_format == "runtime":
+            runtime_phonon = prepare_phonon_for_runtime_export(phonopy_phonon.phonon)
             payload = convert_seekpath_bands_to_runtime_json(
                 phonopy_phonon,
                 structure=structure,
@@ -539,7 +543,7 @@ def prepare_archive(
                 archive_path=archive_path,
                 name_mode=name_mode,
             )
-            payload["dynamical_matrix"] = get_runtime_dynamical_matrix_payload(phonopy_phonon.phonon)
+            payload["dynamical_matrix"] = get_runtime_dynamical_matrix_payload(runtime_phonon)
         else:
             phonopy_phonon.get_bandstructure(is_eigenvectors=True, is_band_connection=True)
             band_yaml_path = tmpdir / "band.yaml"

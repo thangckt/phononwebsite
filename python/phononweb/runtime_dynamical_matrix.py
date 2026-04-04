@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+
 import numpy as np
 
 from phononweb.lattice import red_car
@@ -70,6 +72,22 @@ def get_primitive_structure_payload(phonon):
         "atom_types": symbols,
         "masses": masses,
     }
+
+
+def prepare_phonon_for_runtime_export(phonon, symmetrize_force_constants=True):
+    """Return a phonopy object prepared for runtime export.
+
+    Runtime payloads benefit from phonopy's stronger force-constant
+    symmetrization. Work on a copy so the caller's phonon object keeps its
+    original state for any other export path.
+    """
+
+    if not symmetrize_force_constants or not hasattr(phonon, "symmetrize_force_constants"):
+        return phonon
+
+    runtime_phonon = copy.deepcopy(phonon)
+    runtime_phonon.symmetrize_force_constants(show_drift=False)
+    return runtime_phonon
 
 
 def get_runtime_dynamical_matrix_payload(phonon):
@@ -148,6 +166,7 @@ def get_runtime_dynamical_matrix_payload(phonon):
 
     payload = {
         "format": "phonopy-dynamical-matrix-v1",
+        "acoustic_sum_rule": "off",
         "primitive_natoms": int(len(primitive)),
         "supercell_natoms": int(len(supercell)),
         "primitive_lattice": primitive_lattice,
